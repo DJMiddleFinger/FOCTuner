@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- STMicroelectronics: VESC controllers (STM32 USB CDC) -->
+    <usb-device vendor-id="1155" />
+    <!-- Espressif: VESC Express native USB -->
+    <usb-device vendor-id="12346" />
+</resources>
