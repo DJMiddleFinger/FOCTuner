@@ -14,6 +14,11 @@ fun Float.fixed(decimals: Int): String {
     return String.format(Locale.getDefault(), "%.${decimals}f", this).withMinus()
 }
 
+fun Double.fixed(decimals: Int): String {
+    if (isNaN() || isInfinite()) return NO_VALUE
+    return String.format(Locale.getDefault(), "%.${decimals}f", this).withMinus()
+}
+
 /** Whole number with locale digit grouping, e.g. ERPM. */
 fun Float.grouped(): String {
     if (isNaN() || isInfinite()) return NO_VALUE

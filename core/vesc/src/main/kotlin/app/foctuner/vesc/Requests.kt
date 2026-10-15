@@ -1,12 +1,19 @@
 package app.foctuner.vesc
 
+import app.foctuner.config.ConfigKind
 import app.foctuner.protocol.ByteWriter
 import app.foctuner.protocol.CommPacketId
 import app.foctuner.protocol.CommPacketId.COMM_ALIVE
 import app.foctuner.protocol.CommPacketId.COMM_FORWARD_CAN
 import app.foctuner.protocol.CommPacketId.COMM_FW_VERSION
+import app.foctuner.protocol.CommPacketId.COMM_GET_APPCONF
+import app.foctuner.protocol.CommPacketId.COMM_GET_APPCONF_DEFAULT
+import app.foctuner.protocol.CommPacketId.COMM_GET_MCCONF
+import app.foctuner.protocol.CommPacketId.COMM_GET_MCCONF_DEFAULT
 import app.foctuner.protocol.CommPacketId.COMM_GET_VALUES
 import app.foctuner.protocol.CommPacketId.COMM_PING_CAN
+import app.foctuner.protocol.CommPacketId.COMM_SET_APPCONF
+import app.foctuner.protocol.CommPacketId.COMM_SET_MCCONF
 import app.foctuner.protocol.CommPacketId.COMM_SET_CURRENT
 import app.foctuner.protocol.CommPacketId.COMM_SET_CURRENT_BRAKE
 import app.foctuner.protocol.CommPacketId.COMM_SET_DUTY
@@ -47,9 +54,21 @@ internal object Requests {
     /** [erpm] is electrical RPM: mechanical RPM times the motor's pole pairs. */
     fun rpm(erpm: Int) = ByteWriter().u8(COMM_SET_RPM.id).i32(erpm).toByteArray()
 
+    /** The command that reads [kind] (or its firmware defaults); the reply has the same id. */
+    fun readConfigId(kind: ConfigKind, defaults: Boolean): CommPacketId = when (kind) {
+        ConfigKind.MCCONF -> if (defaults) COMM_GET_MCCONF_DEFAULT else COMM_GET_MCCONF
+        ConfigKind.APPCONF -> if (defaults) COMM_GET_APPCONF_DEFAULT else COMM_GET_APPCONF
+    }
+
+    /** The command that stores [kind]; the firmware acknowledges with an empty packet of the same id. */
+    fun writeConfigId(kind: ConfigKind): CommPacketId = when (kind) {
+        ConfigKind.MCCONF -> COMM_SET_MCCONF
+        ConfigKind.APPCONF -> COMM_SET_APPCONF
+    }
+
     /** Sends [payload] to CAN controller [canId] instead of the one we are connected to. */
     fun forwarded(canId: Int?, payload: ByteArray): ByteArray =
         if (canId == null) payload else ByteWriter().u8(COMM_FORWARD_CAN.id).u8(canId).bytes(payload).toByteArray()
 
-    private fun bare(id: CommPacketId) = byteArrayOf(id.id.toByte())
+    fun bare(id: CommPacketId) = byteArrayOf(id.id.toByte())
 }

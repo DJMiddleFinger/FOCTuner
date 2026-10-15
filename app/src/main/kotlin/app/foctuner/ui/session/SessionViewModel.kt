@@ -8,6 +8,7 @@ import app.foctuner.transport.Transport
 import app.foctuner.ui.controllers.CanDevice
 import app.foctuner.ui.controllers.ControllersState
 import app.foctuner.ui.overview.OverviewState
+import app.foctuner.ui.settings.SettingsModel
 import app.foctuner.ui.shell.SessionHeaderState
 import app.foctuner.ui.terminal.LineKind
 import app.foctuner.ui.terminal.TerminalLine
@@ -81,6 +82,14 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
+    /** The selected controller's motor and app settings. */
+    val settings = SettingsModel(
+        viewModelScope,
+        controller = { session.value?.let(::target) },
+        firmware = { session.value?.info?.version },
+        string = { id, args -> string(id, *args) },
+    )
+
     private var nextLineId = 0L
 
     /** Opens the link, checks a controller answers, then makes it the current session. */
@@ -114,6 +123,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     fun disconnect() {
         val active = session.value ?: return
         session.value = null
+        settings.reset()
         viewModelScope.launch {
             active.client.close()
             active.scope.cancel()
@@ -167,12 +177,14 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun select(device: CanDevice) {
+        if ((if (device.local) null else device.canId) != selectedCanId.value) settings.reset()
         selectedCanId.value = if (device.local) null else device.canId
         _controllers.update { it.copy(selectedCanId = device.canId) }
     }
 
     private fun begin(active: Active, demo: Boolean) {
         selectedCanId.value = null
+        settings.reset()
         _overview.value = null
         _terminal.value = TerminalState()
         _controllers.value = ControllersState()

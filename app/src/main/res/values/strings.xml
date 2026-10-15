@@ -52,6 +52,39 @@
     <string name="nav_overview">Overview</string>
     <string name="nav_terminal">Terminal</string>
     <string name="nav_controllers">Controllers</string>
+    <string name="nav_settings">Settings</string>
+
+    <string name="settings_motor">Motor</string>
+    <string name="settings_app">App</string>
+    <string name="settings_read">Read</string>
+    <string name="settings_read_again">Read again</string>
+    <string name="settings_defaults">Defaults</string>
+    <string name="settings_revert">Revert</string>
+    <string name="settings_write">Write</string>
+    <string name="settings_write_count">Write (%1$d)</string>
+    <string name="settings_back">Back</string>
+    <string name="settings_reading">Reading settings from the controller…</string>
+    <string name="settings_not_read">Settings have not been read yet.</string>
+    <string name="settings_not_on_controller">Kept in the app only, not stored on the controller</string>
+    <string name="settings_set">Set</string>
+    <string name="settings_cancel">Cancel</string>
+    <string name="settings_on">On</string>
+    <string name="settings_off">Off</string>
+    <string name="settings_none">None</string>
+    <string name="settings_range">Allowed %1$s to %2$s</string>
+    <string name="settings_invalid_number">Enter a number</string>
+    <string name="settings_on_controller">On the controller: %1$s</string>
+    <string name="settings_error_layout">Firmware %1$s stores its settings in a different layout than the %2$s definitions in this app. Reading and writing settings is blocked so nothing gets corrupted.</string>
+    <string name="settings_error_no_reply">The controller didn\'t answer. Check the connection and read again.</string>
+    <string name="settings_error_invalid">%1$s is outside its allowed range. Fix it before writing.</string>
+    <plurals name="settings_count">
+        <item quantity="one">%d setting</item>
+        <item quantity="other">%d settings</item>
+    </plurals>
+    <plurals name="settings_changed">
+        <item quantity="one">%d changed</item>
+        <item quantity="other">%d changed</item>
+    </plurals>
 
     <string name="overview_section_battery">Battery</string>
     <string name="overview_section_motor">Motor</string>

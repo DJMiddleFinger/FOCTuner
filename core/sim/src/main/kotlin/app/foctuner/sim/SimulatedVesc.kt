@@ -1,14 +1,25 @@
 package app.foctuner.sim
 
+import app.foctuner.config.BundledDefinitions
+import app.foctuner.config.Config
+import app.foctuner.config.ConfigCodec
+import app.foctuner.config.ConfigKind
+import app.foctuner.config.PayloadException
 import app.foctuner.protocol.ByteReader
 import app.foctuner.protocol.ByteWriter
 import app.foctuner.protocol.CommPacketId
 import app.foctuner.protocol.CommPacketId.COMM_ALIVE
 import app.foctuner.protocol.CommPacketId.COMM_FORWARD_CAN
 import app.foctuner.protocol.CommPacketId.COMM_FW_VERSION
+import app.foctuner.protocol.CommPacketId.COMM_GET_APPCONF
+import app.foctuner.protocol.CommPacketId.COMM_GET_APPCONF_DEFAULT
+import app.foctuner.protocol.CommPacketId.COMM_GET_MCCONF
+import app.foctuner.protocol.CommPacketId.COMM_GET_MCCONF_DEFAULT
 import app.foctuner.protocol.CommPacketId.COMM_GET_VALUES
 import app.foctuner.protocol.CommPacketId.COMM_PING_CAN
 import app.foctuner.protocol.CommPacketId.COMM_PRINT
+import app.foctuner.protocol.CommPacketId.COMM_SET_APPCONF
+import app.foctuner.protocol.CommPacketId.COMM_SET_MCCONF
 import app.foctuner.protocol.CommPacketId.COMM_SET_CURRENT
 import app.foctuner.protocol.CommPacketId.COMM_SET_CURRENT_BRAKE
 import app.foctuner.protocol.CommPacketId.COMM_SET_DUTY
@@ -35,7 +46,8 @@ import kotlin.time.TimeSource
  * Forwarding to any other id goes nowhere, so the request times out.
  *
  * Supports COMM_FW_VERSION, COMM_GET_VALUES, the four motor commands, COMM_ALIVE, COMM_TERMINAL_CMD,
- * COMM_PING_CAN and COMM_FORWARD_CAN; other commands are ignored like unknown ones in the firmware.
+ * COMM_PING_CAN, COMM_FORWARD_CAN and reading and writing the motor and app config (7.01 layout, starting
+ * from the defaults); other commands are ignored like unknown ones in the firmware.
  *
  * Time comes from [timeSource] and is applied lazily when a request arrives, so the simulation costs nothing
  * while idle and runs on virtual time when given a test scope's time source. Like the firmware, motors
@@ -71,6 +83,9 @@ class SimulatedVesc(
     private var lastCommand = Duration.ZERO
     private var timedOut = false
     private var closed = false
+
+    /** Each motor's stored configs in wire form, created on first use (parsing the definitions is slow). */
+    private val configs = HashMap<Pair<MotorModel, ConfigKind>, ByteArray>()
 
     override suspend fun write(bytes: ByteArray) {
         synchronized(lock) {
@@ -113,6 +128,12 @@ class SimulatedVesc(
             COMM_TERMINAL_CMD -> terminal(r.restBytes().toString(Charsets.ISO_8859_1), motor)
             COMM_PING_CAN -> reply(pingReply())
             COMM_FORWARD_CAN -> forward(packet)
+            COMM_GET_MCCONF -> reply(byteArrayOf(packet[0]) + storedConfig(motor, ConfigKind.MCCONF))
+            COMM_GET_APPCONF -> reply(byteArrayOf(packet[0]) + storedConfig(motor, ConfigKind.APPCONF))
+            COMM_GET_MCCONF_DEFAULT -> reply(byteArrayOf(packet[0]) + defaultConfig(motor, ConfigKind.MCCONF))
+            COMM_GET_APPCONF_DEFAULT -> reply(byteArrayOf(packet[0]) + defaultConfig(motor, ConfigKind.APPCONF))
+            COMM_SET_MCCONF -> storeConfig(motor, ConfigKind.MCCONF, packet)
+            COMM_SET_APPCONF -> storeConfig(motor, ConfigKind.APPCONF, packet)
             else -> Unit
         }
     }
@@ -122,6 +143,28 @@ class SimulatedVesc(
         if (packet.size < 3) return
         val target = motorFor(packet[1].toInt() and 0xFF) ?: return
         handle(packet.copyOfRange(2, packet.size), target)
+    }
+
+    private fun storedConfig(motor: MotorModel, kind: ConfigKind): ByteArray =
+        configs.getOrPut(motor to kind) { defaultConfig(motor, kind) }
+
+    private fun defaultConfig(motor: MotorModel, kind: ConfigKind): ByteArray {
+        val defaults = Config.defaults(BundledDefinitions.load(CONFIG_VERSION, kind))
+        val id = if (motor === second) controllerId + 1 else controllerId
+        return ConfigCodec.serialize(if (kind == ConfigKind.APPCONF) defaults.with("controller_id", id.toLong()) else defaults)
+    }
+
+    /** Like the firmware, a config with another layout is not stored and gets a printed warning instead of a reply. */
+    private fun storeConfig(motor: MotorModel, kind: ConfigKind, packet: ByteArray) {
+        val payload = packet.copyOfRange(1, packet.size)
+        try {
+            ConfigCodec.deserialize(BundledDefinitions.load(CONFIG_VERSION, kind), payload)
+        } catch (e: PayloadException) {
+            print("Warning: Could not set ${kind.name.lowercase()} due to wrong signature")
+            return
+        }
+        configs[motor to kind] = payload
+        reply(byteArrayOf(packet[0]))
     }
 
     private fun pingReply(): ByteArray {
@@ -226,9 +269,11 @@ class SimulatedVesc(
             uptime = started.elapsedNow(),
             odometerMeters = (motor.tachometerAbs / TACHOMETER_STEPS_PER_METER).toInt(),
         )
-        for (line in TerminalReplies.run(command, context)) {
-            reply(ByteWriter().u8(COMM_PRINT.id).bytes(line.toByteArray(Charsets.ISO_8859_1)).toByteArray())
-        }
+        TerminalReplies.run(command, context).forEach(::print)
+    }
+
+    private fun print(line: String) {
+        reply(ByteWriter().u8(COMM_PRINT.id).bytes(line.toByteArray(Charsets.ISO_8859_1)).toByteArray())
     }
 
     private fun reply(payload: ByteArray) {
@@ -244,6 +289,7 @@ class SimulatedVesc(
     private companion object {
         const val FIRMWARE_MAJOR = 7
         const val FIRMWARE_MINOR = 1
+        const val CONFIG_VERSION = "7.01"
         const val HARDWARE_CRC = 0x5E7A11C2L
         val UUID = "SIMULATEDVSC".toByteArray(Charsets.US_ASCII)
         const val MIN_CURRENT = 0.05f

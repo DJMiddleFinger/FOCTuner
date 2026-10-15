@@ -33,6 +33,12 @@ data class VescClientOptions(
      */
     val terminalQuietPeriod: Duration = 250.milliseconds,
 
+    /**
+     * How long to wait for a config write to be acknowledged. The firmware stores the config in flash
+     * (erasing a sector takes up to about 2 s on the STM32F4) and then waits 200 ms before it answers.
+     */
+    val configWriteTimeout: Duration = 5.seconds,
+
     /** Upper bound for releasing motors and closing the transport when the client shuts down. */
     val shutdownTimeout: Duration = 1.seconds,
 )

@@ -29,6 +29,7 @@ import app.foctuner.ui.connect.toLinkKind
 import app.foctuner.ui.controllers.ControllersScreen
 import app.foctuner.ui.overview.OverviewScreen
 import app.foctuner.ui.session.SessionViewModel
+import app.foctuner.ui.settings.SettingsScreen
 import app.foctuner.ui.shell.ConnectedShell
 import app.foctuner.ui.shell.Destination
 import app.foctuner.ui.terminal.TerminalScreen
@@ -87,6 +88,7 @@ private fun ConnectedRoute(session: SessionViewModel) {
     val overview by session.overview.collectAsStateWithLifecycle()
     val terminal by session.terminal.collectAsStateWithLifecycle()
     val controllers by session.controllers.collectAsStateWithLifecycle()
+    val settings by session.settings.state.collectAsStateWithLifecycle()
     var destination by rememberSaveable { mutableStateOf(Destination.Overview) }
 
     BackHandler {
@@ -98,6 +100,7 @@ private fun ConnectedRoute(session: SessionViewModel) {
         when (shown) {
             Destination.Overview -> overview?.let { OverviewScreen(it) }
                 ?: Box(Modifier.fillMaxSize().background(FocTheme.colors.background))
+            Destination.Settings -> SettingsScreen(settings, session.settings)
             Destination.Terminal -> TerminalScreen(terminal, session::onTerminalInput, session::sendCommand, session::clearTerminal)
             Destination.Controllers -> ControllersScreen(controllers, session::select, session::scanCan)
         }
