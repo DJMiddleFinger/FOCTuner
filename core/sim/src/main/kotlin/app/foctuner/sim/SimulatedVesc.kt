@@ -17,6 +17,13 @@ import app.foctuner.protocol.CommPacketId.COMM_GET_MCCONF
 import app.foctuner.protocol.CommPacketId.COMM_GET_MCCONF_DEFAULT
 import app.foctuner.protocol.CommPacketId.COMM_GET_STATS
 import app.foctuner.protocol.CommPacketId.COMM_GET_VALUES
+import app.foctuner.protocol.CommPacketId.COMM_LISP_ERASE_CODE
+import app.foctuner.protocol.CommPacketId.COMM_LISP_GET_STATS
+import app.foctuner.protocol.CommPacketId.COMM_LISP_READ_CODE
+import app.foctuner.protocol.CommPacketId.COMM_LISP_REPL_CMD
+import app.foctuner.protocol.CommPacketId.COMM_LISP_SET_RUNNING
+import app.foctuner.protocol.CommPacketId.COMM_LISP_STREAM_CODE
+import app.foctuner.protocol.CommPacketId.COMM_LISP_WRITE_CODE
 import app.foctuner.protocol.CommPacketId.COMM_PING_CAN
 import app.foctuner.protocol.CommPacketId.COMM_PRINT
 import app.foctuner.protocol.CommPacketId.COMM_RESET_STATS
@@ -49,7 +56,8 @@ import kotlin.time.TimeSource
  *
  * Supports COMM_FW_VERSION, COMM_GET_VALUES, the four motor commands, COMM_ALIVE, COMM_TERMINAL_CMD,
  * COMM_PING_CAN, COMM_FORWARD_CAN, COMM_GET_STATS / COMM_RESET_STATS and reading and writing the motor and app config (7.01 layout, starting
- * from the defaults); other commands are ignored like unknown ones in the firmware.
+ * from the defaults), and LispBM (COMM_LISP_ERASE_CODE / WRITE_CODE / READ_CODE / SET_RUNNING / GET_STATS / REPL_CMD /
+ * STREAM_CODE, printing with COMM_LISP_PRINT, see [LispSim]); other commands are ignored like unknown ones in the firmware.
  *
  * Time comes from [timeSource] and is applied lazily when a request arrives, so the simulation costs nothing
  * while idle and runs on virtual time when given a test scope's time source. Like the firmware, motors
@@ -91,6 +99,8 @@ class SimulatedVesc(
 
     /** Each motor's stored configs in wire form, created on first use (parsing the definitions is slow). */
     private val configs = HashMap<Pair<MotorModel, ConfigKind>, ByteArray>()
+
+    private val lisp = LispSim(this)
 
     override suspend fun write(bytes: ByteArray) {
         synchronized(lock) {
@@ -144,6 +154,13 @@ class SimulatedVesc(
                 motor.stats.reset()
                 if (packet.size > 1 && packet[1].toInt() != 0) reply(byteArrayOf(packet[0]))
             }
+            COMM_LISP_ERASE_CODE -> lisp.erase()
+            COMM_LISP_WRITE_CODE -> lisp.write(r)
+            COMM_LISP_READ_CODE -> lisp.read(r)
+            COMM_LISP_SET_RUNNING -> lisp.setRunning(r)
+            COMM_LISP_GET_STATS -> lisp.stats(r)
+            COMM_LISP_REPL_CMD -> lisp.repl(r)
+            COMM_LISP_STREAM_CODE -> lisp.stream(r)
             else -> Unit
         }
     }
