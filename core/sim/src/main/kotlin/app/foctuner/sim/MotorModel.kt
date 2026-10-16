@@ -11,6 +11,8 @@ internal sealed interface Drive {
     data class Brake(val amps: Float) : Drive
     data class Duty(val duty: Float) : Drive
     data class Speed(val erpm: Float) : Drive
+    data class Position(val degrees: Float) : Drive
+    data class Handbrake(val amps: Float) : Drive
 }
 
 /** A 12S pack: open-circuit voltage follows the charge, and the terminal voltage sags with current drawn. */
@@ -58,6 +60,10 @@ internal class MotorModel {
     var tachometerAbs = 0.0
         private set
 
+    /** Mechanical rotor angle in degrees, 0..360, as the position PID sees it. */
+    var angle = 0f
+        private set
+
     val stats = RideStatsModel()
 
     /** Advances by [dt] seconds with the battery at [voltage]. */
@@ -69,6 +75,11 @@ internal class MotorModel {
             is Drive.Brake -> if (abs(erpm) < MIN_BRAKE_ERPM) 0f else -sign(erpm) * abs(d.amps)
             is Drive.Duty -> (d.duty * noLoadErpm - erpm) * SPEED_GAIN
             is Drive.Speed -> (d.erpm - erpm) * SPEED_GAIN
+            is Drive.Position -> {
+                val target = (angleError(d.degrees) * POSITION_GAIN).coerceIn(-POSITION_MAX_ERPM, POSITION_MAX_ERPM)
+                ((target - erpm) * SPEED_GAIN).coerceIn(-POSITION_CURRENT_LIMIT, POSITION_CURRENT_LIMIT)
+            }
+            is Drive.Handbrake -> (-erpm * HANDBRAKE_GAIN).coerceIn(-abs(d.amps), abs(d.amps))
         }.coerceIn(-CURRENT_LIMIT, CURRENT_LIMIT)
         current += (target - current) * (1f - exp(-dt / CURRENT_TAU))
 
@@ -93,6 +104,7 @@ internal class MotorModel {
             wattHoursCharged -= inputCurrent * voltage * hours
         }
         val steps = erpm * STEPS_PER_ELECTRICAL_REV / 60.0 * dt
+        angle = ((angle + erpm / POLE_PAIRS / 60f * 360f * dt) % 360f + 360f) % 360f
         tachometer += steps
         tachometerAbs += abs(steps)
 
@@ -100,6 +112,9 @@ internal class MotorModel {
         tempFet += (AMBIENT + FET_HEATING * current * current - tempFet) * (1f - exp(-dt / FET_TAU))
         tempMotor += (AMBIENT + MOTOR_HEATING * current * current - tempMotor) * (1f - exp(-dt / MOTOR_TAU))
     }
+
+    /** Shortest way from the rotor angle to [target], -180..180 degrees. */
+    fun angleError(target: Float): Float = ((target - angle) % 360f + 540f) % 360f - 180f
 
     private companion object {
         const val AMBIENT = 25f
@@ -114,6 +129,11 @@ internal class MotorModel {
         const val MIN_BRAKE_ERPM = 50f
         const val PHASE_RESISTANCE = 0.03f
         const val STEPS_PER_ELECTRICAL_REV = 6
+        const val POLE_PAIRS = 7f
+        const val POSITION_GAIN = 2f
+        const val POSITION_MAX_ERPM = 2000f
+        const val POSITION_CURRENT_LIMIT = 20f
+        const val HANDBRAKE_GAIN = 0.2f
         const val FET_HEATING = 0.010f
         const val MOTOR_HEATING = 0.020f
         const val FET_TAU = 30f

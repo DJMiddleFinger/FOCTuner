@@ -9,6 +9,12 @@ import app.foctuner.protocol.ByteReader
 import app.foctuner.protocol.ByteWriter
 import app.foctuner.protocol.CommPacketId
 import app.foctuner.protocol.CommPacketId.COMM_ALIVE
+import app.foctuner.protocol.CommPacketId.COMM_BMS_FORCE_BALANCE
+import app.foctuner.protocol.CommPacketId.COMM_BMS_GET_VALUES
+import app.foctuner.protocol.CommPacketId.COMM_BMS_RESET_COUNTERS
+import app.foctuner.protocol.CommPacketId.COMM_BMS_SET_BALANCE_OVERRIDE
+import app.foctuner.protocol.CommPacketId.COMM_BMS_SET_CHARGE_ALLOWED
+import app.foctuner.protocol.CommPacketId.COMM_BMS_ZERO_CURRENT_OFFSET
 import app.foctuner.protocol.CommPacketId.COMM_FORWARD_CAN
 import app.foctuner.protocol.CommPacketId.COMM_FW_VERSION
 import app.foctuner.protocol.CommPacketId.COMM_GET_APPCONF
@@ -16,16 +22,31 @@ import app.foctuner.protocol.CommPacketId.COMM_GET_APPCONF_DEFAULT
 import app.foctuner.protocol.CommPacketId.COMM_GET_MCCONF
 import app.foctuner.protocol.CommPacketId.COMM_GET_MCCONF_DEFAULT
 import app.foctuner.protocol.CommPacketId.COMM_GET_STATS
+import app.foctuner.protocol.CommPacketId.COMM_GET_GNSS
+import app.foctuner.protocol.CommPacketId.COMM_GET_IMU_DATA
 import app.foctuner.protocol.CommPacketId.COMM_GET_VALUES
+import app.foctuner.protocol.CommPacketId.COMM_GET_VALUES_SELECTIVE
+import app.foctuner.protocol.CommPacketId.COMM_GET_VALUES_SETUP
+import app.foctuner.protocol.CommPacketId.COMM_GET_VALUES_SETUP_SELECTIVE
 import app.foctuner.protocol.CommPacketId.COMM_MOTOR_ESTOP
+import app.foctuner.protocol.CommPacketId.COMM_IO_BOARD_GET_ALL
+import app.foctuner.protocol.CommPacketId.COMM_IO_BOARD_SET_DIGITAL
+import app.foctuner.protocol.CommPacketId.COMM_IO_BOARD_SET_PWM
 import app.foctuner.protocol.CommPacketId.COMM_PING_CAN
 import app.foctuner.protocol.CommPacketId.COMM_PRINT
+import app.foctuner.protocol.CommPacketId.COMM_PSW_GET_STATUS
+import app.foctuner.protocol.CommPacketId.COMM_PSW_SWITCH
 import app.foctuner.protocol.CommPacketId.COMM_RESET_STATS
 import app.foctuner.protocol.CommPacketId.COMM_SET_APPCONF
 import app.foctuner.protocol.CommPacketId.COMM_SET_MCCONF
+import app.foctuner.protocol.CommPacketId.COMM_SET_ODOMETER
 import app.foctuner.protocol.CommPacketId.COMM_SET_CURRENT
 import app.foctuner.protocol.CommPacketId.COMM_SET_CURRENT_BRAKE
+import app.foctuner.protocol.CommPacketId.COMM_SET_CURRENT_REL
+import app.foctuner.protocol.CommPacketId.COMM_SET_DETECT
 import app.foctuner.protocol.CommPacketId.COMM_SET_DUTY
+import app.foctuner.protocol.CommPacketId.COMM_SET_HANDBRAKE
+import app.foctuner.protocol.CommPacketId.COMM_SET_POS
 import app.foctuner.protocol.CommPacketId.COMM_SET_RPM
 import app.foctuner.protocol.CommPacketId.COMM_TERMINAL_CMD
 import app.foctuner.protocol.PacketCodec
@@ -51,7 +72,12 @@ import kotlin.time.TimeSource
  *
  * Supports COMM_FW_VERSION, COMM_GET_VALUES, the four motor commands, COMM_ALIVE, COMM_MOTOR_ESTOP, COMM_TERMINAL_CMD,
  * COMM_PING_CAN, COMM_FORWARD_CAN, COMM_GET_STATS / COMM_RESET_STATS and reading and writing the motor and app config (7.01 layout, starting
- * from the defaults); other commands are ignored like unknown ones in the firmware.
+ * from the defaults); COMM_SET_POS, COMM_SET_HANDBRAKE and COMM_SET_CURRENT_REL;
+ * COMM_SET_DETECT with the COMM_ROTOR_POSITION stream ([RotorPositionSim]); COMM_GET_VALUES_SELECTIVE;
+ * COMM_GET_VALUES_SETUP(_SELECTIVE) and COMM_SET_ODOMETER ([SetupValuesSim]); COMM_GET_IMU_DATA ([ImuSim]);
+ * COMM_BMS_GET_VALUES and the BMS set commands ([BmsSim]); COMM_GET_GNSS ([GnssSim]); COMM_PSW_GET_STATUS /
+ * COMM_PSW_SWITCH ([PowerSwitchSim]); COMM_IO_BOARD_GET_ALL / SET_PWM / SET_DIGITAL ([IoBoardSim]). Other commands are ignored like unknown
+ * ones in the firmware.
  *
  * Time comes from [timeSource] and is applied lazily when a request arrives, so the simulation costs nothing
  * while idle and runs on virtual time when given a test scope's time source. Like the firmware, motors
@@ -86,6 +112,13 @@ class SimulatedVesc(
     private val battery = Battery()
     private val first = MotorModel()
     private val second = MotorModel()
+    private val rotor = RotorPositionSim(this)
+    private val imu = ImuSim(first)
+    private val setup = SetupValuesSim(battery, first)
+    private val bms = BmsSim(battery, listOf(first, second))
+    private val gnss = GnssSim(first)
+    private val powerSwitch = PowerSwitchSim()
+    private val ioBoard = IoBoardSim()
     private var lastStep = Duration.ZERO
     private var lastCommand = Duration.ZERO
     private var timedOut = false
@@ -99,6 +132,7 @@ class SimulatedVesc(
         synchronized(lock) {
             if (closed) throw IOException("Simulated link is closed")
             for (packet in decoder.feed(bytes)) handle(packet, first)
+            rotor.sendDue(uptime)
         }
     }
 
@@ -114,6 +148,10 @@ class SimulatedVesc(
         advance()
         motorFor(id)?.drive.let { it != null && it != Drive.Released }
     }
+
+    private fun idOf(motor: MotorModel) = if (motor === second) controllerId + 1 else controllerId
+
+    private val packVoltage: Float get() = battery.voltage(first.inputCurrent + second.inputCurrent)
 
     internal fun motorFor(id: Int): MotorModel? = when {
         id == controllerId -> first
@@ -132,6 +170,27 @@ class SimulatedVesc(
             COMM_SET_CURRENT -> command(motor, currentDrive(r.i32() / 1e3f, brake = false))
             COMM_SET_CURRENT_BRAKE -> command(motor, currentDrive(r.i32() / 1e3f, brake = true))
             COMM_SET_RPM -> command(motor, Drive.Speed(r.i32().toFloat()))
+            COMM_SET_POS -> command(motor, Drive.Position(r.i32() / 1e6f))
+            COMM_SET_HANDBRAKE -> command(motor, Drive.Handbrake(r.i32() / 1e3f))
+            COMM_SET_CURRENT_REL -> command(motor, currentDrive(relativeCurrent(r.i32() / 1e5f), brake = false))
+            COMM_SET_DETECT -> rotor.select(r.u8(), motor)
+            COMM_GET_VALUES_SELECTIVE -> reply(selectiveValues(values(motor), r.u32()))
+            COMM_GET_VALUES_SETUP -> reply(setup.reply(id, 0xFFFFFFFFL, motor, packVoltage, idOf(motor), uptime))
+            COMM_GET_VALUES_SETUP_SELECTIVE -> reply(setup.reply(id, r.u32(), motor, packVoltage, idOf(motor), uptime))
+            COMM_SET_ODOMETER -> setup.setOdometer(r.u32())
+            COMM_GET_IMU_DATA -> reply(imu.reply(uptime, r.u16(), idOf(motor)))
+            COMM_BMS_GET_VALUES -> reply(bms.values(uptime, packVoltage))
+            COMM_BMS_SET_CHARGE_ALLOWED -> bms.chargeAllowed = r.u8() != 0
+            COMM_BMS_SET_BALANCE_OVERRIDE -> bms.override(r.u8(), r.u8() != 0)
+            COMM_BMS_RESET_COUNTERS -> bms.resetCounters(r.u8() != 0, r.u8() != 0)
+            COMM_BMS_FORCE_BALANCE -> bms.forceBalance = r.u8() != 0
+            COMM_BMS_ZERO_CURRENT_OFFSET -> bms.zeroCurrentOffset()
+            COMM_GET_GNSS -> reply(gnss.reply(uptime, r.u16()))
+            COMM_PSW_GET_STATUS -> powerSwitch.status(r.u8() != 0, r.i16(), packVoltage)?.let(::reply)
+            COMM_PSW_SWITCH -> powerSwitch.switch(r.i16(), r.u8() != 0)
+            COMM_IO_BOARD_GET_ALL -> ioBoard.all(r.i16(), uptime)?.let(::reply)
+            COMM_IO_BOARD_SET_PWM -> ioBoard.setPwm(r.i16(), r.i16(), r.f32Auto())
+            COMM_IO_BOARD_SET_DIGITAL -> ioBoard.setDigital(r.i16(), r.i16(), r.u8() != 0)
             COMM_ALIVE -> resetTimeout()
             COMM_MOTOR_ESTOP -> emergencyStop(r.u16())
             COMM_TERMINAL_CMD -> terminal(r.restBytes().toString(Charsets.ISO_8859_1), motor)
@@ -275,7 +334,7 @@ class SimulatedVesc(
             .f32(motor.wattHours.toFloat(), 10000f).f32(motor.wattHoursCharged.toFloat(), 10000f)
             .i32(motor.tachometer.toInt()).i32(motor.tachometerAbs.toInt())
             .u8(0) // fault code
-            .f32(0f, 1e6f) // PID position
+            .f32(motor.angle, 1e6f) // PID position
             .u8(id)
             .f16(motor.tempFet, 10f).f16(motor.tempFet, 10f).f16(motor.tempFet, 10f)
             .f32(0f, 1000f).f32(motor.duty * voltage * VQ_PER_DUTY_VOLT, 1000f)

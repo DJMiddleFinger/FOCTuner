@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tool_gnss">GNSS</string>
+    <string name="tool_gnss_summary">Position, speed and time from the GNSS receiver the controller reads</string>
+    <string name="gnss_no_reply">The controller didn\'t answer. Retrying.</string>
+    <string name="gnss_stale">No update for %1$s s</string>
+    <string name="gnss_stale_body">The receiver has no fix or isn\'t connected. Check its wiring and that it can see the sky.</string>
+    <string name="gnss_section_position">Position</string>
+    <string name="gnss_latitude">Latitude</string>
+    <string name="gnss_longitude">Longitude</string>
+    <string name="gnss_height">Height</string>
+    <string name="gnss_speed">Speed</string>
+    <string name="gnss_hdop">HDOP</string>
+    <string name="gnss_section_time">Time</string>
+    <string name="gnss_date">Date</string>
+    <string name="gnss_time">Time</string>
+    <string name="gnss_age">Last update</string>
+
+    <string name="tool_psw">Power switches</string>
+    <string name="tool_psw_summary">VESC power switches on the CAN bus: voltages, temperature and output</string>
+    <string name="psw_no_reply">The controller didn\'t answer. Retrying.</string>
+    <string name="psw_none">No power switches heard</string>
+    <string name="psw_none_body">The controller hasn\'t received status from a power switch on its CAN bus.</string>
+    <string name="psw_title">Switch %1$d</string>
+    <string name="psw_output">Output</string>
+    <string name="psw_on">On</string>
+    <string name="psw_off">Off</string>
+    <string name="psw_voltage_in">Input</string>
+    <string name="psw_voltage_out">Output voltage</string>
+    <string name="psw_temp">Temperature</string>
+    <string name="psw_precharge">Precharge</string>
+    <string name="psw_discharge">Discharge</string>
+    <string name="psw_age">Last status</string>
+    <string name="psw_turn_on">Turn on</string>
+    <string name="psw_turn_off">Turn off</string>
+    <string name="psw_turn_on_title">Turn on switch %1$d?</string>
+    <string name="psw_turn_off_title">Turn off switch %1$d?</string>
+    <string name="psw_turn_on_body">The switch precharges and then connects the battery to everything on its output.</string>
+    <string name="psw_turn_off_body">The switch disconnects its output. Anything powered through it, this controller included, loses power.</string>
+    <string name="psw_cancel">Cancel</string>
+
+    <string name="tool_io">IO board</string>
+    <string name="tool_io_summary">Analog and digital inputs of a VESC IO board, and its PWM and digital outputs</string>
+    <string name="io_no_reply">Nothing heard from IO board %1$d</string>
+    <string name="io_no_reply_body">The controller answers only for IO boards it has received data from on its CAN bus. Check the board\'s CAN id.</string>
+    <string name="io_failed">The controller didn\'t answer. Retrying.</string>
+    <string name="io_board_id">Board CAN id</string>
+    <string name="io_section_adc">Analog inputs</string>
+    <string name="io_adc">ADC %1$d</string>
+    <string name="io_section_digital">Digital inputs</string>
+    <string name="io_digital_description">Inputs that are on: %1$s</string>
+    <string name="io_none_on">none</string>
+    <string name="io_section_outputs">Outputs</string>
+    <string name="io_channel">Channel</string>
+    <string name="io_digital_on">Set on</string>
+    <string name="io_digital_off">Set off</string>
+    <string name="io_pwm">PWM duty</string>
+    <string name="io_pwm_apply">Apply PWM</string>
+    <string name="io_outputs_hint">Outputs change only when you press a button. The board doesn\'t report its outputs back.</string>
+    <string name="io_age">Updated %1$s s ago</string>
+</resources>

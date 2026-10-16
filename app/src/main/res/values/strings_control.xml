@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tool_control">Motor control</string>
+    <string name="tool_control_summary">Run the motor by hand with duty, current, speed, position or handbrake, with STOP and rotor position</string>
+
+    <string name="control_stop">STOP</string>
+    <string name="control_stopped">Motor commands are ignored for %1$d s</string>
+    <string name="control_stopped_why">STOP released the motors on this controller and told it to ignore motor commands for 5 s, as VESC Tool does.</string>
+    <string name="control_no_reply">The controller didn\'t answer. Retrying.</string>
+
+    <string name="control_duty">Duty</string>
+    <string name="control_current">Motor current</string>
+    <string name="control_speed">Speed</string>
+    <string name="control_position">Position</string>
+    <string name="control_voltage">Input</string>
+    <string name="control_temp_mosfet">MOSFET</string>
+    <string name="control_temp_motor">Motor</string>
+
+    <string name="control_section_command">Command</string>
+    <string name="control_arm_title">The motor will turn</string>
+    <string name="control_arm_body">The buttons below drive the motor of the selected controller for as long as you hold them. Secure the motor, keep hands and loose items clear of the shaft and wheel, and keep a finger near STOP.</string>
+    <string name="control_arm_action">Enable motor control</string>
+
+    <string name="control_mode_current">Current</string>
+    <string name="control_mode_duty">Duty</string>
+    <string name="control_mode_rpm">RPM</string>
+    <string name="control_mode_position">Position</string>
+    <string name="control_mode_handbrake">Handbrake</string>
+    <string name="control_range">%1$s to %2$s</string>
+
+    <string name="control_reverse">Reverse</string>
+    <string name="control_forward">Forward</string>
+    <string name="control_brake">Brake</string>
+    <string name="control_brake_duty">0 duty (brake)</string>
+    <string name="control_brake_rpm">0 ERPM (brake)</string>
+    <string name="control_hold_position">Hold position</string>
+    <string name="control_hold_handbrake">Hold handbrake</string>
+    <string name="control_running">Running</string>
+    <string name="control_hint_hold">Runs while you hold a button and releases the motor when you let go.</string>
+    <string name="control_hint_latched">Keeps running after you let go, until Release, STOP or leaving this page.</string>
+    <string name="control_release">Release</string>
+
+    <string name="control_keep_running">Keep running after release</string>
+    <string name="control_keep_running_title">Keep the motor running?</string>
+    <string name="control_keep_running_body">After you lift your finger the motor keeps running with the last command until you press Release or STOP, or leave this page.</string>
+    <string name="control_keep_running_confirm">Keep running</string>
+    <string name="control_cancel">Cancel</string>
+
+    <string name="control_section_rotor">Rotor position</string>
+    <string name="control_rotor_angle">Rotor at %1$s degrees</string>
+    <string name="control_rotor_off">Off</string>
+    <string name="control_rotor_encoder">Encoder</string>
+    <string name="control_rotor_observer">Observer</string>
+    <string name="control_rotor_pid">PID pos</string>
+    <string name="control_rotor_pid_error">PID error</string>
+    <string name="control_rotor_obs_enc">Obs vs enc</string>
+    <string name="control_rotor_obs_hall">Obs vs hall</string>
+    <string name="control_rotor_inductance">Inductance</string>
+    <string name="control_rotor_hint_off">Pick what the controller should stream.</string>
+    <string name="control_rotor_hint_any">Streamed by the controller every 10 ms.</string>
+    <string name="control_rotor_hint_foc">FOC motors only.</string>
+    <string name="control_rotor_hint_inductance">BLDC motors only: drives the motor to detect its position. FOC motors send nothing.</string>
+
+    <string name="control_section_servo">Servo output</string>
+    <string name="control_servo_center">Center</string>
+    <string name="control_servo_hint">Drives the PPM pin as a servo when the app settings enable the servo output. It stays where you leave it.</string>
+</resources>

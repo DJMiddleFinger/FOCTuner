@@ -17,7 +17,10 @@ import app.foctuner.protocol.CommPacketId.COMM_SET_APPCONF
 import app.foctuner.protocol.CommPacketId.COMM_SET_MCCONF
 import app.foctuner.protocol.CommPacketId.COMM_SET_CURRENT
 import app.foctuner.protocol.CommPacketId.COMM_SET_CURRENT_BRAKE
+import app.foctuner.protocol.CommPacketId.COMM_SET_CURRENT_REL
 import app.foctuner.protocol.CommPacketId.COMM_SET_DUTY
+import app.foctuner.protocol.CommPacketId.COMM_SET_HANDBRAKE
+import app.foctuner.protocol.CommPacketId.COMM_SET_POS
 import app.foctuner.protocol.CommPacketId.COMM_SET_RPM
 import app.foctuner.protocol.CommPacketId.COMM_TERMINAL_CMD
 import kotlin.time.Duration
@@ -25,6 +28,7 @@ import kotlin.time.Duration
 /*
  * Request payloads, with the scales used by the firmware's commands.c (and VESC Tool's commands.cpp):
  * duty is sent as duty * 1e5, currents as amps * 1e3, speed as plain ERPM, all as int32.
+ * Position and relative current carry their own scale below.
  */
 
 internal object Requests {
@@ -55,6 +59,23 @@ internal object Requests {
 
     /** [erpm] is electrical RPM: mechanical RPM times the motor's pole pairs. */
     fun rpm(erpm: Int) = ByteWriter().u8(COMM_SET_RPM.id).i32(erpm).toByteArray()
+
+    /** Sent as degrees * 1e6. */
+    fun position(degrees: Float): ByteArray {
+        require(degrees in 0f..360f) { "position must be within 0..360 degrees, was $degrees" }
+        return ByteWriter().u8(COMM_SET_POS.id).f32(degrees, 1e6f).toByteArray()
+    }
+
+    fun handbrake(amps: Float): ByteArray {
+        require(amps.isFinite()) { "handbrake current must be finite, was $amps" }
+        return ByteWriter().u8(COMM_SET_HANDBRAKE.id).f32(amps, 1e3f).toByteArray()
+    }
+
+    /** Sent as fraction * 1e5. */
+    fun currentRelative(fraction: Float): ByteArray {
+        require(fraction in -1f..1f) { "relative current must be within -1..1, was $fraction" }
+        return ByteWriter().u8(COMM_SET_CURRENT_REL.id).f32(fraction, 1e5f).toByteArray()
+    }
 
     /** The firmware takes the time to ignore motor input as a uint16 in milliseconds. */
     fun emergencyStop(duration: Duration) = ByteWriter().u8(COMM_MOTOR_ESTOP.id)
