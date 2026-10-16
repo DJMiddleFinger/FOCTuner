@@ -7,6 +7,7 @@ import app.foctuner.protocol.CommPacketId.COMM_FORWARD_CAN
 import app.foctuner.protocol.CommPacketId.COMM_FW_VERSION
 import app.foctuner.protocol.CommPacketId.COMM_GET_DECODED_BALANCE
 import app.foctuner.protocol.CommPacketId.COMM_GET_VALUES
+import app.foctuner.protocol.CommPacketId.COMM_MOTOR_ESTOP
 import app.foctuner.protocol.CommPacketId.COMM_PING_CAN
 import app.foctuner.protocol.CommPacketId.COMM_PRINT
 import app.foctuner.protocol.CommPacketId.COMM_SET_CURRENT
@@ -196,6 +197,26 @@ class SimulatedVescTest {
         host.setCurrent(10f)
         assertTrue(host.sim.isDriven(0))
         assertFalse(host.values().timedOut)
+    }
+
+    @Test
+    fun emergencyStopReleasesTheBoardAndIgnoresCommandsForItsDuration() = runTest(UnconfinedTestDispatcher()) {
+        val host = host()
+        host.setCurrent(20f)
+        host.send(COMM_FORWARD_CAN.id, 1, COMM_SET_CURRENT.id, 0, 0, 0x27, 0x10)
+        assertTrue(host.sim.isDriven(0) && host.sim.isDriven(1))
+
+        host.send(COMM_MOTOR_ESTOP.id, 0x01, 0xF4)
+        assertFalse(host.sim.isDriven(0) || host.sim.isDriven(1))
+
+        host.setCurrent(20f)
+        assertFalse(host.sim.isDriven(0))
+        delay(400.milliseconds)
+        host.setCurrent(20f)
+        assertFalse(host.sim.isDriven(0))
+        delay(100.milliseconds)
+        host.setCurrent(20f)
+        assertTrue(host.sim.isDriven(0))
     }
 
     @Test
