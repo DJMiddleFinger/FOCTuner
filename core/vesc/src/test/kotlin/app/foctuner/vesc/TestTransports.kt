@@ -27,7 +27,7 @@ class RecordingTransport(private val inner: Transport) : Transport by inner {
     }
 
     /** Packets whose command id is [id], in the order they were sent. */
-    fun sent(id: Int): List<ByteArray> = packets.filter { it[0].toInt() == id }
+    fun sent(id: Int): List<ByteArray> = packets.filter { (it[0].toInt() and 0xFF) == id }
 }
 
 /** A transport the test feeds by hand through [inject] or [incoming]. */
