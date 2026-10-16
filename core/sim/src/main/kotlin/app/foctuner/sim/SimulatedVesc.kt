@@ -9,6 +9,12 @@ import app.foctuner.protocol.ByteReader
 import app.foctuner.protocol.ByteWriter
 import app.foctuner.protocol.CommPacketId
 import app.foctuner.protocol.CommPacketId.COMM_ALIVE
+import app.foctuner.protocol.CommPacketId.COMM_BMS_FORCE_BALANCE
+import app.foctuner.protocol.CommPacketId.COMM_BMS_GET_VALUES
+import app.foctuner.protocol.CommPacketId.COMM_BMS_RESET_COUNTERS
+import app.foctuner.protocol.CommPacketId.COMM_BMS_SET_BALANCE_OVERRIDE
+import app.foctuner.protocol.CommPacketId.COMM_BMS_SET_CHARGE_ALLOWED
+import app.foctuner.protocol.CommPacketId.COMM_BMS_ZERO_CURRENT_OFFSET
 import app.foctuner.protocol.CommPacketId.COMM_FORWARD_CAN
 import app.foctuner.protocol.CommPacketId.COMM_FW_VERSION
 import app.foctuner.protocol.CommPacketId.COMM_GET_APPCONF
@@ -16,14 +22,20 @@ import app.foctuner.protocol.CommPacketId.COMM_GET_APPCONF_DEFAULT
 import app.foctuner.protocol.CommPacketId.COMM_GET_MCCONF
 import app.foctuner.protocol.CommPacketId.COMM_GET_MCCONF_DEFAULT
 import app.foctuner.protocol.CommPacketId.COMM_GET_STATS
+import app.foctuner.protocol.CommPacketId.COMM_GET_GNSS
 import app.foctuner.protocol.CommPacketId.COMM_GET_IMU_DATA
 import app.foctuner.protocol.CommPacketId.COMM_GET_VALUES
 import app.foctuner.protocol.CommPacketId.COMM_GET_VALUES_SELECTIVE
 import app.foctuner.protocol.CommPacketId.COMM_GET_VALUES_SETUP
 import app.foctuner.protocol.CommPacketId.COMM_GET_VALUES_SETUP_SELECTIVE
 import app.foctuner.protocol.CommPacketId.COMM_MOTOR_ESTOP
+import app.foctuner.protocol.CommPacketId.COMM_IO_BOARD_GET_ALL
+import app.foctuner.protocol.CommPacketId.COMM_IO_BOARD_SET_DIGITAL
+import app.foctuner.protocol.CommPacketId.COMM_IO_BOARD_SET_PWM
 import app.foctuner.protocol.CommPacketId.COMM_PING_CAN
 import app.foctuner.protocol.CommPacketId.COMM_PRINT
+import app.foctuner.protocol.CommPacketId.COMM_PSW_GET_STATUS
+import app.foctuner.protocol.CommPacketId.COMM_PSW_SWITCH
 import app.foctuner.protocol.CommPacketId.COMM_RESET_STATS
 import app.foctuner.protocol.CommPacketId.COMM_SET_APPCONF
 import app.foctuner.protocol.CommPacketId.COMM_SET_MCCONF
@@ -62,7 +74,9 @@ import kotlin.time.TimeSource
  * COMM_PING_CAN, COMM_FORWARD_CAN, COMM_GET_STATS / COMM_RESET_STATS and reading and writing the motor and app config (7.01 layout, starting
  * from the defaults); COMM_SET_POS, COMM_SET_HANDBRAKE and COMM_SET_CURRENT_REL;
  * COMM_SET_DETECT with the COMM_ROTOR_POSITION stream ([RotorPositionSim]); COMM_GET_VALUES_SELECTIVE;
- * COMM_GET_VALUES_SETUP(_SELECTIVE) and COMM_SET_ODOMETER ([SetupValuesSim]); COMM_GET_IMU_DATA ([ImuSim]). Other commands are ignored like unknown
+ * COMM_GET_VALUES_SETUP(_SELECTIVE) and COMM_SET_ODOMETER ([SetupValuesSim]); COMM_GET_IMU_DATA ([ImuSim]);
+ * COMM_BMS_GET_VALUES and the BMS set commands ([BmsSim]); COMM_GET_GNSS ([GnssSim]); COMM_PSW_GET_STATUS /
+ * COMM_PSW_SWITCH ([PowerSwitchSim]); COMM_IO_BOARD_GET_ALL / SET_PWM / SET_DIGITAL ([IoBoardSim]). Other commands are ignored like unknown
  * ones in the firmware.
  *
  * Time comes from [timeSource] and is applied lazily when a request arrives, so the simulation costs nothing
@@ -101,6 +115,10 @@ class SimulatedVesc(
     private val rotor = RotorPositionSim(this)
     private val imu = ImuSim(first)
     private val setup = SetupValuesSim(battery, first)
+    private val bms = BmsSim(battery, listOf(first, second))
+    private val gnss = GnssSim(first)
+    private val powerSwitch = PowerSwitchSim()
+    private val ioBoard = IoBoardSim()
     private var lastStep = Duration.ZERO
     private var lastCommand = Duration.ZERO
     private var timedOut = false
@@ -161,6 +179,18 @@ class SimulatedVesc(
             COMM_GET_VALUES_SETUP_SELECTIVE -> reply(setup.reply(id, r.u32(), motor, packVoltage, idOf(motor), uptime))
             COMM_SET_ODOMETER -> setup.setOdometer(r.u32())
             COMM_GET_IMU_DATA -> reply(imu.reply(uptime, r.u16(), idOf(motor)))
+            COMM_BMS_GET_VALUES -> reply(bms.values(uptime, packVoltage))
+            COMM_BMS_SET_CHARGE_ALLOWED -> bms.chargeAllowed = r.u8() != 0
+            COMM_BMS_SET_BALANCE_OVERRIDE -> bms.override(r.u8(), r.u8() != 0)
+            COMM_BMS_RESET_COUNTERS -> bms.resetCounters(r.u8() != 0, r.u8() != 0)
+            COMM_BMS_FORCE_BALANCE -> bms.forceBalance = r.u8() != 0
+            COMM_BMS_ZERO_CURRENT_OFFSET -> bms.zeroCurrentOffset()
+            COMM_GET_GNSS -> reply(gnss.reply(uptime, r.u16()))
+            COMM_PSW_GET_STATUS -> powerSwitch.status(r.u8() != 0, r.i16(), packVoltage)?.let(::reply)
+            COMM_PSW_SWITCH -> powerSwitch.switch(r.i16(), r.u8() != 0)
+            COMM_IO_BOARD_GET_ALL -> ioBoard.all(r.i16(), uptime)?.let(::reply)
+            COMM_IO_BOARD_SET_PWM -> ioBoard.setPwm(r.i16(), r.i16(), r.f32Auto())
+            COMM_IO_BOARD_SET_DIGITAL -> ioBoard.setDigital(r.i16(), r.i16(), r.u8() != 0)
             COMM_ALIVE -> resetTimeout()
             COMM_MOTOR_ESTOP -> emergencyStop(r.u16())
             COMM_TERMINAL_CMD -> terminal(r.restBytes().toString(Charsets.ISO_8859_1), motor)
