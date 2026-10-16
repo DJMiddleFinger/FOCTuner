@@ -17,6 +17,7 @@ import app.foctuner.protocol.CommPacketId.COMM_GET_MCCONF
 import app.foctuner.protocol.CommPacketId.COMM_GET_MCCONF_DEFAULT
 import app.foctuner.protocol.CommPacketId.COMM_GET_STATS
 import app.foctuner.protocol.CommPacketId.COMM_GET_VALUES
+import app.foctuner.protocol.CommPacketId.COMM_MOTOR_ESTOP
 import app.foctuner.protocol.CommPacketId.COMM_PING_CAN
 import app.foctuner.protocol.CommPacketId.COMM_PRINT
 import app.foctuner.protocol.CommPacketId.COMM_RESET_STATS
@@ -37,6 +38,7 @@ import java.io.IOException
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.DurationUnit
 import kotlin.time.TimeSource
@@ -47,7 +49,7 @@ import kotlin.time.TimeSource
  * `controllerId + 1` through COMM_FORWARD_CAN and shows up in COMM_PING_CAN, as on real dual-motor hardware.
  * Forwarding to any other id goes nowhere, so the request times out.
  *
- * Supports COMM_FW_VERSION, COMM_GET_VALUES, the four motor commands, COMM_ALIVE, COMM_TERMINAL_CMD,
+ * Supports COMM_FW_VERSION, COMM_GET_VALUES, the four motor commands, COMM_ALIVE, COMM_MOTOR_ESTOP, COMM_TERMINAL_CMD,
  * COMM_PING_CAN, COMM_FORWARD_CAN, COMM_GET_STATS / COMM_RESET_STATS and reading and writing the motor and app config (7.01 layout, starting
  * from the defaults); other commands are ignored like unknown ones in the firmware.
  *
@@ -87,6 +89,7 @@ class SimulatedVesc(
     private var lastStep = Duration.ZERO
     private var lastCommand = Duration.ZERO
     private var timedOut = false
+    private var ignoreInputUntil = Duration.ZERO
     private var closed = false
 
     /** Each motor's stored configs in wire form, created on first use (parsing the definitions is slow). */
@@ -130,6 +133,7 @@ class SimulatedVesc(
             COMM_SET_CURRENT_BRAKE -> command(motor, currentDrive(r.i32() / 1e3f, brake = true))
             COMM_SET_RPM -> command(motor, Drive.Speed(r.i32().toFloat()))
             COMM_ALIVE -> resetTimeout()
+            COMM_MOTOR_ESTOP -> emergencyStop(r.u16())
             COMM_TERMINAL_CMD -> terminal(r.restBytes().toString(Charsets.ISO_8859_1), motor)
             COMM_PING_CAN -> reply(pingReply())
             COMM_FORWARD_CAN -> forward(packet)
@@ -190,9 +194,17 @@ class SimulatedVesc(
         else -> Drive.Current(amps)
     }
 
+    /** Like the firmware, motor commands during an emergency stop are dropped but still reset the timeout. */
     private fun command(motor: MotorModel, drive: Drive) {
-        motor.drive = drive
+        if (lastStep >= ignoreInputUntil) motor.drive = drive
         resetTimeout()
+    }
+
+    /** COMM_MOTOR_ESTOP acts on the whole board: both motors are released and ignore commands for [ms]. */
+    private fun emergencyStop(ms: Int) {
+        first.drive = Drive.Released
+        second.drive = Drive.Released
+        ignoreInputUntil = lastStep + ms.milliseconds
     }
 
     private fun resetTimeout() {
