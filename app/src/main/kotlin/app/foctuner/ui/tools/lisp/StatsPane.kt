@@ -76,6 +76,12 @@ fun StatsPane(model: LispModel, workspace: LispWorkspace, modifier: Modifier = M
         if (model.statsUnanswered) {
             Notice(stringResource(R.string.lisp_stats_none), body = stringResource(R.string.lisp_stats_none_body))
         }
+        model.scriptPlot?.let { plot ->
+            SectionHeader(stringResource(R.string.lisp_script_plot)) {
+                PlainButton(stringResource(R.string.lisp_clear), model::clearScriptPlot)
+            }
+            ScriptPlotChart(plot)
+        }
         SectionHeader(stringResource(R.string.lisp_usage))
         Meter(R.string.lisp_cpu, stats?.cpuUse)
         Meter(R.string.lisp_heap, stats?.heapUse)

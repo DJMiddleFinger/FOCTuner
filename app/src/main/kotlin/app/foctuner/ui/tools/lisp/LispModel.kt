@@ -21,6 +21,7 @@ import app.foctuner.vesc.VescTimeoutException
 import app.foctuner.vesc.eraseLisp
 import app.foctuner.vesc.lispPrints
 import app.foctuner.vesc.lispStats
+import app.foctuner.vesc.plotEvents
 import app.foctuner.vesc.readLisp
 import app.foctuner.vesc.sendLispRepl
 import app.foctuner.vesc.setLispRunning
@@ -81,8 +82,25 @@ class LispModel(private val context: ToolContext) {
     /** Bindings picked for plotting, with their values over the last [PLOT_WINDOW]. */
     val plotted = mutableStateMapOf<String, List<Float>>()
 
+    /** What scripts plotted (COMM_PLOT_*), null until one starts a plot. Updated at most every [PLOT_REFRESH]. */
+    var scriptPlot by mutableStateOf<ScriptPlot?>(null)
+        private set
+    private val plotBuffer = PlotBuffer()
+    private var plotPublish: Job? = null
+
     init {
         context.scope.launch { controller.lispPrints.collect { add(LineKind.Print, text = it) } }
+        context.scope.launch {
+            controller.plotEvents.collect { event ->
+                plotBuffer.apply(event)
+                if (plotPublish?.isActive != true) {
+                    plotPublish = context.scope.launch {
+                        delay(PLOT_REFRESH)
+                        scriptPlot = plotBuffer.snapshot()
+                    }
+                }
+            }
+        }
         context.scope.launch {
             for (line in replQueue) {
                 try {
@@ -155,6 +173,11 @@ class LispModel(private val context: ToolContext) {
 
     fun clearConsole() {
         console.clear()
+    }
+
+    fun clearScriptPlot() {
+        plotBuffer.clear()
+        scriptPlot = null
     }
 
     fun togglePlot(name: String) {
@@ -261,5 +284,8 @@ class LispModel(private val context: ToolContext) {
 
         /** VESC Tool's binding plot shows the last 5 s. */
         val PLOT_WINDOW = 5.seconds
+
+        /** Scripts can send thousands of points a second; the chart doesn't need to redraw for each. */
+        val PLOT_REFRESH = 100.milliseconds
     }
 }

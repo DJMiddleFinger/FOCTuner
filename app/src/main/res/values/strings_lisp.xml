@@ -127,6 +127,7 @@
     <string name="lisp_hz">%1$d Hz</string>
     <string name="lisp_stats_none">LispBM hasn\'t started yet</string>
     <string name="lisp_stats_none_body">The controller reports stats once LispBM runs: upload with Run after upload, Run, or send a REPL command.</string>
+    <string name="lisp_script_plot">Script plot</string>
     <string name="lisp_usage">Usage</string>
     <string name="lisp_cpu">CPU</string>
     <string name="lisp_heap">Heap</string>
