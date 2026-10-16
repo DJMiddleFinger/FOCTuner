@@ -15,9 +15,11 @@ import app.foctuner.protocol.CommPacketId.COMM_GET_APPCONF
 import app.foctuner.protocol.CommPacketId.COMM_GET_APPCONF_DEFAULT
 import app.foctuner.protocol.CommPacketId.COMM_GET_MCCONF
 import app.foctuner.protocol.CommPacketId.COMM_GET_MCCONF_DEFAULT
+import app.foctuner.protocol.CommPacketId.COMM_GET_STATS
 import app.foctuner.protocol.CommPacketId.COMM_GET_VALUES
 import app.foctuner.protocol.CommPacketId.COMM_PING_CAN
 import app.foctuner.protocol.CommPacketId.COMM_PRINT
+import app.foctuner.protocol.CommPacketId.COMM_RESET_STATS
 import app.foctuner.protocol.CommPacketId.COMM_SET_APPCONF
 import app.foctuner.protocol.CommPacketId.COMM_SET_MCCONF
 import app.foctuner.protocol.CommPacketId.COMM_SET_CURRENT
@@ -46,7 +48,7 @@ import kotlin.time.TimeSource
  * Forwarding to any other id goes nowhere, so the request times out.
  *
  * Supports COMM_FW_VERSION, COMM_GET_VALUES, the four motor commands, COMM_ALIVE, COMM_TERMINAL_CMD,
- * COMM_PING_CAN, COMM_FORWARD_CAN and reading and writing the motor and app config (7.01 layout, starting
+ * COMM_PING_CAN, COMM_FORWARD_CAN, COMM_GET_STATS / COMM_RESET_STATS and reading and writing the motor and app config (7.01 layout, starting
  * from the defaults); other commands are ignored like unknown ones in the firmware.
  *
  * Time comes from [timeSource] and is applied lazily when a request arrives, so the simulation costs nothing
@@ -76,6 +78,9 @@ class SimulatedVesc(
     private val lock = Any()
     private val decoder = PacketDecoder()
     private val started = timeSource.markNow()
+
+    /** Time since the simulated controller booted. */
+    internal val uptime: Duration get() = started.elapsedNow()
     private val battery = Battery()
     private val first = MotorModel()
     private val second = MotorModel()
@@ -107,7 +112,7 @@ class SimulatedVesc(
         motorFor(id)?.drive.let { it != null && it != Drive.Released }
     }
 
-    private fun motorFor(id: Int): MotorModel? = when {
+    internal fun motorFor(id: Int): MotorModel? = when {
         id == controllerId -> first
         dualMotor && id == controllerId + 1 -> second
         else -> null
@@ -134,6 +139,11 @@ class SimulatedVesc(
             COMM_GET_APPCONF_DEFAULT -> reply(byteArrayOf(packet[0]) + defaultConfig(motor, ConfigKind.APPCONF))
             COMM_SET_MCCONF -> storeConfig(motor, ConfigKind.MCCONF, packet)
             COMM_SET_APPCONF -> storeConfig(motor, ConfigKind.APPCONF, packet)
+            COMM_GET_STATS -> reply(motor.stats.reply())
+            COMM_RESET_STATS -> {
+                motor.stats.reset()
+                if (packet.size > 1 && packet[1].toInt() != 0) reply(byteArrayOf(packet[0]))
+            }
             else -> Unit
         }
     }
@@ -145,17 +155,17 @@ class SimulatedVesc(
         handle(packet.copyOfRange(2, packet.size), target)
     }
 
-    private fun storedConfig(motor: MotorModel, kind: ConfigKind): ByteArray =
+    internal fun storedConfig(motor: MotorModel, kind: ConfigKind): ByteArray =
         configs.getOrPut(motor to kind) { defaultConfig(motor, kind) }
 
-    private fun defaultConfig(motor: MotorModel, kind: ConfigKind): ByteArray {
+    internal fun defaultConfig(motor: MotorModel, kind: ConfigKind): ByteArray {
         val defaults = Config.defaults(BundledDefinitions.load(CONFIG_VERSION, kind))
         val id = if (motor === second) controllerId + 1 else controllerId
         return ConfigCodec.serialize(if (kind == ConfigKind.APPCONF) defaults.with("controller_id", id.toLong()) else defaults)
     }
 
     /** Like the firmware, a config with another layout is not stored and gets a printed warning instead of a reply. */
-    private fun storeConfig(motor: MotorModel, kind: ConfigKind, packet: ByteArray) {
+    internal fun storeConfig(motor: MotorModel, kind: ConfigKind, packet: ByteArray) {
         val payload = packet.copyOfRange(1, packet.size)
         try {
             ConfigCodec.deserialize(BundledDefinitions.load(CONFIG_VERSION, kind), payload)
@@ -272,11 +282,11 @@ class SimulatedVesc(
         TerminalReplies.run(command, context).forEach(::print)
     }
 
-    private fun print(line: String) {
+    internal fun print(line: String) {
         reply(ByteWriter().u8(COMM_PRINT.id).bytes(line.toByteArray(Charsets.ISO_8859_1)).toByteArray())
     }
 
-    private fun reply(payload: ByteArray) {
+    internal fun reply(payload: ByteArray) {
         val frame = PacketCodec.encode(payload)
         var offset = 0
         while (offset < frame.size) {

@@ -13,6 +13,7 @@ import app.foctuner.ui.shell.SessionHeaderState
 import app.foctuner.ui.terminal.LineKind
 import app.foctuner.ui.terminal.TerminalLine
 import app.foctuner.ui.terminal.TerminalState
+import app.foctuner.ui.tools.ToolContext
 import app.foctuner.vesc.FirmwareInfo
 import app.foctuner.vesc.VescClient
 import app.foctuner.vesc.VescController
@@ -82,6 +83,11 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
+    private val _tools = MutableStateFlow<ToolContext?>(null)
+
+    /** What the Tools tab works with; replaced on every connection and CAN selection. */
+    val tools: StateFlow<ToolContext?> = _tools.asStateFlow()
+
     /** The selected controller's motor and app settings. */
     val settings = SettingsModel(
         viewModelScope,
@@ -91,6 +97,9 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     )
 
     private var nextLineId = 0L
+
+    /** Firmware of the CAN controllers found by the last scan. */
+    private val canFirmware = HashMap<Int, FirmwareInfo>()
 
     /** Opens the link, checks a controller answers, then makes it the current session. */
     fun connect(key: String, name: String, linkLabel: String, demo: Boolean = false, open: suspend () -> Transport) {
@@ -124,6 +133,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         val active = session.value ?: return
         session.value = null
         settings.reset()
+        _tools.value = null
         viewModelScope.launch {
             active.client.close()
             active.scope.cancel()
@@ -166,7 +176,10 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
             val localId = answerOrNull { active.client.values().controllerId } ?: 0
             val local = CanDevice(localId, local = true, active.info.hardwareName, active.info.version, active.info.firmwareName)
             val others = (answerOrNull { active.client.pingCan() } ?: emptyList()).mapNotNull { id ->
-                answerOrNull { active.client.can(id).firmwareInfo() }?.let { CanDevice(id, local = false, it.hardwareName, it.version, it.firmwareName) }
+                answerOrNull { active.client.can(id).firmwareInfo() }?.let {
+                    canFirmware[id] = it
+                    CanDevice(id, local = false, it.hardwareName, it.version, it.firmwareName)
+                }
             }
             _controllers.value = ControllersState(
                 devices = listOf(local) + others,
@@ -177,18 +190,27 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun select(device: CanDevice) {
-        if ((if (device.local) null else device.canId) != selectedCanId.value) settings.reset()
-        selectedCanId.value = if (device.local) null else device.canId
+        val canId = if (device.local) null else device.canId
+        if (canId != selectedCanId.value) {
+            settings.reset()
+            session.value?.let { active ->
+                val firmware = canId?.let { canFirmware[it] } ?: active.info
+                _tools.value = ToolContext(canId?.let(active.client::can) ?: active.client, active.client, firmware, active.scope)
+            }
+        }
+        selectedCanId.value = canId
         _controllers.update { it.copy(selectedCanId = device.canId) }
     }
 
     private fun begin(active: Active, demo: Boolean) {
         selectedCanId.value = null
+        canFirmware.clear()
         settings.reset()
         _overview.value = null
         _terminal.value = TerminalState()
         _controllers.value = ControllersState()
         session.value = active
+        _tools.value = ToolContext(active.client, active.client, active.info, active.scope)
         active.scope.launch { poll(active) }
         active.scope.launch {
             active.client.connected.first { !it }

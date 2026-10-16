@@ -61,6 +61,14 @@ internal class VescSession(
     private val _prints = MutableSharedFlow<String>(extraBufferCapacity = 256, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     val prints: SharedFlow<String> = _prints.asSharedFlow()
 
+    private val _incoming = MutableSharedFlow<ByteArray>(extraBufferCapacity = 1024, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /**
+     * Every packet that arrives (id byte first), for features that receive streams or unsolicited data such as
+     * LispBM prints or sampled data. Subscribe before sending the request that starts the stream.
+     */
+    val incoming: SharedFlow<ByteArray> = _incoming.asSharedFlow()
+
     private val _connected = MutableStateFlow(true)
     val connected: StateFlow<Boolean> = _connected.asStateFlow()
 
@@ -109,7 +117,13 @@ internal class VescSession(
         link.send(payload)
     }
 
-    suspend fun pingCan(): List<Int> = blockingCommandLock.withLock {
+    /**
+     * Runs [block] while no other command that the firmware handles in its blocking thread (terminal, CAN ping,
+     * motor detection, ...) is in flight; the firmware silently drops such a command while another one runs.
+     */
+    suspend fun <T> blocking(block: suspend () -> T): T = blockingCommandLock.withLock { block() }
+
+    suspend fun pingCan(): List<Int> = blocking {
         request(Requests.pingCan, COMM_PING_CAN, options.pingCanTimeout) { r -> List(r.remaining) { r.u8() } }
     }
 
@@ -117,7 +131,7 @@ internal class VescSession(
      * Runs a terminal command and returns what it printed, without the echo of the command itself.
      * The reply is a series of COMM_PRINT packets with no end marker; see [VescClientOptions.terminalQuietPeriod].
      */
-    suspend fun terminal(canId: Int?, command: String): String = blockingCommandLock.withLock {
+    suspend fun terminal(canId: Int?, command: String): String = blocking {
         coroutineScope {
             val lines = Channel<String>(Channel.UNLIMITED)
             val collector = launch(start = CoroutineStart.UNDISPATCHED) { prints.collect { lines.send(it) } }
@@ -170,6 +184,7 @@ internal class VescSession(
     }
 
     private fun dispatch(packet: ByteArray) {
+        _incoming.tryEmit(packet)
         val id = packet[0].toInt() and 0xFF
         if (id == COMM_PRINT.id) {
             _prints.tryEmit(String(packet, 1, packet.size - 1, Charsets.ISO_8859_1))

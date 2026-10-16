@@ -58,6 +58,8 @@ internal class MotorModel {
     var tachometerAbs = 0.0
         private set
 
+    val stats = RideStatsModel()
+
     /** Advances by [dt] seconds with the battery at [voltage]. */
     fun step(dt: Float, voltage: Float) {
         val noLoadErpm = voltage * ERPM_PER_VOLT
@@ -94,6 +96,7 @@ internal class MotorModel {
         tachometer += steps
         tachometerAbs += abs(steps)
 
+        stats.add(dt, erpm, voltage * inputCurrent, current, tempFet, tempMotor)
         tempFet += (AMBIENT + FET_HEATING * current * current - tempFet) * (1f - exp(-dt / FET_TAU))
         tempMotor += (AMBIENT + MOTOR_HEATING * current * current - tempMotor) * (1f - exp(-dt / MOTOR_TAU))
     }

@@ -20,8 +20,12 @@ import kotlin.time.TimeSource
  */
 open class VescController internal constructor(
     internal val session: VescSession,
-    private val canId: Int?,
+    /** Null for the attached controller. */
+    internal val canId: Int?,
 ) {
+    /** [payload] wrapped for this controller: unchanged for the attached one, in COMM_FORWARD_CAN otherwise. */
+    internal fun forwarded(payload: ByteArray): ByteArray = Requests.forwarded(canId, payload)
+
     val motor = MotorControl(session, canId)
 
     suspend fun firmwareInfo(): FirmwareInfo =
