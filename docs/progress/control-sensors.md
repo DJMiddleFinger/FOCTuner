@@ -4,8 +4,26 @@ Branch `claude/feat-control-sensors-dde2a3`. Scope: manual motor control (duty, 
 
 ## Done
 
-- Read every payload layout, scale and command sequence below from the sources (read 2026-10-16): `vedderb/bldc` master (`comm/commands.c`, `datatypes.h`, `motor/mc_interface.c`, `main.c`, `bms.c`, `imu/imu.c`, `timeout.c`, `util/buffer.c`), `vedderb/vesc_tool` master (`commands.cpp`, `mainwindow.cpp/.ui`, `pages/pagertdata.cpp/.ui`, `pages/pageimu.cpp`, `pages/pagebms.cpp`, `widgets/vesc3dview.cpp`, `mobile/Controls.qml`, `RtDataIMU.qml`, `RtDataSetup.qml`, `BMS.qml`), `vedderb/vesc_bms_fw` master (`commands.c`).
-- No code yet: the session stopped at the usage guard (5-hour window at 87%) before the first edit.
+`./gradlew :core:vesc:test :core:sim:test :app:assembleDebug` green; commits bad4c19, 1c0288a (merge of main 8c70d3c), f56641e, afaeff3, 8410768.
+
+Client (`core/vesc`):
+- `MotorControl.setPosition/setHandbrake/setCurrentRelative(…, holdFor)` through `session.motorCommand`, so they get the keepalive, main's leases and the release on close/cancel. Builders in `Requests`.
+- `Servo.kt` `setServoPosition(0..1)` (plain send: the servo isn't under the command timeout). `RotorPosition.kt` `PositionDisplay` + `rotorPositions(mode): Flow<Float>` (selects the mode on collect, NONE on cancel; INDUCTANCE counts as a motor command).
+- ESTOP is main's `VescClient.emergencyStop()`; this branch's own `EmergencyStop.kt` was dropped in the merge.
+- `SelectiveValues.kt` `values(Set<RealtimeField>)`; `SetupValues.kt` `setupValues()`, `setupValues(Set<SetupField>)`, `setOdometer(meters)`; `Imu.kt` `imu(mask)` (`ImuData`, `Axes`, `Quaternion`).
+- `Bms.kt` `bmsValues()`, `bmsSetChargeAllowed`, `bmsSetBalanceOverride`, `bmsResetCounters`, `bmsForceBalance`, `bmsZeroCurrentOffset`, `externalHumidityTemperature()`; `Gnss.kt` `gnss()`; `PowerSwitch.kt` `powerSwitch(id)`, `powerSwitches()`, `setPowerSwitch`; `IoBoard.kt` `ioBoard(id)`, `setIoBoardPwm`, `setIoBoardDigital`.
+
+Simulator (`core/sim`): position (PD onto a tracked rotor angle) and handbrake drives in `MotorModel`, relative current (±60 A), rotor position stream (`RotorPositionSim`), selective values, setup values with a stored odometer (`SetupValuesSim`), IMU that pitches with acceleration and turns with distance (`ImuSim`), 12S BMS on the motors' pack (`BmsSim`), GNSS fix moving with the motor (`GnssSim`), power switch at CAN id 30 (`PowerSwitchSim`), IO board at CAN id 40 with outputs looped back to inputs (`IoBoardSim`). ESTOP is main's.
+
+Tests (`core/vesc`): `MotorCommandsTest` (scales, ranges, position held past the timeout, handbrake released on scope cancel, relative current released on close, leases, ESTOP ends a position hold), `RotorPositionTest`, `ImuTest`, `SetupValuesTest` (incl. odometer and both selective commands), `BmsTest` (incl. every set command and the external sensor via `ScriptedTransport`), `AccessoriesTest` (GNSS, power switch, IO board).
+
+UI (`app/.../ui/tools/`, registered in `Tools.kt`, strings in `strings_control/setup/imu/bms/accessories.xml`, shared bits in `tools/parts/`: `ChoiceRow`, `ConfirmDialog`, `MeterRow`, `ReadingRow`):
+- Motor control (`control/`): STOP always on top (fires on finger down, calls `VescClient.emergencyStop`, 5 s countdown that disables the controls), arm step that says what will happen, live duty/current/ERPM/position/voltage/temps, modes Current/Duty/RPM/Position/Handbrake with VESC Tool's defaults and ranges, hold-to-run buttons that resend every 100 ms with a 300 ms lease, "Keep running after release" behind a confirmation (one unleased command on lift), Release, release on leaving the page or ON_STOP, rotor position dial with all eight modes, servo slider with Center.
+- Ride dashboard (`setup/`): speed, battery, range, energy left, trip and instantaneous Wh/km, power, incline (tan pitch), trip, time since power on, odometer with a Set dialog, totals over all controllers, km/mi.
+- IMU (`imu/`): Canvas wireframe attitude view, "show yaw" toggle, roll/pitch trends, accel/gyro/mag/quaternion.
+- BMS (`bms/`), GNSS (`gnss/`), Power switches (`psw/`), IO board (`io/`): see the commit messages; every BMS command and power switch toggle asks first.
+
+Shared files touched (minimal): `MotorControl.kt` (3 commands), `Requests.kt` (3 builders), `SimulatedVesc.kt` (one property per model, dispatch lines, the `rotor.sendDue` hook in `write`, `idOf`/`packVoltage` helpers, PID position in the values reply), `MotorModel.kt` (two drives, rotor angle), `Tools.kt`.
 
 ## Protocol reference
 
@@ -56,27 +74,15 @@ VESC Tool control defaults (`mainwindow.ui`): duty 0.20 (−1..1, step 0.01), cu
 
 ## Next
 
-1. Client (`core/vesc`), one file per area, extension functions like `RideStats.kt`, timeouts as constants in the file:
-   - `MotorControl.kt` (shared, minimal change): `setPosition(degrees)`, `setHandbrake(amps)`, `setCurrentRelative(fraction)` through `session.motorCommand`, so they get the keepalive and the release on cancel/close. Payload builders next to the existing ones in `Requests`.
-   - `Servo.kt`: `setServo(position 0..1)` via `session.send`, outside the keepalive (see the table).
-   - `EmergencyStop.kt`: `emergencyStop(duration = 5.seconds)`: `motor.release()` (ends our keepalive, sends current 0 like VESC Tool), then COMM_MOTOR_ESTOP with the duration in ms clamped to 1..65535.
-   - `RotorPosition.kt`: `setPositionDisplay(mode)` (enum of the 8 modes) and `rotorPositions(): Flow<Float>` from `session.incoming` filtered on COMM_ROTOR_POSITION (subscribe before sending the mode).
-   - `SelectiveValues.kt`: `values(mask)` for COMM_GET_VALUES_SELECTIVE returning `RealtimeValues` with unmasked fields 0 (and the mask).
-   - `SetupValues.kt`: data class + `setupValues()`, `setupValues(mask)`, `setOdometer(meters: Long)`.
-   - `Imu.kt`: `ImuData` (roll/pitch/yaw rad, accel g, gyro °/s, mag µT, quaternion, controllerId) + `imu(mask = 0xFFFF)`.
-   - `Bms.kt`: `BmsValues` + `bmsValues()`, `bmsSetChargeAllowed`, `bmsSetBalanceOverride(cell, on)`, `bmsResetCounters(ah, wh)`, `bmsForceBalance(on)`, `bmsZeroCurrentOffset()`, `externalHumidityTemperature()`.
-   - `Gnss.kt`, `PowerSwitch.kt` (status by index/by id, list, switch), `IoBoard.kt` (get all, set PWM, set digital).
-2. Simulator (`core/sim`): `ImuSim.kt` (pitch follows motor acceleration, roll sways slowly, yaw integrates from speed; quaternion from the same RPY; accel = gravity rotated into the body frame), `BmsSim.kt` (12 cells from the existing `Battery` charge with a little spread, balancing the highest cells while above 4.1 V, 4 temps, SoC = charge), `GnssSim.kt` (fixed fix that moves with distance), setup values + odometer (odometer stored, advances with absolute distance; speed from 7 pole pairs, 83 mm wheel like `RideStatsModel`), `EstopSim.kt` (release both motors, ignore motor commands for N ms on the board), position and handbrake drives, a power switch at CAN id 30 and an IO board at CAN id 40 reached through COMM_PSW_* / COMM_IO_BOARD_*.
-   - Decide with the lead (or note in the report): the rules allow only dispatch lines in `SimulatedVesc.handle`, but the models need per-instance state and ESTOP has to gate `command()`. Smallest change: one `internal val` per model in `SimulatedVesc` and one guard line in `command()`; position/handbrake need two new `Drive` cases in `MotorModel.kt`.
-3. Tests (`core/vesc`, `runTest` + `testTimeSource`): each parser against the sim; selective masks; ESTOP releases a running motor, the sim ignores commands for N ms and accepts them after; `setPosition`/`setHandbrake`/`setCurrentRelative` keep the motor alive past the 1 s timeout and are released by `release()`, `close()` and scope cancellation; rotor position stream starts and stops with the mode; odometer round trip.
-4. UI (`app/.../ui/tools/<area>/`, registered in `Tools.kt`):
-   - `control/`: arm step that says what will happen (motor spins while a button is held; secure it, keep clear), mode tabs Duty / Current / Brake / RPM / Position / Handbrake (+ relative current), value field with VESC Tool's defaults, hold-to-run buttons (FWD/REV where it applies; press = command, release or leaving the page = `release()`), optional "Keep running after release" behind a confirmation, live readouts (duty, current, ERPM, temps from `values()`), a big STOP always visible that calls `emergencyStop(5.seconds)` and disables every control with a 5 s countdown. Rotor position dial with the mode buttons.
-   - `setup/`: speed, trip, odometer (with set dialog in km), Wh/km (total and instantaneous), battery %, range, Wh left, ride time, number of controllers.
-   - `imu/`: Canvas attitude view (projected wireframe board + horizon line, "use yaw" toggle), RPY/accel/gyro/mag/quaternion readouts, Sparklines.
-   - `bms/`: cell bars (min/max marked, balancing shown), temps with labels, SoC/SoH, current, power, counters, status; Balance on/off, charging allow/disable, reset Ah/Wh, zero current offset, each with a confirmation.
-   - `gnss/`, `io/` (IO board ADC/digital readouts, PWM and digital outputs), `psw/` (list, status, on/off with confirmation), external humidity/temp on the BMS page.
-5. Run `./gradlew :core:vesc:test :core:sim:test :app:assembleDebug`, commit, update this file.
+1. Emulator pass (lead): all seven new tools in dark and light, large font, on the simulator and on a CAN-selected controller; hold-to-run with TalkBack (press and hold passes through, plain double tap does nothing by design).
+2. Gap audit R7 (keyboard / gamepad control) and R4 (realtime plot page) are not in this branch; they fit `control/` and a new `rtdata/` page.
+3. BMS extras from VESC Tool 6.06: the temperature convention option and the 12s7p battery temperature plot (`widgets/batttempplot.cpp`).
+4. Unit tests for `ControlModel` (press/lift/latch/stop ordering) need an app test setup with a fake `ToolContext`; today it is covered only through the client tests.
+5. `VescClient.emergencyStop` targets the attached controller and the ones this client drives; a selected CAN controller that was never commanded doesn't get the ESTOP. Decide with the owner of main's change whether STOP should also target the selected controller.
 
 ## Unverified
 
-- Everything above is read from source; nothing has been run against hardware. The BMS, GNSS, IO-board and power-switch replies depend on devices on the CAN bus that the simulator will only imitate.
+- Nothing has run against hardware or the emulator. Layouts and scales come from the sources listed under Done; the simulator was written from the same reading, so a misreading would pass the tests.
+- The BMS status strings (`status`) and when a real BMS reports balancing are not known from the sources; the simulator's "Charging disabled" is made up.
+- The rotor position stream in the simulator is paced by the client's own traffic (one sample per write at most every 10 ms), not every 10 ms like the firmware.
+- Servo: the slider sends on every change; on BLE that may queue up. VESC Tool does the same on desktop.
