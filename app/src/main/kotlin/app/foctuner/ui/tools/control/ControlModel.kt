@@ -8,6 +8,7 @@ import app.foctuner.vesc.PositionDisplay
 import app.foctuner.vesc.RealtimeValues
 import app.foctuner.vesc.VescException
 import app.foctuner.vesc.rotorPositions
+import app.foctuner.vesc.setServoPosition
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -57,6 +58,8 @@ data class ControlState(
     val failed: Boolean = false,
     val rotorMode: PositionDisplay = PositionDisplay.NONE,
     val rotorAngle: Float? = null,
+    /** Last position sent to the servo output, 0..1; null until moved. */
+    val servo: Float? = null,
 ) {
     val canCommand: Boolean get() = armed && stopSeconds == 0
 }
@@ -143,6 +146,12 @@ class ControlModel(private val context: ToolContext) {
     fun leave() {
         release()
         showRotor(PositionDisplay.NONE)
+    }
+
+    /** The servo output isn't a motor command: no keepalive, no release, it stays where it was put. */
+    fun setServo(position: Float) {
+        _state.update { it.copy(servo = position) }
+        launch { context.controller.setServoPosition(position) }
     }
 
     fun showRotor(mode: PositionDisplay) {

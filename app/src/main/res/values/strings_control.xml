@@ -60,4 +60,8 @@
     <string name="control_rotor_hint_any">Streamed by the controller every 10 ms.</string>
     <string name="control_rotor_hint_foc">FOC motors only.</string>
     <string name="control_rotor_hint_inductance">BLDC motors only: drives the motor to detect its position. FOC motors send nothing.</string>
+
+    <string name="control_section_servo">Servo output</string>
+    <string name="control_servo_center">Center</string>
+    <string name="control_servo_hint">Drives the PPM pin as a servo when the app settings enable the servo output. It stays where you leave it.</string>
 </resources>

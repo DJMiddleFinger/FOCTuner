@@ -77,6 +77,7 @@ fun ControlTool(context: ToolContext) {
         onRelease = model::release,
         onKeepRunning = model::setKeepRunning,
         onRotor = model::showRotor,
+        onServo = model::setServo,
     )
 }
 
@@ -92,6 +93,7 @@ private fun ControlContent(
     onRelease: () -> Unit,
     onKeepRunning: (Boolean) -> Unit,
     onRotor: (PositionDisplay) -> Unit,
+    onServo: (Float) -> Unit,
 ) {
     val colors = FocTheme.colors
     var confirmKeepRunning by rememberSaveable { mutableStateOf(false) }
@@ -171,6 +173,7 @@ private fun ControlContent(
                     enabled = state.running != null,
                 )
                 RotorSection(state, onRotor)
+                ServoSection(state.servo, onServo)
             }
             Spacer(Modifier.height(Spacing.x4))
         }

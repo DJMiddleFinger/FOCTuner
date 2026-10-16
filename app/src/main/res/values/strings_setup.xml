@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tool_setup">Ride dashboard</string>
+    <string name="tool_setup_summary">Speed, battery, consumption, range, trip and odometer for the whole vehicle</string>
+    <string name="setup_no_reply">The controller didn\'t answer. Retrying.</string>
+    <string name="setup_speed">Speed</string>
+    <string name="setup_battery">Battery</string>
+    <string name="setup_range">Range</string>
+    <string name="setup_battery_energy">Energy left</string>
+    <string name="setup_efficiency_trip">Trip average</string>
+    <string name="setup_efficiency_now">Now</string>
+    <string name="setup_power">Power</string>
+    <string name="setup_incline">Incline</string>
+    <string name="setup_section_distance">Distance</string>
+    <string name="setup_trip">Trip</string>
+    <string name="setup_ride_time">Since power on</string>
+    <string name="setup_odometer">Odometer</string>
+    <string name="setup_odometer_set">Set</string>
+    <string name="setup_odometer_title">Set odometer</string>
+    <string name="setup_odometer_body">The controller stores this distance and keeps adding to it. Speed and distance use the wheel, gearing and pole settings in the motor config.</string>
+    <string name="setup_odometer_confirm">Set</string>
+    <string name="setup_cancel">Cancel</string>
+    <string name="setup_section_motors">All controllers</string>
+    <string name="setup_current_motor">Motor</string>
+    <string name="setup_current_input">Battery</string>
+    <string name="setup_voltage">Input</string>
+    <string name="setup_temp_mosfet">MOSFET</string>
+    <string name="setup_temp_motor">Motor</string>
+    <string name="setup_controllers">Controllers</string>
+    <string name="setup_used">Used</string>
+    <string name="setup_regenerated">Regenerated</string>
+</resources>

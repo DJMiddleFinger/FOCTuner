@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tool_imu">IMU</string>
+    <string name="tool_imu_summary">Live attitude, accelerometer, gyro and magnetometer of the controller\'s IMU</string>
+    <string name="imu_no_reply">The controller didn\'t answer. Retrying.</string>
+    <string name="imu_attitude_description">Board rolled %1$s degrees, pitched %2$s degrees</string>
+    <string name="imu_use_yaw">Show yaw (drifts without a magnetometer)</string>
+    <string name="imu_section_attitude">Attitude</string>
+    <string name="imu_roll">Roll</string>
+    <string name="imu_pitch">Pitch</string>
+    <string name="imu_yaw">Yaw</string>
+    <string name="imu_section_accel">Accelerometer</string>
+    <string name="imu_section_gyro">Gyro</string>
+    <string name="imu_section_mag">Magnetometer</string>
+    <string name="imu_section_quaternion">Quaternion</string>
+</resources>
