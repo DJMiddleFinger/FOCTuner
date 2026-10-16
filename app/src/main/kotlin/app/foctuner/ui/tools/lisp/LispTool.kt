@@ -301,7 +301,7 @@ fun LispTool(context: ToolContext) {
                 onRead = model::read,
                 onErase = { ask = Ask.Erase },
                 onInfo = ::info,
-                onImportsFolder = { pickImportsFolder.launch(workspace.importsFolder) },
+                onImportsFolder = { pickImportsFolder.launch(null) },
                 onHelp = { ask = Ask.Help },
             )
         }
@@ -407,7 +407,7 @@ fun LispTool(context: ToolContext) {
             confirm = stringResource(R.string.lisp_pick_folder),
             onConfirm = {
                 afterFolder = current.then
-                pickImportsFolder.launch(workspace.importsFolder)
+                pickImportsFolder.launch(null)
             },
             onDismiss = { ask = null },
         )

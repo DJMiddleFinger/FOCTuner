@@ -90,6 +90,7 @@ class LispWorkspace(app: Application) : AndroidViewModel(app) {
 
     fun select(document: LispDocument) {
         currentIndex = documents.indexOf(document).coerceAtLeast(0)
+        saveIndex()
     }
 
     /** Applies an edit from the field: records undo, marks the document unsaved and schedules a draft save. */

@@ -31,13 +31,20 @@ class LispFiles(private val resolver: ContentResolver) {
         null
     } ?: uri.lastPathSegment?.substringAfterLast('/')
 
-    /** Keeps access to [uri] across restarts so it can be reopened from the recent list. */
+    /**
+     * Keeps access to [uri] across restarts so it can be reopened from the recent list: read and write if
+     * [write] and the provider grants it, otherwise read only.
+     */
     fun keep(uri: Uri, write: Boolean) {
-        val flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or if (write) Intent.FLAG_GRANT_WRITE_URI_PERMISSION else 0
-        try {
-            resolver.takePersistableUriPermission(uri, flags)
-        } catch (e: SecurityException) {
-            // The provider doesn't offer lasting access; the file works until the app restarts.
+        val read = Intent.FLAG_GRANT_READ_URI_PERMISSION
+        val flags = if (write) listOf(read or Intent.FLAG_GRANT_WRITE_URI_PERMISSION, read) else listOf(read)
+        for (flag in flags) {
+            try {
+                resolver.takePersistableUriPermission(uri, flag)
+                return
+            } catch (e: SecurityException) {
+                // Not offered with these flags; try the next, or the file works until the app restarts.
+            }
         }
     }
 

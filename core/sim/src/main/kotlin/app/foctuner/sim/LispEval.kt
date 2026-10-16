@@ -1,11 +1,19 @@
 package app.foctuner.sim
 
+import app.foctuner.protocol.ByteWriter
+import app.foctuner.protocol.CommPacketId
+import app.foctuner.protocol.CommPacketId.COMM_PLOT_ADD_GRAPH
+import app.foctuner.protocol.CommPacketId.COMM_PLOT_DATA
+import app.foctuner.protocol.CommPacketId.COMM_PLOT_INIT
+import app.foctuner.protocol.CommPacketId.COMM_PLOT_SET_GRAPH
+
 /**
  * A very small subset of LispBM for the simulator: integer and float literals, strings, global bindings
- * (`def`, `define`, `setq`), arithmetic and comparison, `progn` (and `{ }`) and `print`. Anything else is
- * an error in the REPL and skipped in programs, where real scripts mostly call firmware extensions.
+ * (`def`, `define`, `setq`), arithmetic and comparison, `progn` (and `{ }`), `print` and the plot extensions,
+ * which [send] as the firmware's COMM_PLOT_* packets. Anything else is an error in the REPL and skipped in
+ * programs, where real scripts mostly call firmware extensions.
  */
-internal class LispEval(private val print: (String) -> Unit) {
+internal class LispEval(private val print: (String) -> Unit, private val send: (ByteArray) -> Unit) {
     val globals = LinkedHashMap<String, Any>()
 
     /** Garbage collections so far; the firmware reports heap use as 0 until the first. */
@@ -78,11 +86,24 @@ internal class LispEval(private val print: (String) -> Unit) {
                 T
             }
             "quote" -> args.firstOrNull() ?: NIL
+            "plot-init" -> plot(COMM_PLOT_INIT) { w -> args.take(2).forEach { w.cString(eval(it) as? String ?: throw EvalError("type_error")) } }
+            "plot-add-graph" -> plot(COMM_PLOT_ADD_GRAPH) { w -> w.cString(eval(args.firstOrNull() ?: NIL) as? String ?: throw EvalError("type_error")) }
+            "plot-set-graph" -> plot(COMM_PLOT_SET_GRAPH) { w -> w.u8(number(args.firstOrNull()).toInt()) }
+            "plot-send-points" -> plot(COMM_PLOT_DATA) { w -> w.f32Auto(number(args.getOrNull(0)).toFloat()).f32Auto(number(args.getOrNull(1)).toFloat()) }
             "+", "-", "*", "/" -> arithmetic(head, args.map(::eval))
             "=", "<", ">", "<=", ">=" -> compare(head, args.map(::eval))
             else -> throw EvalError("variable_not_bound $head")
         }
     }
+
+    private fun plot(id: CommPacketId, body: (ByteWriter) -> Unit): Any {
+        val w = ByteWriter().u8(id.id)
+        body(w)
+        send(w.toByteArray())
+        return T
+    }
+
+    private fun number(form: Any?): Number = eval(form ?: NIL) as? Number ?: throw EvalError("type_error")
 
     private fun arithmetic(op: String, values: List<Any>): Any {
         val numbers = values.map { it as? Number ?: throw EvalError("type_error") }

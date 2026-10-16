@@ -24,7 +24,7 @@ import kotlin.time.DurationUnit
  */
 internal class LispSim(private val vesc: SimulatedVesc) {
     private val flash = ByteArray(CODE_AREA) { ERASED }
-    private val eval = LispEval(::print)
+    private val eval = LispEval(::print, vesc::reply)
     private var running = false
     private var paused = false
     private var lastReplEval: Duration? = null
