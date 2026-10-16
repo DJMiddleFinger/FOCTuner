@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tool_firmware">Firmware</string>
+    <string name="tool_firmware_summary">Install firmware from a .bin or .hex file, update the bootloader, update every controller on the CAN bus</string>
+
+    <string name="fw_keep_powered">Keep the controller powered and connected</string>
+    <string name="fw_keep_powered_body">Removing power while the controller installs can leave it unusable until it is reflashed with a programmer.</string>
+
+    <string name="fw_installed">Installed</string>
+    <string name="fw_version">Firmware</string>
+    <string name="fw_version_beta">%1$s beta %2$d</string>
+    <string name="fw_hardware">Hardware</string>
+    <string name="fw_hardware_type">Hardware type</string>
+    <string name="fw_build">Build</string>
+    <string name="fw_uuid">UUID</string>
+
+    <string name="fw_file">Firmware file</string>
+    <string name="fw_file_none">Choose a .bin or .hex file built for this controller.</string>
+    <string name="fw_file_loading">Reading the file…</string>
+    <string name="fw_file_name">File</string>
+    <string name="fw_file_size">Size</string>
+    <string name="fw_bytes">%1$d bytes</string>
+    <string name="fw_built_for">Built for</string>
+    <string name="fw_mismatch_title">Built for %1$s, this controller is %2$s</string>
+    <string name="fw_mismatch_body">Firmware for other hardware can destroy the controller. Only continue if you know this build fits it.</string>
+    <string name="fw_unknown_title">The file doesn\'t say which hardware it is for</string>
+    <string name="fw_unknown_body">VESC firmware names its hardware inside the image; this file doesn\'t. Check where it came from before installing it.</string>
+    <string name="fw_override">I\'m sure this firmware is for %1$s</string>
+    <string name="fw_include_bootloader">Upload the bootloader first</string>
+    <string name="fw_choose_file">Choose file</string>
+    <string name="fw_install">Install…</string>
+    <string name="fw_file_error_name">Only .bin and .hex files can be installed.</string>
+    <string name="fw_file_error_empty">The file is empty or couldn\'t be read.</string>
+    <string name="fw_file_error_large">The file is too large to be firmware.</string>
+    <string name="fw_file_error_hex">The .hex file is damaged (bad record or checksum).</string>
+
+    <string name="fw_bootloader">Bootloader</string>
+    <string name="fw_bootloader_none">No bootloader for this hardware.</string>
+    <string name="fw_bootloader_image">Image</string>
+    <string name="fw_bootloader_hint">The bootloader installs uploaded firmware. Update it if a firmware update keeps coming back to the old version.</string>
+    <string name="fw_bootloader_only">Upload bootloader…</string>
+
+    <string name="fw_target">Install on</string>
+    <string name="fw_target_this">This controller (%1$s)</string>
+    <string name="fw_target_all">Every controller on the CAN bus</string>
+    <string name="fw_target_all_unavailable">Connect directly to a controller with firmware 3.45 or later to update the whole bus.</string>
+
+    <string name="fw_progress">Progress</string>
+    <string name="fw_stage_preparing">Checking the controller</string>
+    <string name="fw_stage_erase_bootloader">Erasing the bootloader</string>
+    <string name="fw_stage_write_bootloader">Writing the bootloader</string>
+    <string name="fw_stage_erase">Erasing the update area</string>
+    <string name="fw_stage_write">Uploading firmware</string>
+    <string name="fw_stage_installing">Installing. The controller restarts; keep the power on.</string>
+    <string name="fw_cancel">Cancel</string>
+
+    <string name="fw_done">Running %1$s on %2$s</string>
+    <string name="fw_done_can">CAN %1$d: %2$s, %3$s</string>
+    <string name="fw_same_version">Still running %1$s</string>
+    <string name="fw_same_version_body">If you installed a different version, the bootloader rejected the image or is missing. Upload the bootloader, then install again.</string>
+    <string name="fw_link_closed">The connection closed while the controller restarts</string>
+    <string name="fw_link_closed_body">Keep the power on for at least 10 seconds, then reconnect.</string>
+    <string name="fw_no_reply">No answer since the restart</string>
+    <string name="fw_no_reply_body">Keep the power on and wait. If the controller doesn\'t come back, check its LEDs; it may need a programmer.</string>
+    <string name="fw_bootloader_done">Bootloader written</string>
+    <string name="fw_cancelled">Cancelled</string>
+    <string name="fw_failed">Update stopped</string>
+    <string name="fw_failed_old_kept">The controller still runs its old firmware.</string>
+    <string name="fw_failed_bootloader">Bootloader upload failed</string>
+    <string name="fw_fail_mismatch">The firmware is not for this hardware.</string>
+    <string name="fw_fail_can">Every controller on the bus must have the same hardware. Update them one at a time.</string>
+    <string name="fw_fail_unsupported">This controller\'s firmware can\'t update the whole bus.</string>
+    <string name="fw_fail_large">The image doesn\'t fit the update area, even compressed.</string>
+    <string name="fw_fail_erase">The controller couldn\'t erase its flash. Make sure the motor is stopped.</string>
+    <string name="fw_fail_write">The controller couldn\'t write its flash.</string>
+    <string name="fw_fail_no_reply">The controller stopped answering.</string>
+    <string name="fw_fail_link">The connection dropped.</string>
+
+    <string name="fw_confirm_title">Install firmware?</string>
+    <string name="fw_confirm_go">Install</string>
+    <string name="fw_confirm_install">%1$s goes to %2$s.</string>
+    <string name="fw_confirm_target_this">this controller (%1$s)</string>
+    <string name="fw_confirm_target_all">every controller on the CAN bus</string>
+    <string name="fw_confirm_bootloader_first">The bootloader is written first. If that fails, nothing else is installed.</string>
+    <string name="fw_confirm_settings">A different firmware version can reset the motor and app settings. Back them up first.</string>
+    <string name="fw_confirm_wrong_hardware">Firmware for other hardware can destroy the controller.</string>
+    <string name="fw_confirm_power">After the upload the controller restarts and installs, which takes up to a minute. Keep it powered until it answers again.</string>
+    <string name="fw_confirm_failure">If the upload stops before the end, the controller keeps its current firmware.</string>
+    <string name="fw_confirm_all_can">Every controller relays the upload; only the one you are connected to confirms each step.</string>
+    <string name="fw_confirm_bootloader_title">Upload bootloader?</string>
+    <string name="fw_confirm_bootloader_go">Upload</string>
+    <string name="fw_confirm_bootloader_only">The %1$s bootloader goes to %2$s.</string>
+    <string name="fw_confirm_bootloader_risk">If this upload fails, don\'t install firmware until a bootloader upload has completed.</string>
+    <string name="fw_confirm_bootloader_no_erase">This firmware can\'t erase the bootloader first. If the controller already has one, it will be destroyed and firmware updates won\'t work any more.</string>
+</resources>

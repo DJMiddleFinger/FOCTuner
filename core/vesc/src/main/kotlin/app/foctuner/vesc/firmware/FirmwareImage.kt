@@ -5,7 +5,7 @@ import java.io.IOException
 
 /** Why a file can't be uploaded. */
 class FirmwareFileException(val reason: Reason, message: String) : IOException(message) {
-    enum class Reason { NotFirmwareName, Empty, TooLarge, BadHex, WrongDownload }
+    enum class Reason { NotFirmwareName, Empty, TooLarge, BadHex }
 }
 
 enum class HardwareCheck { Match, Mismatch, Unknown }
