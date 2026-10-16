@@ -25,6 +25,24 @@ class MotorControl internal constructor(
     /** Speed in electrical RPM (mechanical RPM times pole pairs). */
     suspend fun setRpm(erpm: Int) = session.motorCommand(canId, Requests.rpm(erpm))
 
+    /**
+     * Holds the rotor at [degrees] (0..360) with the position PID. Needs a position sensor (encoder) or a
+     * motor that the observer can track at standstill; the angle includes `p_pid_offset`.
+     */
+    suspend fun setPosition(degrees: Float) = session.motorCommand(canId, Requests.position(degrees))
+
+    /**
+     * Holds the rotor still with [amps]: on FOC an open-loop current vector at a fixed angle, on BLDC and DC
+     * an ordinary brake current.
+     */
+    suspend fun setHandbrake(amps: Float) = session.motorCommand(canId, Requests.handbrake(amps))
+
+    /**
+     * Current as a fraction (-1..1) of the configured limit: of the maximum current while the duty cycle is
+     * near zero or has the same sign, of the maximum braking current otherwise.
+     */
+    suspend fun setCurrentRelative(fraction: Float) = session.motorCommand(canId, Requests.currentRelative(fraction))
+
     /** Stops driving the motor (zero current) and ends the keepalive for it. */
     suspend fun release() = session.releaseMotor(canId)
 }

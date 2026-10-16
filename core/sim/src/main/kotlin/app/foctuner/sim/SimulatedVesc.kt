@@ -17,6 +17,7 @@ import app.foctuner.protocol.CommPacketId.COMM_GET_MCCONF
 import app.foctuner.protocol.CommPacketId.COMM_GET_MCCONF_DEFAULT
 import app.foctuner.protocol.CommPacketId.COMM_GET_STATS
 import app.foctuner.protocol.CommPacketId.COMM_GET_VALUES
+import app.foctuner.protocol.CommPacketId.COMM_MOTOR_ESTOP
 import app.foctuner.protocol.CommPacketId.COMM_PING_CAN
 import app.foctuner.protocol.CommPacketId.COMM_PRINT
 import app.foctuner.protocol.CommPacketId.COMM_RESET_STATS
@@ -24,7 +25,11 @@ import app.foctuner.protocol.CommPacketId.COMM_SET_APPCONF
 import app.foctuner.protocol.CommPacketId.COMM_SET_MCCONF
 import app.foctuner.protocol.CommPacketId.COMM_SET_CURRENT
 import app.foctuner.protocol.CommPacketId.COMM_SET_CURRENT_BRAKE
+import app.foctuner.protocol.CommPacketId.COMM_SET_CURRENT_REL
+import app.foctuner.protocol.CommPacketId.COMM_SET_DETECT
 import app.foctuner.protocol.CommPacketId.COMM_SET_DUTY
+import app.foctuner.protocol.CommPacketId.COMM_SET_HANDBRAKE
+import app.foctuner.protocol.CommPacketId.COMM_SET_POS
 import app.foctuner.protocol.CommPacketId.COMM_SET_RPM
 import app.foctuner.protocol.CommPacketId.COMM_TERMINAL_CMD
 import app.foctuner.protocol.PacketCodec
@@ -49,7 +54,9 @@ import kotlin.time.TimeSource
  *
  * Supports COMM_FW_VERSION, COMM_GET_VALUES, the four motor commands, COMM_ALIVE, COMM_TERMINAL_CMD,
  * COMM_PING_CAN, COMM_FORWARD_CAN, COMM_GET_STATS / COMM_RESET_STATS and reading and writing the motor and app config (7.01 layout, starting
- * from the defaults); other commands are ignored like unknown ones in the firmware.
+ * from the defaults); COMM_SET_POS, COMM_SET_HANDBRAKE, COMM_SET_CURRENT_REL and COMM_MOTOR_ESTOP ([EstopSim]);
+ * COMM_SET_DETECT with the COMM_ROTOR_POSITION stream ([RotorPositionSim]). Other commands are ignored like unknown
+ * ones in the firmware.
  *
  * Time comes from [timeSource] and is applied lazily when a request arrives, so the simulation costs nothing
  * while idle and runs on virtual time when given a test scope's time source. Like the firmware, motors
@@ -84,6 +91,8 @@ class SimulatedVesc(
     private val battery = Battery()
     private val first = MotorModel()
     private val second = MotorModel()
+    private val estop = EstopSim(listOf(first, second))
+    private val rotor = RotorPositionSim(this)
     private var lastStep = Duration.ZERO
     private var lastCommand = Duration.ZERO
     private var timedOut = false
@@ -96,6 +105,7 @@ class SimulatedVesc(
         synchronized(lock) {
             if (closed) throw IOException("Simulated link is closed")
             for (packet in decoder.feed(bytes)) handle(packet, first)
+            rotor.sendDue(uptime)
         }
     }
 
@@ -129,6 +139,11 @@ class SimulatedVesc(
             COMM_SET_CURRENT -> command(motor, currentDrive(r.i32() / 1e3f, brake = false))
             COMM_SET_CURRENT_BRAKE -> command(motor, currentDrive(r.i32() / 1e3f, brake = true))
             COMM_SET_RPM -> command(motor, Drive.Speed(r.i32().toFloat()))
+            COMM_SET_POS -> command(motor, Drive.Position(r.i32() / 1e6f))
+            COMM_SET_HANDBRAKE -> command(motor, Drive.Handbrake(r.i32() / 1e3f))
+            COMM_SET_CURRENT_REL -> command(motor, currentDrive(relativeCurrent(r.i32() / 1e5f), brake = false))
+            COMM_MOTOR_ESTOP -> estop.stop(lastStep, r.u16())
+            COMM_SET_DETECT -> rotor.select(r.u8(), motor)
             COMM_ALIVE -> resetTimeout()
             COMM_TERMINAL_CMD -> terminal(r.restBytes().toString(Charsets.ISO_8859_1), motor)
             COMM_PING_CAN -> reply(pingReply())
@@ -191,7 +206,7 @@ class SimulatedVesc(
     }
 
     private fun command(motor: MotorModel, drive: Drive) {
-        motor.drive = drive
+        if (!estop.ignoresInput(lastStep)) motor.drive = drive
         resetTimeout()
     }
 
@@ -263,7 +278,7 @@ class SimulatedVesc(
             .f32(motor.wattHours.toFloat(), 10000f).f32(motor.wattHoursCharged.toFloat(), 10000f)
             .i32(motor.tachometer.toInt()).i32(motor.tachometerAbs.toInt())
             .u8(0) // fault code
-            .f32(0f, 1e6f) // PID position
+            .f32(motor.angle, 1e6f) // PID position
             .u8(id)
             .f16(motor.tempFet, 10f).f16(motor.tempFet, 10f).f16(motor.tempFet, 10f)
             .f32(0f, 1000f).f32(motor.duty * voltage * VQ_PER_DUTY_VOLT, 1000f)
