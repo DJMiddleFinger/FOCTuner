@@ -9,10 +9,22 @@ import app.foctuner.protocol.ByteReader
 import app.foctuner.protocol.ByteWriter
 import app.foctuner.protocol.CommPacketId
 import app.foctuner.protocol.CommPacketId.COMM_ALIVE
+import app.foctuner.protocol.CommPacketId.COMM_APP_DISABLE_OUTPUT
+import app.foctuner.protocol.CommPacketId.COMM_DETECT_APPLY_ALL_FOC
+import app.foctuner.protocol.CommPacketId.COMM_DETECT_ENCODER
+import app.foctuner.protocol.CommPacketId.COMM_DETECT_HALL_FOC
+import app.foctuner.protocol.CommPacketId.COMM_DETECT_MOTOR_FLUX_LINKAGE
+import app.foctuner.protocol.CommPacketId.COMM_DETECT_MOTOR_FLUX_LINKAGE_OPENLOOP
+import app.foctuner.protocol.CommPacketId.COMM_DETECT_MOTOR_PARAM
+import app.foctuner.protocol.CommPacketId.COMM_DETECT_MOTOR_R_L
 import app.foctuner.protocol.CommPacketId.COMM_FORWARD_CAN
 import app.foctuner.protocol.CommPacketId.COMM_FW_VERSION
 import app.foctuner.protocol.CommPacketId.COMM_GET_APPCONF
 import app.foctuner.protocol.CommPacketId.COMM_GET_APPCONF_DEFAULT
+import app.foctuner.protocol.CommPacketId.COMM_GET_DECODED_ADC
+import app.foctuner.protocol.CommPacketId.COMM_GET_DECODED_CHUK
+import app.foctuner.protocol.CommPacketId.COMM_GET_DECODED_PPM
+import app.foctuner.protocol.CommPacketId.COMM_GET_IMU_CALIBRATION
 import app.foctuner.protocol.CommPacketId.COMM_GET_MCCONF
 import app.foctuner.protocol.CommPacketId.COMM_GET_MCCONF_DEFAULT
 import app.foctuner.protocol.CommPacketId.COMM_GET_STATS
@@ -31,8 +43,11 @@ import app.foctuner.protocol.PacketCodec
 import app.foctuner.protocol.PacketDecoder
 import app.foctuner.transport.Transport
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ChannelResult
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.selects.select
+import kotlinx.coroutines.withTimeoutOrNull
 import java.io.IOException
 import kotlin.math.abs
 import kotlin.math.ceil
@@ -49,7 +64,9 @@ import kotlin.time.TimeSource
  *
  * Supports COMM_FW_VERSION, COMM_GET_VALUES, the four motor commands, COMM_ALIVE, COMM_TERMINAL_CMD,
  * COMM_PING_CAN, COMM_FORWARD_CAN, COMM_GET_STATS / COMM_RESET_STATS and reading and writing the motor and app config (7.01 layout, starting
- * from the defaults); other commands are ignored like unknown ones in the firmware.
+ * from the defaults), motor detection (COMM_DETECT_*, replying after the time the firmware takes, see [DetectionSim]),
+ * COMM_GET_IMU_CALIBRATION and the decoded PPM / ADC / nunchuk inputs ([DecodedInputsSim]); other commands are
+ * ignored like unknown ones in the firmware.
  *
  * Time comes from [timeSource] and is applied lazily when a request arrives, so the simulation costs nothing
  * while idle and runs on virtual time when given a test scope's time source. Like the firmware, motors
@@ -73,7 +90,21 @@ class SimulatedVesc(
     override val maxWriteSize = chunkSize
 
     private val outbound = Channel<ByteArray>(Channel.UNLIMITED)
-    override val received: Flow<ByteArray> = outbound.receiveAsFlow()
+    private val wakeUp = Channel<Unit>(Channel.CONFLATED)
+
+    /** Replies, plus the ones [later] scheduled, delivered once their time has come (waiting on the collector's clock). */
+    override val received: Flow<ByteArray> = flow {
+        while (true) {
+            val wait = synchronized(lock) { runDue() } ?: Duration.INFINITE
+            val next = withTimeoutOrNull(wait) {
+                select<ChannelResult<ByteArray>?> {
+                    outbound.onReceiveCatching { it }
+                    wakeUp.onReceive { null }
+                }
+            } ?: continue
+            emit(next.getOrNull() ?: break)
+        }
+    }
 
     private val lock = Any()
     private val decoder = PacketDecoder()
@@ -91,6 +122,10 @@ class SimulatedVesc(
 
     /** Each motor's stored configs in wire form, created on first use (parsing the definitions is slow). */
     private val configs = HashMap<Pair<MotorModel, ConfigKind>, ByteArray>()
+
+    /** Actions [later] scheduled, with the uptime they are due at. */
+    private val scheduled = mutableListOf<Pair<Duration, () -> Unit>>()
+    private val detection = DetectionSim(this, if (dualMotor) listOf(first, second) else listOf(first))
 
     override suspend fun write(bytes: ByteArray) {
         synchronized(lock) {
@@ -140,6 +175,18 @@ class SimulatedVesc(
             COMM_SET_MCCONF -> storeConfig(motor, ConfigKind.MCCONF, packet)
             COMM_SET_APPCONF -> storeConfig(motor, ConfigKind.APPCONF, packet)
             COMM_GET_STATS -> reply(motor.stats.reply())
+            COMM_DETECT_MOTOR_R_L -> detection.resistanceInductance(motor)
+            COMM_DETECT_MOTOR_FLUX_LINKAGE -> detection.fluxLinkage(r, motor)
+            COMM_DETECT_MOTOR_FLUX_LINKAGE_OPENLOOP -> detection.fluxLinkageOpenloop(r, motor)
+            COMM_DETECT_HALL_FOC -> detection.focHalls(r, motor)
+            COMM_DETECT_ENCODER -> detection.encoder(r, motor)
+            COMM_DETECT_MOTOR_PARAM -> detection.bldc(r, motor)
+            COMM_DETECT_APPLY_ALL_FOC -> detection.applyAllFoc(r)
+            COMM_GET_IMU_CALIBRATION -> detection.imuCalibration(r)
+            COMM_GET_DECODED_PPM -> reply(DecodedInputsSim.ppm(config(motor, ConfigKind.APPCONF), uptime))
+            COMM_GET_DECODED_ADC -> reply(DecodedInputsSim.adc(config(motor, ConfigKind.APPCONF), uptime))
+            COMM_GET_DECODED_CHUK -> reply(DecodedInputsSim.nunchuk(uptime))
+            COMM_APP_DISABLE_OUTPUT -> Unit
             COMM_RESET_STATS -> {
                 motor.stats.reset()
                 if (packet.size > 1 && packet[1].toInt() != 0) reply(byteArrayOf(packet[0]))
@@ -162,6 +209,33 @@ class SimulatedVesc(
         val defaults = Config.defaults(BundledDefinitions.load(CONFIG_VERSION, kind))
         val id = if (motor === second) controllerId + 1 else controllerId
         return ConfigCodec.serialize(if (kind == ConfigKind.APPCONF) defaults.with("controller_id", id.toLong()) else defaults)
+    }
+
+    internal fun config(motor: MotorModel, kind: ConfigKind): Config =
+        ConfigCodec.deserialize(BundledDefinitions.load(CONFIG_VERSION, kind), storedConfig(motor, kind))
+
+    /** Stores [config] the way the firmware does after a detection: without a reply. */
+    internal fun replaceConfig(motor: MotorModel, kind: ConfigKind, config: Config) {
+        configs[motor to kind] = ConfigCodec.serialize(config)
+    }
+
+    /** Runs [action] (under the simulator's lock) [delay] from now, for replies the firmware sends when a long job ends. */
+    internal fun later(delay: Duration, action: () -> Unit) {
+        scheduled += (uptime + delay) to action
+        wakeUp.trySend(Unit)
+    }
+
+    /** Runs the scheduled actions that are due and returns how long until the next one, null if none is pending. */
+    private fun runDue(): Duration? {
+        if (scheduled.isEmpty()) return null
+        advance()
+        while (true) {
+            val next = scheduled.minByOrNull { it.first } ?: return null
+            val wait = next.first - uptime
+            if (wait > Duration.ZERO) return wait
+            scheduled.remove(next)
+            next.second()
+        }
     }
 
     /** Like the firmware, a config with another layout is not stored and gets a printed warning instead of a reply. */
