@@ -23,7 +23,12 @@ import app.foctuner.protocol.CommPacketId.COMM_DETECT_MOTOR_FLUX_LINKAGE
 import app.foctuner.protocol.CommPacketId.COMM_DETECT_MOTOR_FLUX_LINKAGE_OPENLOOP
 import app.foctuner.protocol.CommPacketId.COMM_DETECT_MOTOR_PARAM
 import app.foctuner.protocol.CommPacketId.COMM_DETECT_MOTOR_R_L
+import app.foctuner.protocol.CommPacketId.COMM_ERASE_BOOTLOADER
+import app.foctuner.protocol.CommPacketId.COMM_ERASE_BOOTLOADER_ALL_CAN
+import app.foctuner.protocol.CommPacketId.COMM_ERASE_NEW_APP
+import app.foctuner.protocol.CommPacketId.COMM_ERASE_NEW_APP_ALL_CAN
 import app.foctuner.protocol.CommPacketId.COMM_FORWARD_CAN
+import app.foctuner.protocol.CommPacketId.COMM_FW_INFO
 import app.foctuner.protocol.CommPacketId.COMM_FW_VERSION
 import app.foctuner.protocol.CommPacketId.COMM_GET_APPCONF
 import app.foctuner.protocol.CommPacketId.COMM_GET_APPCONF_DEFAULT
@@ -40,6 +45,8 @@ import app.foctuner.protocol.CommPacketId.COMM_GET_VALUES
 import app.foctuner.protocol.CommPacketId.COMM_GET_VALUES_SELECTIVE
 import app.foctuner.protocol.CommPacketId.COMM_GET_VALUES_SETUP
 import app.foctuner.protocol.CommPacketId.COMM_GET_VALUES_SETUP_SELECTIVE
+import app.foctuner.protocol.CommPacketId.COMM_JUMP_TO_BOOTLOADER
+import app.foctuner.protocol.CommPacketId.COMM_JUMP_TO_BOOTLOADER_ALL_CAN
 import app.foctuner.protocol.CommPacketId.COMM_MOTOR_ESTOP
 import app.foctuner.protocol.CommPacketId.COMM_IO_BOARD_GET_ALL
 import app.foctuner.protocol.CommPacketId.COMM_IO_BOARD_SET_DIGITAL
@@ -61,6 +68,10 @@ import app.foctuner.protocol.CommPacketId.COMM_SET_HANDBRAKE
 import app.foctuner.protocol.CommPacketId.COMM_SET_POS
 import app.foctuner.protocol.CommPacketId.COMM_SET_RPM
 import app.foctuner.protocol.CommPacketId.COMM_TERMINAL_CMD
+import app.foctuner.protocol.CommPacketId.COMM_WRITE_NEW_APP_DATA
+import app.foctuner.protocol.CommPacketId.COMM_WRITE_NEW_APP_DATA_ALL_CAN
+import app.foctuner.protocol.CommPacketId.COMM_WRITE_NEW_APP_DATA_ALL_CAN_LZO
+import app.foctuner.protocol.CommPacketId.COMM_WRITE_NEW_APP_DATA_LZO
 import app.foctuner.protocol.PacketCodec
 import app.foctuner.protocol.PacketDecoder
 import app.foctuner.transport.Transport
@@ -91,9 +102,10 @@ import kotlin.time.TimeSource
  * COMM_ROTOR_POSITION stream ([RotorPositionSim]); COMM_GET_VALUES_SELECTIVE; COMM_GET_VALUES_SETUP(_SELECTIVE)
  * and COMM_SET_ODOMETER ([SetupValuesSim]); COMM_GET_IMU_DATA ([ImuSim]); COMM_BMS_GET_VALUES and the BMS set
  * commands ([BmsSim]); COMM_GET_GNSS ([GnssSim]); COMM_PSW_GET_STATUS / COMM_PSW_SWITCH ([PowerSwitchSim]);
- * COMM_IO_BOARD_GET_ALL / SET_PWM / SET_DIGITAL ([IoBoardSim]). motor detection (COMM_DETECT_*, replying after
+ * COMM_IO_BOARD_GET_ALL / SET_PWM / SET_DIGITAL ([IoBoardSim]); motor detection (COMM_DETECT_*, replying after
  * the time the firmware takes, see [DetectionSim]), COMM_GET_IMU_CALIBRATION and the decoded PPM / ADC /
- * nunchuk inputs ([DecodedInputsSim]). Other commands are ignored like unknown ones in the firmware.
+ * nunchuk inputs ([DecodedInputsSim]); and firmware updates (erase, write, LZO, bootloader, jump, COMM_FW_INFO;
+ * see [FirmwareSim]). Other commands are ignored like unknown ones in the firmware.
  *
  * Time comes from [timeSource] and is applied lazily when a request arrives, so the simulation costs nothing
  * while idle and runs on virtual time when given a test scope's time source. Like the firmware, motors
@@ -122,15 +134,17 @@ class SimulatedVesc(
     /** Replies, plus the ones [later] scheduled, delivered once their time has come (waiting on the collector's clock). */
     override val received: Flow<ByteArray> = flow {
         while (true) {
-            val wait = synchronized(lock) { runDue() } ?: Duration.INFINITE
-            val next = withTimeoutOrNull(wait) {
-                select<ChannelResult<ByteArray>?> {
-                    outbound.onReceiveCatching { it }
-                    wakeUp.onReceive { null }
-                }
-            } ?: continue
+            // No timeout when nothing is scheduled: an infinite one would let a test clock jump to the end of time.
+            val wait = synchronized(lock) { runDue() }
+            val next = (if (wait == null) nextReply() else withTimeoutOrNull(wait) { nextReply() }) ?: continue
             emit(next.getOrNull() ?: break)
         }
+    }
+
+    /** The next reply, or null when [later] scheduled something that may be due sooner. */
+    private suspend fun nextReply(): ChannelResult<ByteArray>? = select {
+        outbound.onReceiveCatching { it }
+        wakeUp.onReceive { null }
     }
 
     private val lock = Any()
@@ -161,6 +175,7 @@ class SimulatedVesc(
     /** Actions [later] scheduled, with the uptime they are due at. */
     private val scheduled = mutableListOf<Pair<Duration, () -> Unit>>()
     private val detection = DetectionSim(this, if (dualMotor) listOf(first, second) else listOf(first))
+    private val firmware = FirmwareSim(this, hardwareName, FIRMWARE_MAJOR, FIRMWARE_MINOR)
 
     override suspend fun write(bytes: ByteArray) {
         synchronized(lock) {
@@ -197,6 +212,7 @@ class SimulatedVesc(
         val id = CommPacketId.fromId(packet[0].toInt() and 0xFF) ?: return
         val r = ByteReader(packet, 1)
         advance()
+        if (!firmware.answering) return
         when (id) {
             COMM_FW_VERSION -> reply(firmwareVersion(motor))
             COMM_GET_VALUES -> reply(values(motor))
@@ -253,6 +269,12 @@ class SimulatedVesc(
                 motor.stats.reset()
                 if (packet.size > 1 && packet[1].toInt() != 0) reply(byteArrayOf(packet[0]))
             }
+            COMM_ERASE_NEW_APP, COMM_ERASE_NEW_APP_ALL_CAN -> firmware.eraseNewApp(r)
+            COMM_WRITE_NEW_APP_DATA, COMM_WRITE_NEW_APP_DATA_ALL_CAN -> firmware.write(r, lzo = false)
+            COMM_WRITE_NEW_APP_DATA_LZO, COMM_WRITE_NEW_APP_DATA_ALL_CAN_LZO -> firmware.write(r, lzo = true)
+            COMM_ERASE_BOOTLOADER, COMM_ERASE_BOOTLOADER_ALL_CAN -> firmware.eraseBootloader()
+            COMM_JUMP_TO_BOOTLOADER, COMM_JUMP_TO_BOOTLOADER_ALL_CAN -> firmware.jump()
+            COMM_FW_INFO -> reply(firmware.info())
             else -> Unit
         }
     }
@@ -374,8 +396,8 @@ class SimulatedVesc(
 
     private fun firmwareVersion(motor: MotorModel): ByteArray {
         val uuid = uuidFor(motor)
-        return ByteWriter().u8(COMM_FW_VERSION.id).u8(FIRMWARE_MAJOR).u8(FIRMWARE_MINOR)
-            .cString(hardwareName)
+        return ByteWriter().u8(COMM_FW_VERSION.id).u8(firmware.major).u8(firmware.minor)
+            .cString(firmware.hardwareName)
             .bytes(uuid)
             .u8(0) // pairing done
             .u8(0) // test version
@@ -417,7 +439,7 @@ class SimulatedVesc(
 
     private fun terminal(command: String, motor: MotorModel) {
         val context = TerminalContext(
-            firmwareVersion = "$FIRMWARE_MAJOR.$FIRMWARE_MINOR",
+            firmwareVersion = "${firmware.major}.${firmware.minor}",
             hardwareName = hardwareName,
             uuid = uuidFor(motor),
             uptime = started.elapsedNow(),

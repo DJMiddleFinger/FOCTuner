@@ -20,6 +20,7 @@ import app.foctuner.ui.tools.setup.HallDetectionTool
 import app.foctuner.ui.tools.setup.ImuCalibrationTool
 import app.foctuner.ui.tools.setup.InputWizardTool
 import app.foctuner.ui.tools.setup.PpmMappingTool
+import app.foctuner.ui.tools.firmware.FirmwareTool
 import app.foctuner.ui.tools.stats.StatsTool
 
 /** Everything under the Tools tab, in the order listed. */
@@ -42,6 +43,7 @@ enum class Tool(@param:StringRes val title: Int, @param:StringRes val summary: I
     PpmMapping(R.string.tool_ppm_mapping, R.string.tool_ppm_mapping_summary),
     AdcMapping(R.string.tool_adc_mapping, R.string.tool_adc_mapping_summary),
     ImuCalibration(R.string.tool_imu_calibration, R.string.tool_imu_calibration_summary),
+    Firmware(R.string.tool_firmware, R.string.tool_firmware_summary),
 }
 
 @Composable
@@ -65,5 +67,6 @@ fun ToolContent(tool: Tool, context: ToolContext) {
         Tool.PpmMapping -> PpmMappingTool(context)
         Tool.AdcMapping -> AdcMappingTool(context)
         Tool.ImuCalibration -> ImuCalibrationTool(context)
+        Tool.Firmware -> FirmwareTool(context)
     }
 }
