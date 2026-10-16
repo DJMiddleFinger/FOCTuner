@@ -1,0 +1,131 @@
+(defmacro repeat-cmd (cmd time) {
+        `(looprange i 0 (* ,time 10) {
+                ,cmd
+                (sleep 0.1)
+        })
+})
+
+;(test-encoder 3000 7)
+;(test-encoder 5000 7)
+;(test-encoder 9000 7)
+;(test-encoder 12000 7)
+
+;(appy-error-map)
+;(print-current-error-map)
+;(enc-corr-en 0)
+;(enc-corr-en 1)
+;(enc-corr-en)
+
+(defun reset-samples () {
+        (def samples nil)
+        (gc)
+        (def samples (bufcreate (* 360 8)))
+        (bufclear samples)
+        (def samp-tot 0)
+        (def iteration 0)
+})
+
+(defun get-val (ind) (bufget-f32 samples (* ind 8)))
+(defun get-samp (ind) (bufget-f32 samples (+ (* ind 8) 4)))
+
+(defun set-val (ind val) (bufset-f32 samples (* ind 8) val))
+(defun set-samp (ind val) (bufset-f32 samples (+ (* ind 8) 4) val))
+
+(defun get-sample (pos) {
+        (var err (get-val pos))
+        (var samp (get-samp pos))
+        (if (> samp 0) (setq err (/ err samp)))
+        err
+})
+
+; Get a sample by taking the average of 9 adjacent samples on each side for
+; filtering the data.
+(defun get-sample-filter (pos) {
+        (var sum 0.0)
+        (var num 0)
+
+        (looprange i -9 9 {
+                (var samp (+ i pos))
+                (if (< samp 0.0) (setq samp (+ samp 360.0)))
+                (if (>= samp 360.0) (setq samp (- samp 360.0)))
+                (setq sum (+ sum (get-sample samp)))
+                (setq num (+ num 1))
+        })
+
+        (/ sum num)
+})
+
+(reset-samples)
+
+(defun test-encoder (rpm iterations) {
+        (reset-samples)
+
+        (app-disable-output 100000)
+        ;(enc-corr-en 0)
+
+        (repeat-cmd (set-rpm rpm) 2.0)
+
+        (setq samp-tot 0)
+
+        (looprange i 0 iterations {
+                (repeat-cmd (set-rpm rpm) 0.3)
+                (set-current 0.0)
+                (sleep 0.01)
+
+                (loopwhile (> (get-rpm) (* 0.4 rpm)) {
+                        (enc-sample samples 300)
+                        (setq samp-tot (+ samp-tot 300))
+                        (setq iteration i)
+                })
+
+                ; This is similar to what enc-sample does, but is much slower
+                ; and thus requires running the motor more.
+                ;(loopwhile (> (get-rpm) (* 0.4 rpm)) {
+                        ;(var phases (phase-all))
+
+                        ;(var angle (to-i (ix phases 3)))
+                        ;(var diff (ix phases 5)) ; bemf - enc
+
+                        ;(set-val angle (+ (get-val angle) diff))
+                        ;(set-samp angle (+ (get-samp angle) 1))
+
+                        ;(setq samp-tot (+ samp-tot 1))
+                        ;(setq iteration i)
+                ;})
+        })
+
+        (plot-init "Angle" "Error")
+        (plot-add-graph "Encoder Error")
+        (plot-add-graph "Encoder Error Filter")
+        (plot-add-graph "Samples")
+
+        (var t-start (systime))
+        (looprange i 0 360 {
+                (plot-set-graph 0)
+                (plot-send-points i (get-sample i))
+                (plot-set-graph 1)
+                (plot-send-points i (get-sample-filter i))
+                (plot-set-graph 2)
+                (plot-send-points i (get-samp i))
+        })
+        (print (list "Time" (secs-since t-start)))
+
+        (app-disable-output 0)
+})
+
+(defun appy-error-map () {
+        (looprange i 0 360 {
+                (enc-corr i (* -1.0 (get-sample-filter i)))
+                (def error-map-pos i)
+        })
+
+        (enc-corr-en 1)
+        (conf-store)
+})
+
+(defun print-current-error-map () {
+        (looprange i 0 360 {
+                (print (enc-corr i))
+        })
+})
+

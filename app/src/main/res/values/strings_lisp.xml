@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tool_lisp">LispBM scripting</string>
+    <string name="tool_lisp_summary">Edit, upload, stream and run LispBM scripts, with the REPL, prints and evaluator stats</string>
+
+    <string name="lisp_pane_editor">Editor</string>
+    <string name="lisp_pane_console">Console</string>
+    <string name="lisp_pane_stats">Stats</string>
+    <string name="lisp_pane_files">Files</string>
+    <string name="lisp_more">More</string>
+
+    <string name="lisp_upload">Upload</string>
+    <string name="lisp_upload_and_run">Upload and run</string>
+    <string name="lisp_stream">Stream</string>
+    <string name="lisp_run">Run</string>
+    <string name="lisp_stop">Stop</string>
+    <string name="lisp_erase">Erase</string>
+    <string name="lisp_cancel">Cancel</string>
+    <string name="lisp_ok">OK</string>
+    <string name="lisp_dismiss">Dismiss</string>
+    <string name="lisp_clear">Clear</string>
+    <string name="lisp_copy">Copy</string>
+    <string name="lisp_remove">Remove</string>
+    <string name="lisp_refresh">Refresh</string>
+    <string name="lisp_on">on</string>
+    <string name="lisp_off">off</string>
+
+    <string name="lisp_untitled">Untitled</string>
+    <string name="lisp_untitled_file">script.lbm</string>
+    <string name="lisp_from_vesc">From VESC</string>
+    <string name="lisp_new_tab">New</string>
+
+    <string name="lisp_menu_new">New tab</string>
+    <string name="lisp_menu_open">Open file…</string>
+    <string name="lisp_menu_save">Save</string>
+    <string name="lisp_menu_save_as">Save as…</string>
+    <string name="lisp_menu_close">Close tab</string>
+    <string name="lisp_menu_undo">Undo</string>
+    <string name="lisp_menu_redo">Redo</string>
+    <string name="lisp_menu_find">Find and replace</string>
+    <string name="lisp_menu_comment">Comment or uncomment lines</string>
+    <string name="lisp_menu_duplicate">Duplicate lines</string>
+    <string name="lisp_menu_evaluate">Evaluate selection</string>
+    <string name="lisp_menu_text_larger">Larger text</string>
+    <string name="lisp_menu_text_smaller">Smaller text</string>
+    <string name="lisp_menu_read">Read code from controller</string>
+    <string name="lisp_menu_erase">Erase code on controller…</string>
+    <string name="lisp_menu_info">Code size</string>
+    <string name="lisp_menu_imports_folder">Imports folder…</string>
+    <string name="lisp_menu_auto_run">Run after upload</string>
+    <string name="lisp_menu_reduce">Reduce code on upload</string>
+    <string name="lisp_menu_help">Help</string>
+    <string name="lisp_stream_on_top">Stream: load on top</string>
+    <string name="lisp_stream_reset">Stream: reset and load</string>
+    <string name="lisp_stream_reload">Stream: reload flash and load</string>
+
+    <string name="lisp_find_hint">Find</string>
+    <string name="lisp_find_none">No matches</string>
+    <string name="lisp_find_count">%1$d of %2$d</string>
+    <string name="lisp_find_replace">Replace</string>
+    <string name="lisp_find_less">Less</string>
+    <string name="lisp_replace_hint">Replace with</string>
+    <string name="lisp_replace">Replace</string>
+    <string name="lisp_replace_all">All</string>
+
+    <string name="lisp_uploading">Uploading</string>
+    <string name="lisp_reading">Reading</string>
+    <string name="lisp_streaming">Streaming</string>
+    <string name="lisp_erasing">Erasing the code area</string>
+    <string name="lisp_progress">%1$s: %2$d of %3$d B</string>
+
+    <string name="lisp_confirm_upload_title">Upload to the controller?</string>
+    <string name="lisp_confirm_upload">This stops LispBM, erases the stored code and writes %1$d B to flash. The code then starts on every boot. Scripts can drive the motor.</string>
+    <string name="lisp_confirm_upload_run">This stops LispBM, erases the stored code, writes %1$d B to flash and starts it. It also starts on every boot. Scripts can drive the motor.</string>
+    <string name="lisp_confirm_run_title">Start the stored code?</string>
+    <string name="lisp_confirm_run">LispBM restarts and runs the code stored on the controller. Scripts can drive the motor.</string>
+    <string name="lisp_confirm_stream_title">Stream and run this code?</string>
+    <string name="lisp_confirm_stream">The code is evaluated as it arrives (%1$s). Nothing is stored; it is gone after a reboot. Scripts can drive the motor.</string>
+    <string name="lisp_confirm_erase_title">Erase the stored code?</string>
+    <string name="lisp_confirm_erase">This stops LispBM and erases its code from flash, so nothing runs on the next boot.</string>
+    <string name="lisp_confirm_close_title">Close %1$s?</string>
+    <string name="lisp_confirm_close">It has changes that haven\'t been saved. They will be lost.</string>
+    <string name="lisp_close_discard">Close without saving</string>
+    <string name="lisp_confirm_clear_recent_title">Clear recent files?</string>
+    <string name="lisp_confirm_clear_recent">The list is cleared; no files are deleted.</string>
+
+    <string name="lisp_imports_folder_title">Where are the imported files?</string>
+    <string name="lisp_imports_folder_body">This code imports files. Pick the folder they are in; the paths in the import lines are read relative to it.</string>
+    <string name="lisp_pick_folder">Pick folder</string>
+    <string name="lisp_save_imports_title">Imported files found: %1$d</string>
+    <string name="lisp_save_imports_body">Save the code and its imports to a folder? Files with the same names are replaced, and the folder becomes the imports folder so the code can be uploaded again.</string>
+
+    <string name="lisp_info_title">Code size</string>
+    <string name="lisp_info_body">Size:           %1$d B\nAfter reducing: %2$d B\nReduce:         %3$s\n\nSizes include all imports. Reducing removes comments, indentation and empty lines from the code and from imports ending in .lbm or .lisp.</string>
+
+    <string name="lisp_line_uploaded">Uploaded %1$d B</string>
+    <string name="lisp_line_erased">Code erased</string>
+    <string name="lisp_line_started">LispBM started</string>
+    <string name="lisp_line_stopped">LispBM stopped</string>
+
+    <string name="lisp_failed">The controller refused</string>
+    <string name="lisp_no_reply">The controller didn\'t answer</string>
+    <string name="lisp_no_reply_hint">Check that it is still connected and has LispBM (firmware 6.00 or newer).</string>
+    <string name="lisp_link_closed">The connection was lost</string>
+    <string name="lisp_nothing_stored">No code is stored on the controller</string>
+    <string name="lisp_start_failed">LispBM could not be started</string>
+    <string name="lisp_start_failed_hint">Upload the code first; there is no valid code stored.</string>
+    <string name="lisp_stop_failed">LispBM was not running</string>
+    <string name="lisp_upload_cancelled">Upload cancelled</string>
+    <string name="lisp_upload_cancelled_hint">The controller has no valid code stored until you upload again.</string>
+    <string name="lisp_too_large">The code doesn\'t fit on the controller</string>
+    <string name="lisp_import_failed">The imports could not be packed</string>
+    <string name="lisp_import_failed_hint">Import lines look like (import \"file.bin\" \'name). Paths are relative to the imports folder.</string>
+    <string name="lisp_stream_imports">Streaming can\'t include imports; upload this code instead.</string>
+    <string name="lisp_file_failed">The file could not be opened or saved</string>
+
+    <string name="lisp_console_empty">Prints from LispBM and REPL results show up here.</string>
+    <string name="lisp_repl_hint">Expression or :help</string>
+    <string name="lisp_repl_history">Earlier commands</string>
+    <string name="lisp_repl_send">Send</string>
+
+    <string name="lisp_poll">Poll</string>
+    <string name="lisp_poll_off">Off</string>
+    <string name="lisp_poll_vt">VT</string>
+    <string name="lisp_poll_all">All</string>
+    <string name="lisp_poll_rate">Rate</string>
+    <string name="lisp_hz">%1$d Hz</string>
+    <string name="lisp_stats_none">LispBM hasn\'t started yet</string>
+    <string name="lisp_stats_none_body">The controller reports stats once LispBM runs: upload with Run after upload, Run, or send a REPL command.</string>
+    <string name="lisp_script_plot">Script plot</string>
+    <string name="lisp_usage">Usage</string>
+    <string name="lisp_cpu">CPU</string>
+    <string name="lisp_heap">Heap</string>
+    <string name="lisp_memory">Memory</string>
+    <string name="lisp_bindings">Global bindings</string>
+    <string name="lisp_bindings_hint">Tap a binding to plot its last 5 seconds.</string>
+    <string name="lisp_bindings_none">No global variables hold numbers.</string>
+    <string name="lisp_bindings_unknown">Turn on polling or tap Refresh. Each request pauses the script briefly.</string>
+
+    <string name="lisp_open_file">Open file</string>
+    <string name="lisp_filter_hint">Filter</string>
+    <string name="lisp_filter_nothing">Nothing matches the filter.</string>
+    <string name="lisp_recent">Recent</string>
+    <string name="lisp_recent_empty">Files you open or save show up here.</string>
+    <string name="lisp_examples">Examples (%1$d)</string>
+    <string name="lisp_examples_note">From VESC Tool. Some need particular hardware.</string>
+
+    <string name="lisp_help_title">LispBM editor</string>
+    <string name="lisp_help_body">LispBM runs on the controller. Upload stores code in flash and runs it on every boot; Stream runs it once without storing it. The REPL evaluates single expressions on the running program.</string>
+    <string name="lisp_help_docs">Documentation</string>
+    <string name="lisp_help_keys">Keyboard shortcuts</string>
+    <string name="lisp_key_upload">Upload (and run if set)</string>
+    <string name="lisp_key_stream">Stream</string>
+    <string name="lisp_key_stop">Stop</string>
+    <string name="lisp_key_evaluate">Evaluate selection or line</string>
+    <string name="lisp_key_save">Save</string>
+    <string name="lisp_key_find">Find and replace</string>
+    <string name="lisp_key_undo">Undo, redo</string>
+    <string name="lisp_key_comment">Comment lines</string>
+    <string name="lisp_key_duplicate">Duplicate lines</string>
+    <string name="lisp_key_clear">Clear console</string>
+    <string name="lisp_key_text_size">Text size</string>
+</resources>

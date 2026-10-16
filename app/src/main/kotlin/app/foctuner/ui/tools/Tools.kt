@@ -21,29 +21,38 @@ import app.foctuner.ui.tools.setup.ImuCalibrationTool
 import app.foctuner.ui.tools.setup.InputWizardTool
 import app.foctuner.ui.tools.setup.PpmMappingTool
 import app.foctuner.ui.tools.firmware.FirmwareTool
+import app.foctuner.ui.tools.lisp.LispTool
 import app.foctuner.ui.tools.stats.StatsTool
 
-/** Everything under the Tools tab, in the order listed. */
-enum class Tool(@param:StringRes val title: Int, @param:StringRes val summary: Int) {
-    Stats(R.string.tool_stats, R.string.tool_stats_summary),
-    Control(R.string.tool_control, R.string.tool_control_summary),
-    Ride(R.string.tool_ride, R.string.tool_ride_summary),
-    Imu(R.string.tool_imu, R.string.tool_imu_summary),
-    Bms(R.string.tool_bms, R.string.tool_bms_summary),
-    Gnss(R.string.tool_gnss, R.string.tool_gnss_summary),
-    PowerSwitch(R.string.tool_psw, R.string.tool_psw_summary),
-    IoBoard(R.string.tool_io, R.string.tool_io_summary),
-    FocWizard(R.string.tool_foc_wizard, R.string.tool_foc_wizard_summary),
-    FocDetection(R.string.tool_foc_detection, R.string.tool_foc_detection_summary),
-    HallDetection(R.string.tool_hall_detection, R.string.tool_hall_detection_summary),
-    EncoderDetection(R.string.tool_encoder_detection, R.string.tool_encoder_detection_summary),
-    BldcDetection(R.string.tool_bldc_detection, R.string.tool_bldc_detection_summary),
-    Direction(R.string.tool_direction, R.string.tool_direction_summary),
-    InputWizard(R.string.tool_input_wizard, R.string.tool_input_wizard_summary),
-    PpmMapping(R.string.tool_ppm_mapping, R.string.tool_ppm_mapping_summary),
-    AdcMapping(R.string.tool_adc_mapping, R.string.tool_adc_mapping_summary),
-    ImuCalibration(R.string.tool_imu_calibration, R.string.tool_imu_calibration_summary),
-    Firmware(R.string.tool_firmware, R.string.tool_firmware_summary),
+enum class ToolSection(@param:StringRes val title: Int) {
+    Setup(R.string.tools_section_setup),
+    Live(R.string.tools_section_live),
+    Hardware(R.string.tools_section_hardware),
+    System(R.string.tools_section_system),
+}
+
+/** Everything under the Tools tab, grouped by [section] in the order listed. */
+enum class Tool(val section: ToolSection, @param:StringRes val title: Int, @param:StringRes val summary: Int) {
+    FocWizard(ToolSection.Setup, R.string.tool_foc_wizard, R.string.tool_foc_wizard_summary),
+    FocDetection(ToolSection.Setup, R.string.tool_foc_detection, R.string.tool_foc_detection_summary),
+    HallDetection(ToolSection.Setup, R.string.tool_hall_detection, R.string.tool_hall_detection_summary),
+    EncoderDetection(ToolSection.Setup, R.string.tool_encoder_detection, R.string.tool_encoder_detection_summary),
+    BldcDetection(ToolSection.Setup, R.string.tool_bldc_detection, R.string.tool_bldc_detection_summary),
+    Direction(ToolSection.Setup, R.string.tool_direction, R.string.tool_direction_summary),
+    InputWizard(ToolSection.Setup, R.string.tool_input_wizard, R.string.tool_input_wizard_summary),
+    PpmMapping(ToolSection.Setup, R.string.tool_ppm_mapping, R.string.tool_ppm_mapping_summary),
+    AdcMapping(ToolSection.Setup, R.string.tool_adc_mapping, R.string.tool_adc_mapping_summary),
+    ImuCalibration(ToolSection.Setup, R.string.tool_imu_calibration, R.string.tool_imu_calibration_summary),
+    Control(ToolSection.Live, R.string.tool_control, R.string.tool_control_summary),
+    Ride(ToolSection.Live, R.string.tool_ride, R.string.tool_ride_summary),
+    Stats(ToolSection.Live, R.string.tool_stats, R.string.tool_stats_summary),
+    Imu(ToolSection.Live, R.string.tool_imu, R.string.tool_imu_summary),
+    Bms(ToolSection.Hardware, R.string.tool_bms, R.string.tool_bms_summary),
+    Gnss(ToolSection.Hardware, R.string.tool_gnss, R.string.tool_gnss_summary),
+    PowerSwitch(ToolSection.Hardware, R.string.tool_psw, R.string.tool_psw_summary),
+    IoBoard(ToolSection.Hardware, R.string.tool_io, R.string.tool_io_summary),
+    Lisp(ToolSection.System, R.string.tool_lisp, R.string.tool_lisp_summary),
+    Firmware(ToolSection.System, R.string.tool_firmware, R.string.tool_firmware_summary),
 }
 
 @Composable
@@ -68,5 +77,6 @@ fun ToolContent(tool: Tool, context: ToolContext) {
         Tool.AdcMapping -> AdcMappingTool(context)
         Tool.ImuCalibration -> ImuCalibrationTool(context)
         Tool.Firmware -> FirmwareTool(context)
+        Tool.Lisp -> LispTool(context)
     }
 }

@@ -1,0 +1,15 @@
+LispBM examples and editor symbol list
+
+assets/lisp/examples/*.lbm are the example scripts bundled with VESC Tool
+(res/LispBM/Examples/), and assets/lisp/symbols.txt lists the names from VESC
+Tool's QCodeEditor/resources/languages/lisp.xml. Both are taken unchanged
+(apart from the format of the symbol list) from https://github.com/vedderb/vesc_tool
+at commit f1e15cb (2026-10-15).
+
+Copyright Benjamin Vedder and the VESC Tool contributors.
+
+VESC Tool is free software: you can redistribute it and/or modify it under the
+terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version. FOCTuner is distributed under the same license (GPL-3.0-or-later);
+see LICENSE at the root of the source tree.

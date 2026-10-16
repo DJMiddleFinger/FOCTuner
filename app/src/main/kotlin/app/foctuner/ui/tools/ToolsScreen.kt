@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import app.foctuner.R
 import app.foctuner.ui.components.Hairline
 import app.foctuner.ui.components.PlainButton
+import app.foctuner.ui.components.SectionHeader
 import app.foctuner.ui.theme.FocTheme
 import app.foctuner.ui.theme.Spacing
 
@@ -67,7 +68,12 @@ fun ToolsScreen(context: ToolContext?, modifier: Modifier = Modifier) {
             } else {
                 LazyColumn(Modifier.fillMaxSize()) {
                     itemsIndexed(Tool.entries) { index, entry ->
-                        if (index > 0) Hairline(Modifier.padding(start = Spacing.x2))
+                        if (index == 0 || Tool.entries[index - 1].section != entry.section) {
+                            SectionHeader(stringResource(entry.section.title))
+                            Hairline()
+                        } else {
+                            Hairline(Modifier.padding(start = Spacing.x2))
+                        }
                         Column(
                             Modifier
                                 .fillMaxWidth()

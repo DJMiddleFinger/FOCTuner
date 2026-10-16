@@ -47,6 +47,13 @@ import app.foctuner.protocol.CommPacketId.COMM_GET_VALUES_SETUP
 import app.foctuner.protocol.CommPacketId.COMM_GET_VALUES_SETUP_SELECTIVE
 import app.foctuner.protocol.CommPacketId.COMM_JUMP_TO_BOOTLOADER
 import app.foctuner.protocol.CommPacketId.COMM_JUMP_TO_BOOTLOADER_ALL_CAN
+import app.foctuner.protocol.CommPacketId.COMM_LISP_ERASE_CODE
+import app.foctuner.protocol.CommPacketId.COMM_LISP_GET_STATS
+import app.foctuner.protocol.CommPacketId.COMM_LISP_READ_CODE
+import app.foctuner.protocol.CommPacketId.COMM_LISP_REPL_CMD
+import app.foctuner.protocol.CommPacketId.COMM_LISP_SET_RUNNING
+import app.foctuner.protocol.CommPacketId.COMM_LISP_STREAM_CODE
+import app.foctuner.protocol.CommPacketId.COMM_LISP_WRITE_CODE
 import app.foctuner.protocol.CommPacketId.COMM_MOTOR_ESTOP
 import app.foctuner.protocol.CommPacketId.COMM_IO_BOARD_GET_ALL
 import app.foctuner.protocol.CommPacketId.COMM_IO_BOARD_SET_DIGITAL
@@ -105,7 +112,9 @@ import kotlin.time.TimeSource
  * COMM_IO_BOARD_GET_ALL / SET_PWM / SET_DIGITAL ([IoBoardSim]); motor detection (COMM_DETECT_*, replying after
  * the time the firmware takes, see [DetectionSim]), COMM_GET_IMU_CALIBRATION and the decoded PPM / ADC /
  * nunchuk inputs ([DecodedInputsSim]); and firmware updates (erase, write, LZO, bootloader, jump, COMM_FW_INFO;
- * see [FirmwareSim]). Other commands are ignored like unknown ones in the firmware.
+ * see [FirmwareSim]); and LispBM (COMM_LISP_ERASE_CODE / WRITE_CODE / READ_CODE / SET_RUNNING / GET_STATS /
+ * REPL_CMD / STREAM_CODE, printing with COMM_LISP_PRINT, see [LispSim]). Other commands are ignored like unknown
+ * ones in the firmware.
  *
  * Time comes from [timeSource] and is applied lazily when a request arrives, so the simulation costs nothing
  * while idle and runs on virtual time when given a test scope's time source. Like the firmware, motors
@@ -176,6 +185,7 @@ class SimulatedVesc(
     private val scheduled = mutableListOf<Pair<Duration, () -> Unit>>()
     private val detection = DetectionSim(this, if (dualMotor) listOf(first, second) else listOf(first))
     private val firmware = FirmwareSim(this, hardwareName, FIRMWARE_MAJOR, FIRMWARE_MINOR)
+    private val lisp = LispSim(this)
 
     override suspend fun write(bytes: ByteArray) {
         synchronized(lock) {
@@ -275,6 +285,13 @@ class SimulatedVesc(
             COMM_ERASE_BOOTLOADER, COMM_ERASE_BOOTLOADER_ALL_CAN -> firmware.eraseBootloader()
             COMM_JUMP_TO_BOOTLOADER, COMM_JUMP_TO_BOOTLOADER_ALL_CAN -> firmware.jump()
             COMM_FW_INFO -> reply(firmware.info())
+            COMM_LISP_ERASE_CODE -> lisp.erase()
+            COMM_LISP_WRITE_CODE -> lisp.write(r)
+            COMM_LISP_READ_CODE -> lisp.read(r)
+            COMM_LISP_SET_RUNNING -> lisp.setRunning(r)
+            COMM_LISP_GET_STATS -> lisp.stats(r)
+            COMM_LISP_REPL_CMD -> lisp.repl(r)
+            COMM_LISP_STREAM_CODE -> lisp.stream(r)
             else -> Unit
         }
     }

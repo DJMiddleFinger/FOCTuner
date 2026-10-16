@@ -2,6 +2,10 @@
 <resources>
     <string name="nav_tools">Tools</string>
     <string name="tools_back">Tools</string>
+    <string name="tools_section_setup">Setup and calibration</string>
+    <string name="tools_section_live">Drive and live data</string>
+    <string name="tools_section_hardware">Connected hardware</string>
+    <string name="tools_section_system">Scripts and firmware</string>
 
     <string name="tool_stats">Statistics</string>
     <string name="tool_stats_summary">Average and peak speed, power, current and temperatures since the last reset</string>
