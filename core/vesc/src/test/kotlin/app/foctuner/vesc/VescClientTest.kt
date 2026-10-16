@@ -3,6 +3,7 @@ package app.foctuner.vesc
 import app.foctuner.protocol.ByteWriter
 import app.foctuner.protocol.CommPacketId.COMM_ALIVE
 import app.foctuner.protocol.CommPacketId.COMM_GET_VALUES
+import app.foctuner.protocol.CommPacketId.COMM_MOTOR_ESTOP
 import app.foctuner.protocol.CommPacketId.COMM_PING_CAN
 import app.foctuner.protocol.CommPacketId.COMM_PRINT
 import app.foctuner.protocol.CommPacketId.COMM_SET_CURRENT
@@ -212,6 +213,66 @@ class VescClientTest {
         assertFalse(client.connected.value)
         assertFailsWith<VescLinkException> { client.values() }
         assertFailsWith<VescLinkException> { client.motor.setDuty(0.1f) }
+    }
+
+    @Test
+    fun emergencyStopReleasesEveryMotorAndBlocksCommandsForItsDuration() = runTest {
+        val sim = SimulatedVesc(testTimeSource)
+        val link = RecordingTransport(sim)
+        val client = VescClient(link, backgroundScope)
+        client.motor.setCurrent(10f)
+        client.can(1).motor.setDuty(0.2f)
+        runCurrent()
+        assertTrue(sim.isDriven(0) && sim.isDriven(1))
+
+        client.emergencyStop(3.seconds)
+
+        assertFalse(sim.isDriven(0) || sim.isDriven(1))
+        assertContentEquals(
+            byteArrayOf(COMM_MOTOR_ESTOP.id.toByte(), 0x0B, 0xB8.toByte()),
+            link.sent(COMM_MOTOR_ESTOP.id).single(),
+        )
+        assertFailsWith<VescException> { client.motor.setCurrent(5f) }
+        val keepalives = link.sent(COMM_ALIVE.id).size
+        delay(2.seconds)
+        assertEquals(keepalives, link.sent(COMM_ALIVE.id).size)
+        assertFailsWith<VescException> { client.can(1).motor.setDuty(0.1f) }
+
+        delay(1.seconds + 1.milliseconds)
+        client.motor.setCurrent(5f)
+        assertTrue(sim.isDriven(0))
+    }
+
+    @Test
+    fun aLeasedCommandIsReleasedOnceItIsNotRenewed() = runTest {
+        val sim = SimulatedVesc(testTimeSource)
+        val link = RecordingTransport(sim)
+        val client = VescClient(link, backgroundScope)
+
+        repeat(10) {
+            client.motor.setCurrent(10f, holdFor = 300.milliseconds)
+            delay(100.milliseconds)
+        }
+        delay(150.milliseconds)
+        assertTrue(sim.isDriven(0))
+
+        delay(100.milliseconds)
+        assertFalse(sim.isDriven(0))
+        assertContentEquals(releaseCommand, link.sent(COMM_SET_CURRENT.id).last())
+        val keepalives = link.sent(COMM_ALIVE.id).size
+        delay(1.seconds)
+        assertEquals(keepalives, link.sent(COMM_ALIVE.id).size)
+    }
+
+    @Test
+    fun aCommandWithoutALeaseCancelsThePreviousLease() = runTest {
+        val sim = SimulatedVesc(testTimeSource)
+        val client = VescClient(sim, backgroundScope)
+        client.motor.setCurrent(10f, holdFor = 200.milliseconds)
+        client.motor.setCurrent(8f)
+        delay(3.seconds)
+        assertTrue(sim.isDriven(0))
+        client.motor.release()
     }
 
     @Test

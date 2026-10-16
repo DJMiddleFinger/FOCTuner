@@ -32,6 +32,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.io.IOException
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration
 
@@ -74,6 +75,14 @@ internal class VescSession(
 
     /** CAN ids (null for the attached controller) that have been given a motor command and not released. */
     private val activeMotors = MutableStateFlow<Set<Int?>>(emptySet())
+
+    /**
+     * Held for every change to [activeMotors], [leases] and [stopLockout], so a lease that runs out can't
+     * release a command that replaced it a moment earlier.
+     */
+    private val motorLock = Mutex()
+    private val leases = HashMap<Int?, Job>()
+    private var stopLockout: Job? = null
 
     private val guardian: Job
 
@@ -151,15 +160,51 @@ internal class VescSession(
         }
     }
 
-    suspend fun motorCommand(canId: Int?, command: ByteArray) {
+    /** Sends [command] and keeps it alive until released, or until [holdFor] passes without a newer command. */
+    suspend fun motorCommand(canId: Int?, command: ByteArray, holdFor: Duration? = null) = motorLock.withLock {
         if (!_connected.value) throw VescLinkException("Link closed")
+        if (stopLockout?.isActive == true) throw VescException("Motor commands are blocked after an emergency stop")
+        leases.remove(canId)?.cancel()
         activeMotors.update { it + canId }
         send(Requests.forwarded(canId, command))
+        if (holdFor != null) leases[canId] = scope.launch { delay(holdFor); expireLease(canId) }
     }
 
-    suspend fun releaseMotor(canId: Int?) {
+    suspend fun releaseMotor(canId: Int?) = motorLock.withLock {
+        leases.remove(canId)?.cancel()
         activeMotors.update { it - canId }
         send(Requests.forwarded(canId, Requests.release))
+    }
+
+    /**
+     * Releases every motor this session drives and the attached controller's, then sends COMM_MOTOR_ESTOP to
+     * each of them. Our own motor commands are refused for [duration] too, which also covers firmware that
+     * doesn't know COMM_MOTOR_ESTOP. Every send is attempted before a failure is reported.
+     */
+    suspend fun emergencyStop(duration: Duration) = motorLock.withLock {
+        if (!_connected.value) throw VescLinkException("Link closed")
+        stopLockout = scope.launch { delay(duration) }
+        leases.values.forEach { it.cancel() }
+        leases.clear()
+        val targets = activeMotors.value + null
+        activeMotors.value = emptySet()
+        var failure: IOException? = null
+        for (canId in targets) {
+            for (payload in listOf(Requests.release, Requests.emergencyStop(duration))) {
+                try {
+                    send(Requests.forwarded(canId, payload))
+                } catch (e: IOException) {
+                    failure = failure ?: e
+                }
+            }
+        }
+        if (failure != null) throw VescLinkException("Emergency stop may not have reached every controller", failure)
+    }
+
+    private suspend fun expireLease(canId: Int?) = motorLock.withLock {
+        leases.remove(canId)
+        activeMotors.update { it - canId }
+        trySend(Requests.forwarded(canId, Requests.release))
     }
 
     /** Releases every active motor, then closes the transport. */

@@ -1,10 +1,7 @@
 package app.foctuner.vesc
 
 import app.foctuner.protocol.ByteReader
-import app.foctuner.protocol.CommPacketId.COMM_ALIVE
 import app.foctuner.protocol.CommPacketId.COMM_FORWARD_CAN
-import app.foctuner.protocol.CommPacketId.COMM_MOTOR_ESTOP
-import app.foctuner.protocol.CommPacketId.COMM_SET_CURRENT
 import app.foctuner.protocol.CommPacketId.COMM_SET_CURRENT_REL
 import app.foctuner.protocol.CommPacketId.COMM_SET_HANDBRAKE
 import app.foctuner.protocol.CommPacketId.COMM_SET_POS
@@ -59,7 +56,6 @@ class MotorCommandsTest {
         assertFailsWith<IllegalArgumentException> { client.motor.setCurrentRelative(1.5f) }
         assertFailsWith<IllegalArgumentException> { client.motor.setHandbrake(Float.NaN) }
         assertFailsWith<IllegalArgumentException> { client.setServoPosition(-0.1f) }
-        assertFailsWith<IllegalArgumentException> { client.emergencyStop(70.seconds) }
     }
 
     @Test
@@ -110,42 +106,36 @@ class MotorCommandsTest {
     }
 
     @Test
-    fun emergencyStopReleasesBothMotorsAndBlocksCommandsForItsDuration() = runTest {
+    fun newCommandsTakeALeaseLikeTheOthers() = runTest {
         val sim = SimulatedVesc(testTimeSource)
-        val link = RecordingTransport(sim)
-        val client = VescClient(link, backgroundScope)
-        client.motor.setDuty(0.3f)
-        client.can(1).motor.setCurrent(10f)
-        delay(1.seconds)
+        val client = VescClient(sim, backgroundScope)
 
-        client.emergencyStop()
-        assertFalse(sim.isDriven(0) || sim.isDriven(1))
-        val estop = link.packets.last()
-        assertEquals(COMM_MOTOR_ESTOP.id, estop[0].toInt() and 0xFF)
-        assertEquals(5_000, ByteReader(estop, 1).u16())
-        assertEquals(0, ByteReader(link.sent(COMM_SET_CURRENT.id).last(), 1).i32())
+        repeat(10) {
+            client.motor.setHandbrake(5f, holdFor = 300.milliseconds)
+            delay(100.milliseconds)
+        }
+        assertTrue(sim.isDriven(0))
 
-        delay(2.seconds)
-        client.motor.setDuty(0.3f)
-        delay(100.milliseconds)
+        delay(400.milliseconds)
         assertFalse(sim.isDriven(0))
 
-        delay(3.seconds)
-        client.motor.setDuty(0.3f)
-        delay(100.milliseconds)
-        assertTrue(sim.isDriven(0))
+        client.can(1).motor.setPosition(45f, holdFor = 300.milliseconds)
+        delay(200.milliseconds)
+        assertTrue(sim.isDriven(1))
+        delay(200.milliseconds)
+        assertFalse(sim.isDriven(1))
     }
 
     @Test
-    fun emergencyStopEndsTheKeepalive() = runTest {
-        val link = RecordingTransport(SimulatedVesc(testTimeSource))
-        val client = VescClient(link, backgroundScope)
-        client.motor.setCurrent(5f)
-        delay(500.milliseconds)
+    fun emergencyStopEndsAPositionHold() = runTest {
+        val sim = SimulatedVesc(testTimeSource)
+        val client = VescClient(sim, backgroundScope)
+        client.motor.setPosition(120f)
+        delay(1.seconds)
 
-        client.emergencyStop(1.seconds)
-        val keepalives = link.sent(COMM_ALIVE.id).size
-        delay(2.seconds)
-        assertEquals(keepalives, link.sent(COMM_ALIVE.id).size)
+        client.emergencyStop()
+
+        assertFalse(sim.isDriven(0))
+        assertFailsWith<VescException> { client.motor.setPosition(120f) }
     }
 }

@@ -11,6 +11,7 @@ import app.foctuner.protocol.CommPacketId.COMM_GET_APPCONF_DEFAULT
 import app.foctuner.protocol.CommPacketId.COMM_GET_MCCONF
 import app.foctuner.protocol.CommPacketId.COMM_GET_MCCONF_DEFAULT
 import app.foctuner.protocol.CommPacketId.COMM_GET_VALUES
+import app.foctuner.protocol.CommPacketId.COMM_MOTOR_ESTOP
 import app.foctuner.protocol.CommPacketId.COMM_PING_CAN
 import app.foctuner.protocol.CommPacketId.COMM_SET_APPCONF
 import app.foctuner.protocol.CommPacketId.COMM_SET_MCCONF
@@ -22,6 +23,7 @@ import app.foctuner.protocol.CommPacketId.COMM_SET_HANDBRAKE
 import app.foctuner.protocol.CommPacketId.COMM_SET_POS
 import app.foctuner.protocol.CommPacketId.COMM_SET_RPM
 import app.foctuner.protocol.CommPacketId.COMM_TERMINAL_CMD
+import kotlin.time.Duration
 
 /*
  * Request payloads, with the scales used by the firmware's commands.c (and VESC Tool's commands.cpp):
@@ -74,6 +76,10 @@ internal object Requests {
         require(fraction in -1f..1f) { "relative current must be within -1..1, was $fraction" }
         return ByteWriter().u8(COMM_SET_CURRENT_REL.id).f32(fraction, 1e5f).toByteArray()
     }
+
+    /** The firmware takes the time to ignore motor input as a uint16 in milliseconds. */
+    fun emergencyStop(duration: Duration) = ByteWriter().u8(COMM_MOTOR_ESTOP.id)
+        .u16(duration.inWholeMilliseconds.coerceIn(1, 65535).toInt()).toByteArray()
 
     /** The command that reads [kind] (or its firmware defaults); the reply has the same id. */
     fun readConfigId(kind: ConfigKind, defaults: Boolean): CommPacketId = when (kind) {

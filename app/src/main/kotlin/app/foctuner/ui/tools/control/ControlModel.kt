@@ -4,20 +4,20 @@ import androidx.annotation.StringRes
 import androidx.compose.runtime.Immutable
 import app.foctuner.R
 import app.foctuner.ui.tools.ToolContext
-import app.foctuner.vesc.DEFAULT_ESTOP_DURATION
 import app.foctuner.vesc.PositionDisplay
 import app.foctuner.vesc.RealtimeValues
 import app.foctuner.vesc.VescException
-import app.foctuner.vesc.emergencyStop
 import app.foctuner.vesc.rotorPositions
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 /** What the value field sets, with VESC Tool's range, step and default for it. */
 enum class ControlMode(
@@ -63,34 +63,24 @@ data class ControlState(
 
 /**
  * VESC Tool's manual motor control (desktop toolbar and mobile "Controls"): hold a button to run the motor with
- * the chosen command, lift to release; STOP sends COMM_MOTOR_ESTOP and the controls stay disabled while the
- * controller ignores commands. Commands are sent in order through one queue so a release can't overtake the
- * command it ends. Works on the selected controller.
+ * the chosen command, lift to release; STOP is the client's emergency stop and the controls stay disabled while
+ * the controllers ignore commands. Works on the selected controller.
+ *
+ * A held button resends its command every [RESEND] with a [LEASE], so if the UI stalls the client releases the
+ * motor by itself. Order is kept by the session, which runs commands, releases and the stop one at a time.
  */
 class ControlModel(private val context: ToolContext) {
     private val _state = MutableStateFlow(ControlState())
     val state: StateFlow<ControlState> = _state.asStateFlow()
 
-    private val commands = Channel<suspend () -> Unit>(Channel.UNLIMITED)
+    private var holding: Job? = null
     private var countdown: Job? = null
     private var rotor: Job? = null
-
-    init {
-        context.scope.launch {
-            for (command in commands) {
-                try {
-                    command()
-                } catch (e: VescException) {
-                    _state.update { it.copy(failed = true) }
-                }
-            }
-        }
-    }
 
     fun arm() = _state.update { it.copy(armed = true) }
 
     fun select(mode: ControlMode) {
-        if (_state.value.running != null) release()
+        release()
         _state.update { it.copy(mode = mode) }
     }
 
@@ -98,61 +88,50 @@ class ControlModel(private val context: ToolContext) {
 
     fun setKeepRunning(on: Boolean) {
         _state.update { it.copy(keepRunning = on) }
-        if (!on && _state.value.running != null) release()
+        if (!on) release()
     }
 
     fun press(action: ControlAction) {
         val s = _state.value
         if (!s.canCommand) return
-        val value = s.setpoints.getValue(s.mode)
-        val motor = context.controller.motor
+        val command = command(s.mode, action, s.setpoints.getValue(s.mode))
         _state.update { it.copy(running = action, failed = false) }
-        commands.trySend {
-            when (s.mode) {
-                ControlMode.Current -> when (action) {
-                    ControlAction.Reverse -> motor.setCurrent(-value)
-                    ControlAction.Brake -> motor.setBrakeCurrent(value)
-                    else -> motor.setCurrent(value)
-                }
-                ControlMode.Duty -> motor.setDuty(
-                    when (action) {
-                        ControlAction.Reverse -> -value
-                        ControlAction.Brake -> 0f
-                        else -> value
-                    },
-                )
-                ControlMode.Rpm -> motor.setRpm(
-                    when (action) {
-                        ControlAction.Reverse -> -value.toInt()
-                        ControlAction.Brake -> 0
-                        else -> value.toInt()
-                    },
-                )
-                ControlMode.Position -> motor.setPosition(value)
-                ControlMode.Handbrake -> motor.setHandbrake(value)
+        holding?.cancel()
+        holding = launch {
+            while (true) {
+                command(LEASE)
+                delay(RESEND)
             }
         }
     }
 
-    /** The finger left the button. */
+    /** The finger left the button: release, or with keep-running send the command once more without a lease. */
     fun lift() {
-        if (!_state.value.keepRunning) release()
+        val s = _state.value
+        val action = s.running ?: return
+        if (!s.keepRunning) {
+            release()
+            return
+        }
+        holding?.cancel()
+        val command = command(s.mode, action, s.setpoints.getValue(s.mode))
+        holding = launch { command(null) }
     }
 
     fun release() {
+        holding?.cancel()
         if (_state.value.running == null) return
         _state.update { it.copy(running = null) }
-        commands.trySend { context.controller.motor.release() }
+        launch { context.controller.motor.release() }
     }
 
-    /** STOP: whatever is queued is dropped, then the ESTOP goes out and the controls wait it out. */
     fun stop() {
-        while (commands.tryReceive().isSuccess) Unit
+        holding?.cancel()
         _state.update { it.copy(running = null) }
-        commands.trySend { context.controller.emergencyStop(DEFAULT_ESTOP_DURATION) }
+        launch { context.client.emergencyStop(STOP_DURATION) }
         countdown?.cancel()
         countdown = context.scope.launch {
-            for (left in DEFAULT_ESTOP_DURATION.inWholeSeconds downTo 1) {
+            for (left in STOP_DURATION.inWholeSeconds downTo 1) {
                 _state.update { it.copy(stopSeconds = left.toInt()) }
                 delay(1_000)
             }
@@ -180,6 +159,45 @@ class ControlModel(private val context: ToolContext) {
         }
     }
 
+    private fun command(mode: ControlMode, action: ControlAction, value: Float): suspend (Duration?) -> Unit {
+        val motor = context.controller.motor
+        return { lease ->
+            when (mode) {
+                ControlMode.Current -> when (action) {
+                    ControlAction.Reverse -> motor.setCurrent(-value, lease)
+                    ControlAction.Brake -> motor.setBrakeCurrent(value, lease)
+                    else -> motor.setCurrent(value, lease)
+                }
+                ControlMode.Duty -> motor.setDuty(
+                    when (action) {
+                        ControlAction.Reverse -> -value
+                        ControlAction.Brake -> 0f
+                        else -> value
+                    },
+                    lease,
+                )
+                ControlMode.Rpm -> motor.setRpm(
+                    when (action) {
+                        ControlAction.Reverse -> -value.toInt()
+                        ControlAction.Brake -> 0
+                        else -> value.toInt()
+                    },
+                    lease,
+                )
+                ControlMode.Position -> motor.setPosition(value, lease)
+                ControlMode.Handbrake -> motor.setHandbrake(value, lease)
+            }
+        }
+    }
+
+    private fun launch(block: suspend () -> Unit): Job = context.scope.launch {
+        try {
+            block()
+        } catch (e: VescException) {
+            _state.update { it.copy(failed = true) }
+        }
+    }
+
     suspend fun refresh() {
         try {
             val values = context.controller.values()
@@ -189,3 +207,9 @@ class ControlModel(private val context: ToolContext) {
         }
     }
 }
+
+private val RESEND = 100.milliseconds
+private val LEASE = 300.milliseconds
+
+/** VESC Tool's default `estop_ms`. */
+private val STOP_DURATION = 5.seconds
