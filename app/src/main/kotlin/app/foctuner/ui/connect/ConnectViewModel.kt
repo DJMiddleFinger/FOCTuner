@@ -26,6 +26,9 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
     val state: StateFlow<ConnectState> = _state.asStateFlow()
 
     private var found = emptyMap<String, LinkDevice>()
+
+    /** Devices keep the place where they first appeared, so rows don't jump around as signal strength changes. */
+    private val firstSeen = HashMap<String, Int>()
     private var scanJob: Job? = null
 
     val missingBluetoothPermissions: List<String> get() = links.missingPermissions(BLUETOOTH)
@@ -40,6 +43,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
                 withTimeoutOrNull(SCAN_TIME) {
                     links.scan(kinds).collect { devices ->
                         found = devices.associateBy { it.key }
+                        devices.forEach { firstSeen.putIfAbsent(it.key, firstSeen.size) }
                         _state.update { state ->
                             state.copy(
                                 bluetooth = devices.entries(TransportKind.BLE, TransportKind.BLUETOOTH_CLASSIC),
@@ -81,7 +85,7 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private fun List<LinkDevice>.entries(vararg kinds: TransportKind) = filter { it.kind in kinds }
-        .sortedByDescending { it.rssi ?: Int.MIN_VALUE }
+        .sortedBy { firstSeen[it.key] }
         .map { DeviceEntry(it.key, it.name, it.id, it.kind.toLinkKind(), it.rssi) }
 
     private companion object {
