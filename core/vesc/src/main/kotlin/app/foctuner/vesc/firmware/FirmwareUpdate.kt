@@ -283,6 +283,8 @@ private class FlashWriter(
     }
 
     suspend fun writeFirmware(buffer: ByteArray, eraseSize: Int) {
+        // VESC Tool sends heatshrink data as it is.
+        if (buffer[0] == UpdateBuffer.COMPRESSED_FLAG.toByte()) lzo = false
         val erase = command(COMM_ERASE_NEW_APP, COMM_ERASE_NEW_APP_ALL_CAN, COMM_ERASE_NEW_APP_ALL_CAN_HW).u32(eraseSize.toLong())
         erase(FlashRegion.Firmware, erase, COMM_ERASE_NEW_APP)
         write(FlashRegion.Firmware, buffer, 0, cancellable = true)
