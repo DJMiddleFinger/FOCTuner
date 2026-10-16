@@ -25,8 +25,9 @@ import java.io.IOException
 
 /**
  * Reads, edits and writes the motor and app config of the controller [controller] returns (null while
- * disconnected). Definitions come from the bundled series matching [firmware], falling back to the newest;
- * the signature check then refuses a layout that doesn't match. Called on the main thread.
+ * disconnected). Definitions come from the bundled series matching [firmware], falling back to the newest.
+ * If the controller's config signature says it uses another bundled layout, that one is used instead; only a
+ * layout we don't bundle is refused. Called on the main thread.
  */
 class SettingsModel(
     private val scope: CoroutineScope,
@@ -39,10 +40,14 @@ class SettingsModel(
 
     private val jobs = HashMap<ConfigKind, Job>()
 
+    /** The bundled series chosen by signature, when it differs from the one the firmware version points to. */
+    private val layouts = HashMap<ConfigKind, String>()
+
     /** Forgets both configs, for a new connection or another selected controller. */
     fun reset() {
         jobs.values.forEach { it.cancel() }
         jobs.clear()
+        layouts.clear()
         _state.value = SettingsState()
     }
 
@@ -86,18 +91,19 @@ class SettingsModel(
         if (jobs[kind]?.isActive == true) return
         update(kind) { it.copy(work = work, error = null) }
         jobs[kind] = scope.launch {
-            val version = firmware()?.takeIf { it in BundledDefinitions.versions } ?: BundledDefinitions.versions.last()
             val failure = try {
-                if (_state.value.pane(kind).sections.isEmpty()) {
-                    val sections = withContext(Dispatchers.Default) { BundledDefinitions.load(version, kind).sections() }
-                    update(kind) { it.copy(sections = sections) }
+                try {
+                    attempt(kind, target, block)
+                } catch (e: SignatureMismatchException) {
+                    val match = withContext(Dispatchers.Default) { BundledDefinitions.versionWithSignature(kind, e.actual) }
+                    if (match == null || match == layout(kind)) throw e
+                    layouts[kind] = match
+                    update(kind) { it.copy(sections = emptyList(), stored = null, edited = null) }
+                    attempt(kind, target, block)
                 }
-                val base = _state.value.pane(kind).edited
-                    ?: withContext(Dispatchers.Default) { Config.defaults(BundledDefinitions.load(version, kind)) }
-                block(target, base)
                 null
             } catch (e: SignatureMismatchException) {
-                text(R.string.settings_error_layout, firmware() ?: "?", version)
+                text(R.string.settings_error_layout, firmware() ?: "?", BundledDefinitions.versions.joinToString())
             } catch (e: PayloadException) {
                 e.message
             } catch (e: VescTimeoutException) {
@@ -108,6 +114,21 @@ class SettingsModel(
             update(kind) { it.copy(work = null, error = failure ?: it.error) }
         }
     }
+
+    private suspend fun attempt(kind: ConfigKind, target: VescController, block: suspend (VescController, Config) -> Unit) {
+        val version = layout(kind)
+        if (_state.value.pane(kind).sections.isEmpty()) {
+            val sections = withContext(Dispatchers.Default) { BundledDefinitions.load(version, kind).sections() }
+            update(kind) { it.copy(sections = sections) }
+        }
+        val base = _state.value.pane(kind).edited
+            ?: withContext(Dispatchers.Default) { Config.defaults(BundledDefinitions.load(version, kind)) }
+        block(target, base)
+    }
+
+    private fun layout(kind: ConfigKind): String = layouts[kind]
+        ?: firmware()?.takeIf { it in BundledDefinitions.versions }
+        ?: BundledDefinitions.versions.last()
 
     private fun update(kind: ConfigKind, transform: (ConfigPaneState) -> ConfigPaneState) {
         _state.update { state ->

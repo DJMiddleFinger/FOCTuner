@@ -14,14 +14,15 @@ Requested 2026-10-15: the app must expose every setting VESC Tool has, sectioned
 - **Simulator** (`core:sim`): stores an mcconf and appconf per motor (7.01 defaults, `controller_id` set per motor), answers get, get-default and set, and rejects other layouts like the firmware.
 - **UI** (`app/.../ui/settings/`): Settings destination (second in the nav). Motor / App tabs, the section list with setting counts and pending-change counts, a page per subgroup with VESC Tool's separators, one row per setting (value scaled by `editorScale` / percentage with its suffix and decimals; switches for bools), and an edit dialog per type (number with range check via `ConfigDefinition.validate`, enum radio list, bitfield checkboxes, text) that also shows VESC Tool's description, the value on the controller, and the parameter name. Pending edits are marked on rows; action bar: Read, Defaults (firmware defaults as edits), Revert, Write (n). Write validates everything, writes, then reads back what the firmware applied. Selecting another CAN controller or reconnecting resets the settings. A layout mismatch shows a notice and blocks reading and writing.
 
+- **Firmware 6.05, 6.06, 7.00 and 7.01** (2026-10-16, lead session): definitions for all four are bundled (copied from VESC Tool `res/config/` at `b5fcf93`), and `BundledDefinitionsTest` checks every signature against `confgenerator.h` on the firmware's release branches. The settings pick the series matching the reported firmware version; if the controller's config signature says otherwise (test builds, forks, a CAN controller on other firmware), `BundledDefinitions.versionWithSignature` finds the bundled layout that matches and the read is retried with it. Only a layout we don't bundle is blocked.
+
 ## Next
 
 1. Emulator pass in light mode, at font scale 1.6 and on a tablet width; check the edit dialog with the keyboard up and long enum lists (e.g. `app_to_use`).
 2. Confirm before writing (list of changes, from `Config.diff`), and confirm before Defaults.
 3. Search across all settings (VESC Tool mobile has none; desktop has a filter).
-4. Bundle the 6.05/6.06/7.00 definitions so older firmware isn't blocked (copy from VESC Tool `res/config/<version>/` like 7.01).
-5. Save and load config backups (VESC Tool XML) so the VESC-Tool-only fields (motor brand, description, quality) persist; today they live only in memory for the session.
-6. Unit tests for `ParamFormat.kt` (scale, percentage, parse with comma decimals, bitfield names) once the app module has a test source set.
+4. Save and load config backups (VESC Tool XML) so the VESC-Tool-only fields (motor brand, description, quality) persist; today they live only in memory for the session.
+5. Unit tests for `ParamFormat.kt` (scale, percentage, parse with comma decimals, bitfield names) once the app module has a test source set.
 
 ## Unverified
 

@@ -74,7 +74,7 @@
     <string name="settings_range">Allowed %1$s to %2$s</string>
     <string name="settings_invalid_number">Enter a number</string>
     <string name="settings_on_controller">On the controller: %1$s</string>
-    <string name="settings_error_layout">Firmware %1$s stores its settings in a different layout than the %2$s definitions in this app. Reading and writing settings is blocked so nothing gets corrupted.</string>
+    <string name="settings_error_layout">Firmware %1$s stores its settings in a layout this app doesn\'t know. Reading and writing settings is blocked so nothing gets corrupted. Supported firmware: %2$s.</string>
     <string name="settings_error_no_reply">The controller didn\'t answer. Check the connection and read again.</string>
     <string name="settings_error_invalid">%1$s is outside its allowed range. Fix it before writing.</string>
     <plurals name="settings_count">
