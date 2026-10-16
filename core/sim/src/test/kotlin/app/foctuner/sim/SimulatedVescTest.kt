@@ -5,7 +5,7 @@ import app.foctuner.protocol.ByteWriter
 import app.foctuner.protocol.CommPacketId.COMM_ALIVE
 import app.foctuner.protocol.CommPacketId.COMM_FORWARD_CAN
 import app.foctuner.protocol.CommPacketId.COMM_FW_VERSION
-import app.foctuner.protocol.CommPacketId.COMM_GET_DECODED_PPM
+import app.foctuner.protocol.CommPacketId.COMM_GET_DECODED_BALANCE
 import app.foctuner.protocol.CommPacketId.COMM_GET_VALUES
 import app.foctuner.protocol.CommPacketId.COMM_MOTOR_ESTOP
 import app.foctuner.protocol.CommPacketId.COMM_PING_CAN
@@ -268,7 +268,7 @@ class SimulatedVescTest {
         val host = host()
         assertTrue(host.ask(COMM_FORWARD_CAN.id, 9, COMM_GET_VALUES.id).isEmpty())
         assertTrue(host.ask(COMM_FORWARD_CAN.id).isEmpty())
-        assertTrue(host.ask(COMM_GET_DECODED_PPM.id).isEmpty())
+        assertTrue(host.ask(COMM_GET_DECODED_BALANCE.id).isEmpty())
         assertTrue(host.ask(250).isEmpty())
     }
 

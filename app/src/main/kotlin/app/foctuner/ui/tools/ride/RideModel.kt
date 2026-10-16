@@ -1,4 +1,4 @@
-package app.foctuner.ui.tools.setup
+package app.foctuner.ui.tools.ride
 
 import androidx.compose.runtime.Immutable
 import app.foctuner.ui.tools.ToolContext
@@ -22,7 +22,7 @@ enum class DistanceUnit(val perKm: Float, val distance: String, val speed: Strin
 }
 
 @Immutable
-data class SetupState(
+data class RideState(
     val values: SetupValues? = null,
     /** Incline in percent from the IMU's pitch, as VESC Tool's dashboard shows it. */
     val incline: Float? = null,
@@ -46,9 +46,9 @@ data class SetupState(
  * VESC Tool's mobile dashboard (RtDataSetup): vehicle speed, battery, consumption, range, trip and odometer from
  * COMM_GET_VALUES_SETUP, which sums every controller on the bus, plus incline from the IMU's pitch.
  */
-class SetupModel(private val context: ToolContext) {
-    private val _state = MutableStateFlow(SetupState())
-    val state: StateFlow<SetupState> = _state.asStateFlow()
+class RideModel(private val context: ToolContext) {
+    private val _state = MutableStateFlow(RideState())
+    val state: StateFlow<RideState> = _state.asStateFlow()
 
     fun setUnit(unit: DistanceUnit) = _state.update { it.copy(unit = unit) }
 

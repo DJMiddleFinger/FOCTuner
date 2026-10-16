@@ -1,4 +1,4 @@
-package app.foctuner.ui.tools.setup
+package app.foctuner.ui.tools.ride
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -44,8 +44,8 @@ import kotlinx.coroutines.delay
 import java.util.Locale
 
 @Composable
-fun SetupTool(context: ToolContext) {
-    val model = context.model { SetupModel(context) }
+fun RideTool(context: ToolContext) {
+    val model = context.model { RideModel(context) }
     val state by model.state.collectAsStateWithLifecycle()
     LaunchedEffect(model) {
         while (true) {
@@ -53,16 +53,16 @@ fun SetupTool(context: ToolContext) {
             delay(POLL_MS)
         }
     }
-    SetupContent(state, model::setUnit, model::setOdometer)
+    RideContent(state, model::setUnit, model::setOdometer)
 }
 
 @Composable
-private fun SetupContent(state: SetupState, onUnit: (DistanceUnit) -> Unit, onOdometer: (Float) -> Unit) {
+private fun RideContent(state: RideState, onUnit: (DistanceUnit) -> Unit, onOdometer: (Float) -> Unit) {
     val v = state.values
     val u = state.unit
     var editOdometer by rememberSaveable { mutableStateOf(false) }
     Column(Modifier.verticalScroll(rememberScrollState())) {
-        if (state.failed) Notice(stringResource(R.string.setup_no_reply), tone = NoticeTone.Warning)
+        if (state.failed) Notice(stringResource(R.string.ride_no_reply), tone = NoticeTone.Warning)
         ChoiceRow(DistanceUnit.entries, u, { it.distance }, onUnit)
         Hairline()
         Row(
@@ -73,7 +73,7 @@ private fun SetupContent(state: SetupState, onUnit: (DistanceUnit) -> Unit, onOd
             verticalAlignment = Alignment.Bottom,
         ) {
             Column {
-                Text(stringResource(R.string.setup_speed), color = FocTheme.colors.textSecondary, style = FocTheme.type.supporting)
+                Text(stringResource(R.string.ride_speed), color = FocTheme.colors.textSecondary, style = FocTheme.type.supporting)
                 Readout(
                     v?.let { (it.speed * 3.6f * u.perKm).fixed(1) } ?: NO_VALUE,
                     u.speed,
@@ -83,31 +83,31 @@ private fun SetupContent(state: SetupState, onUnit: (DistanceUnit) -> Unit, onOd
                 )
             }
             Column(horizontalAlignment = Alignment.End) {
-                Text(stringResource(R.string.setup_battery), color = FocTheme.colors.textSecondary, style = FocTheme.type.supporting)
+                Text(stringResource(R.string.ride_battery), color = FocTheme.colors.textSecondary, style = FocTheme.type.supporting)
                 Readout(v?.let { (it.batteryLevel * 100f).fixed(0) } ?: NO_VALUE, "%")
             }
         }
         Hairline()
         MeterRow(
-            Meter(stringResource(R.string.setup_range), state.rangeKm?.let { (it * u.perKm).fixed(1) }, u.distance),
-            Meter(stringResource(R.string.setup_battery_energy), v?.batteryWattHours?.fixed(0), "Wh"),
+            Meter(stringResource(R.string.ride_range), state.rangeKm?.let { (it * u.perKm).fixed(1) }, u.distance),
+            Meter(stringResource(R.string.ride_battery_energy), v?.batteryWattHours?.fixed(0), "Wh"),
         )
         Hairline()
         MeterRow(
-            Meter(stringResource(R.string.setup_efficiency_trip), state.whPerKmTrip?.let { (it / u.perKm).fixed(1) }, u.efficiency),
-            Meter(stringResource(R.string.setup_efficiency_now), v?.let { (state.whPerKmNow / u.perKm).fixed(1) }, u.efficiency),
+            Meter(stringResource(R.string.ride_efficiency_trip), state.whPerKmTrip?.let { (it / u.perKm).fixed(1) }, u.efficiency),
+            Meter(stringResource(R.string.ride_efficiency_now), v?.let { (state.whPerKmNow / u.perKm).fixed(1) }, u.efficiency),
         )
         Hairline()
         MeterRow(
-            Meter(stringResource(R.string.setup_power), v?.let { (it.currentInput * it.voltageInput).fixed(0) }, "W"),
-            Meter(stringResource(R.string.setup_incline), state.incline?.fixed(1), "%"),
+            Meter(stringResource(R.string.ride_power), v?.let { (it.currentInput * it.voltageInput).fixed(0) }, "W"),
+            Meter(stringResource(R.string.ride_incline), state.incline?.fixed(1), "%"),
         )
         Hairline()
 
-        SectionHeader(stringResource(R.string.setup_section_distance))
+        SectionHeader(stringResource(R.string.ride_section_distance))
         MeterRow(
-            Meter(stringResource(R.string.setup_trip), v?.let { (it.distanceAbs / 1000f * u.perKm).fixed(2) }, u.distance),
-            Meter(stringResource(R.string.setup_ride_time), v?.let { duration(it.uptimeMs) }),
+            Meter(stringResource(R.string.ride_trip), v?.let { (it.distanceAbs / 1000f * u.perKm).fixed(2) }, u.distance),
+            Meter(stringResource(R.string.ride_ride_time), v?.let { duration(it.uptimeMs) }),
         )
         Hairline()
         Row(
@@ -117,28 +117,28 @@ private fun SetupContent(state: SetupState, onUnit: (DistanceUnit) -> Unit, onOd
                 .padding(start = Spacing.x2, end = Spacing.x1),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(stringResource(R.string.setup_odometer), Modifier.weight(1f), color = FocTheme.colors.text, style = FocTheme.type.body)
+            Text(stringResource(R.string.ride_odometer), Modifier.weight(1f), color = FocTheme.colors.text, style = FocTheme.type.body)
             Readout(v?.let { (it.odometer / 1000f * u.perKm).fixed(1) } ?: NO_VALUE, if (v == null) "" else u.distance, style = FocTheme.type.value)
-            PlainButton(stringResource(R.string.setup_odometer_set), { editOdometer = true }, enabled = v != null)
+            PlainButton(stringResource(R.string.ride_odometer_set), { editOdometer = true }, enabled = v != null)
         }
         Hairline()
 
-        SectionHeader(stringResource(R.string.setup_section_motors))
+        SectionHeader(stringResource(R.string.ride_section_motors))
         MeterRow(
-            Meter(stringResource(R.string.setup_current_motor), v?.currentMotor?.fixed(1), "A"),
-            Meter(stringResource(R.string.setup_current_input), v?.currentInput?.fixed(1), "A"),
-            Meter(stringResource(R.string.setup_voltage), v?.voltageInput?.fixed(1), "V"),
+            Meter(stringResource(R.string.ride_current_motor), v?.currentMotor?.fixed(1), "A"),
+            Meter(stringResource(R.string.ride_current_input), v?.currentInput?.fixed(1), "A"),
+            Meter(stringResource(R.string.ride_voltage), v?.voltageInput?.fixed(1), "V"),
         )
         Hairline()
         MeterRow(
-            Meter(stringResource(R.string.setup_temp_mosfet), v?.tempMosfet?.fixed(1), "°C"),
-            Meter(stringResource(R.string.setup_temp_motor), v?.tempMotor?.fixed(1), "°C"),
-            Meter(stringResource(R.string.setup_controllers), v?.controllerCount?.toString()),
+            Meter(stringResource(R.string.ride_temp_mosfet), v?.tempMosfet?.fixed(1), "°C"),
+            Meter(stringResource(R.string.ride_temp_motor), v?.tempMotor?.fixed(1), "°C"),
+            Meter(stringResource(R.string.ride_controllers), v?.controllerCount?.toString()),
         )
         Hairline()
         MeterRow(
-            Meter(stringResource(R.string.setup_used), v?.wattHours?.fixed(1), "Wh"),
-            Meter(stringResource(R.string.setup_regenerated), v?.wattHoursCharged?.fixed(1), "Wh"),
+            Meter(stringResource(R.string.ride_used), v?.wattHours?.fixed(1), "Wh"),
+            Meter(stringResource(R.string.ride_regenerated), v?.wattHoursCharged?.fixed(1), "Wh"),
         )
         Hairline()
     }
@@ -164,12 +164,12 @@ private fun OdometerDialog(current: Float, unit: DistanceUnit, onSet: (Float) ->
     val value = text.replace(',', '.').toFloatOrNull()?.takeIf { it >= 0f && it / unit.perKm * 1000f <= MAX_ODOMETER_M }
     AlertDialog(
         onDismissRequest = onDismiss,
-        confirmButton = { PlainButton(stringResource(R.string.setup_odometer_confirm), { value?.let(onSet) }, enabled = value != null) },
-        dismissButton = { PlainButton(stringResource(R.string.setup_cancel), onDismiss) },
-        title = { Text(stringResource(R.string.setup_odometer_title), style = FocTheme.type.title) },
+        confirmButton = { PlainButton(stringResource(R.string.ride_odometer_confirm), { value?.let(onSet) }, enabled = value != null) },
+        dismissButton = { PlainButton(stringResource(R.string.ride_cancel), onDismiss) },
+        title = { Text(stringResource(R.string.ride_odometer_title), style = FocTheme.type.title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.x1)) {
-                Text(stringResource(R.string.setup_odometer_body), style = FocTheme.type.supporting)
+                Text(stringResource(R.string.ride_odometer_body), style = FocTheme.type.supporting)
                 OutlinedTextField(
                     value = text,
                     onValueChange = { text = it },
