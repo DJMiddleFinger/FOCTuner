@@ -9,4 +9,5 @@ dependencies {
     testImplementation(project(":core:sim"))
     testImplementation(kotlin("test"))
     testImplementation(libs.coroutines.test)
+    testImplementation(libs.lzo.core)
 }
