@@ -12,6 +12,10 @@ class Token(val start: Int, val end: Int, val kind: TokenKind)
 class LispSymbols(private val kinds: Map<String, TokenKind>) {
     fun kindOf(name: String): TokenKind? = kinds[name]
 
+    /** Names starting with [prefix], shortest first. */
+    fun complete(prefix: String, limit: Int): List<String> =
+        kinds.keys.filter { it.length > prefix.length && it.startsWith(prefix) }.sortedWith(compareBy({ it.length }, { it })).take(limit)
+
     companion object {
         val Empty = LispSymbols(emptyMap())
 

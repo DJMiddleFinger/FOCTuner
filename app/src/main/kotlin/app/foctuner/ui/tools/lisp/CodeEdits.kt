@@ -51,6 +51,39 @@ fun toggleComment(value: TextFieldValue): TextFieldValue {
     return TextFieldValue(newText, TextRange(first, first + changed.length))
 }
 
+/** Copies the cursor's line (or the selected lines) below itself. */
+fun duplicateLines(value: TextFieldValue): TextFieldValue {
+    val text = value.text
+    val first = text.lastIndexOf('\n', value.selection.min - 1) + 1
+    val endSearch = if (value.selection.collapsed) value.selection.max else maxOf(value.selection.min, value.selection.max - 1)
+    val last = text.indexOf('\n', endSearch).let { if (it < 0) text.length else it }
+    val block = text.substring(first, last)
+    val newText = text.substring(0, last) + "\n" + block + text.substring(last)
+    val shift = block.length + 1
+    return TextFieldValue(newText, TextRange(value.selection.start + shift, value.selection.end + shift))
+}
+
+/** The symbol being typed just before the cursor, or "" if the cursor isn't at the end of one. */
+fun wordBefore(value: TextFieldValue): String {
+    if (!value.selection.collapsed) return ""
+    val text = value.text
+    val end = value.selection.start
+    if (end < text.length && !isDelimiter(text[end])) return ""
+    var start = end
+    while (start > 0 && !isDelimiter(text[start - 1])) start--
+    return text.substring(start, end)
+}
+
+/** Replaces the word before the cursor with [word]. */
+fun complete(value: TextFieldValue, word: String): TextFieldValue {
+    val end = value.selection.start
+    val start = end - wordBefore(value).length
+    val newText = value.text.substring(0, start) + word + value.text.substring(end)
+    return TextFieldValue(newText, TextRange(start + word.length))
+}
+
+private fun isDelimiter(c: Char) = c.isWhitespace() || c in "()[]{}\";'`,"
+
 /** Every occurrence of [query] in [text], ignoring case. */
 fun findAll(text: String, query: String): List<IntRange> {
     if (query.isEmpty()) return emptyList()
