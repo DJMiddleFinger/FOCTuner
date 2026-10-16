@@ -26,7 +26,7 @@ Measured (JVM, `app/build/reports/lisp-editor-timing.txt`, 3000 lines / 90 KB fr
 ## Next (in order)
 
 1. Emulator/device pass (lead): open the tool on the simulator, upload an example, run, REPL `(+ 1 2)`, stats with polling, stream with each mode, read back, erase; check dark/light and large font. Then a 3000-line file (paste an example repeatedly): typing and scrolling must stay smooth; the text layout of the whole field per keystroke is the unmeasured part. If it lags, split layout by paragraph (one `BasicTextField` per top-level form in a `LazyColumn`) or move to the experimental `TextFieldState` + `OutputTransformation.addStyle` path.
-2. Lint (`./gradlew :app:lintDebug`) and fix anything in `ui/tools/lisp`.
+2. Lint is clean for `ui/tools/lisp` apart from UseKtx (`Uri.parse` kept; core-ktx is not a dependency).
 3. Package imports (`pkg::name@file.vescpkg`, `pkg@file.vescpkg`) once the package store exists (`codeloader.cpp` `unpackVescPackage` + `lispUnpackImports`).
 4. Script plot extras VESC Tool has: history limit control, per-graph visibility, scatter mode, CSV export.
 5. Movable tabs and a file-changed-on-disk reload prompt (desktop VESC Tool) if users ask.

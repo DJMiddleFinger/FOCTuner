@@ -37,7 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
@@ -56,7 +56,7 @@ import kotlinx.coroutines.launch
 fun ConsolePane(model: LispModel, modifier: Modifier = Modifier) {
     val colors = FocTheme.colors
     val clipboard = LocalClipboard.current
-    val resources = LocalContext.current.resources
+    val resources = LocalResources.current
     val scope = rememberCoroutineScope()
     val listState = rememberLazyListState()
     val lines = model.console

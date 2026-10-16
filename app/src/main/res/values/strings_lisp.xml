@@ -67,11 +67,11 @@
     <string name="lisp_reading">Reading</string>
     <string name="lisp_streaming">Streaming</string>
     <string name="lisp_erasing">Erasing the code area</string>
-    <string name="lisp_progress">%1$s: %2$d of %3$d bytes</string>
+    <string name="lisp_progress">%1$s: %2$d of %3$d B</string>
 
     <string name="lisp_confirm_upload_title">Upload to the controller?</string>
-    <string name="lisp_confirm_upload">This stops LispBM, erases the stored code and writes %1$d bytes to flash. The code then starts on every boot. Scripts can drive the motor.</string>
-    <string name="lisp_confirm_upload_run">This stops LispBM, erases the stored code, writes %1$d bytes to flash and starts it. It also starts on every boot. Scripts can drive the motor.</string>
+    <string name="lisp_confirm_upload">This stops LispBM, erases the stored code and writes %1$d B to flash. The code then starts on every boot. Scripts can drive the motor.</string>
+    <string name="lisp_confirm_upload_run">This stops LispBM, erases the stored code, writes %1$d B to flash and starts it. It also starts on every boot. Scripts can drive the motor.</string>
     <string name="lisp_confirm_run_title">Start the stored code?</string>
     <string name="lisp_confirm_run">LispBM restarts and runs the code stored on the controller. Scripts can drive the motor.</string>
     <string name="lisp_confirm_stream_title">Stream and run this code?</string>
@@ -87,13 +87,13 @@
     <string name="lisp_imports_folder_title">Where are the imported files?</string>
     <string name="lisp_imports_folder_body">This code imports files. Pick the folder they are in; the paths in the import lines are read relative to it.</string>
     <string name="lisp_pick_folder">Pick folder</string>
-    <string name="lisp_save_imports_title">%1$d imported files found</string>
+    <string name="lisp_save_imports_title">Imported files found: %1$d</string>
     <string name="lisp_save_imports_body">Save the code and its imports to a folder? Files with the same names are replaced, and the folder becomes the imports folder so the code can be uploaded again.</string>
 
     <string name="lisp_info_title">Code size</string>
-    <string name="lisp_info_body">Size:           %1$d bytes\nAfter reducing: %2$d bytes\nReduce:         %3$s\n\nSizes include all imports. Reducing removes comments, indentation and empty lines from the code and from imports ending in .lbm or .lisp.</string>
+    <string name="lisp_info_body">Size:           %1$d B\nAfter reducing: %2$d B\nReduce:         %3$s\n\nSizes include all imports. Reducing removes comments, indentation and empty lines from the code and from imports ending in .lbm or .lisp.</string>
 
-    <string name="lisp_line_uploaded">Uploaded %1$d bytes</string>
+    <string name="lisp_line_uploaded">Uploaded %1$d B</string>
     <string name="lisp_line_erased">Code erased</string>
     <string name="lisp_line_started">LispBM started</string>
     <string name="lisp_line_stopped">LispBM stopped</string>
