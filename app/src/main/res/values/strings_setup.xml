@@ -12,6 +12,14 @@
     <string name="tool_bldc_detection_summary">Sensorless BLDC parameters and the hall table</string>
     <string name="tool_direction">Motor direction</string>
     <string name="tool_direction_summary">Test each motor on the bus and set which ones run inverted</string>
+    <string name="tool_input_wizard">Input setup</string>
+    <string name="tool_input_wizard_summary">Set up a remote or throttle: which controller, input type, mapping and its settings</string>
+    <string name="tool_ppm_mapping">PPM mapping</string>
+    <string name="tool_ppm_mapping_summary">Capture the receiver\'s pulse range and center</string>
+    <string name="tool_adc_mapping">ADC mapping</string>
+    <string name="tool_adc_mapping_summary">Capture the throttle and brake voltage ranges</string>
+    <string name="tool_imu_calibration">IMU calibration</string>
+    <string name="tool_imu_calibration_summary">Let the controller measure the IMU\'s mounting angle and gyro offsets</string>
 
     <string name="setup_cancel">Cancel</string>
     <string name="setup_start">Start</string>
@@ -172,4 +180,45 @@
     <string name="setup_test_run">Test run</string>
     <string name="setup_forward">Forward</string>
     <string name="setup_reverse">Reverse</string>
+
+    <string name="setup_finish">Finish</string>
+    <string name="setup_reset">Reset</string>
+    <string name="setup_apply_mapping">Write mapping</string>
+    <string name="setup_apply_app">Write to app config</string>
+    <string name="setup_written_app">Written to the app config</string>
+    <string name="setup_mapping_intro">Move the throttle from one end to the other, then let it go. Start, end and center follow what it does.</string>
+    <string name="setup_ppm_input">Receiver pulse</string>
+    <string name="setup_adc_input">ADC 1 (throttle)</string>
+    <string name="setup_adc_input2">ADC 2 (brake)</string>
+    <string name="setup_value">Value</string>
+    <string name="setup_now">Now</string>
+    <string name="setup_min">Start</string>
+    <string name="setup_max">End</string>
+    <string name="setup_center">Center</string>
+    <string name="setup_ppm_not_valid">Move the stick through its whole range first (at least 0.4 ms).</string>
+    <string name="setup_ppm_app_off">The PPM app isn\'t selected</string>
+    <string name="setup_adc_app_off">The ADC app isn\'t selected</string>
+    <string name="setup_app_off_body">The controller only reads this input while its app is selected (App settings, General, App to use). The input wizard selects it for you.</string>
+    <string name="setup_input_which">Which controller is the input wired to?</string>
+    <string name="setup_input_reset_note">Next resets the input settings of every controller on the bus to their defaults (CAN ids and status messages stay), so none keeps reading an old input.</string>
+    <string name="setup_input_type">Input type</string>
+    <string name="setup_input_ppm">PPM receiver (RC remote)</string>
+    <string name="setup_input_nrf">NRF remote on UART</string>
+    <string name="setup_input_adc">ADC throttle (e-bike style)</string>
+    <string name="setup_input_nunchuk">Nyko Kama nunchuk (I2C)</string>
+    <string name="setup_nrf_pairing">The remote needs pairing</string>
+    <string name="setup_nrf_pairing_body">NRF pairing isn\'t in this app yet. Pair the remote with VESC Tool once; the settings here work after that.</string>
+    <string name="setup_nunchuk_uart">This input disables UART on the controller.</string>
+    <string name="setup_input_settings">Input settings</string>
+
+    <string name="setup_imu_intro">The controller samples its IMU for about 5 seconds to work out how it is mounted and the gyro offsets. Yaw can\'t be measured: enter how the controller is turned on the vehicle.</string>
+    <string name="setup_imu_yaw">Yaw</string>
+    <string name="setup_imu_roll">Roll</string>
+    <string name="setup_imu_pitch">Pitch</string>
+    <string name="setup_imu_gyro_offset">Gyro offset %1$c</string>
+    <string name="setup_imu_accel_offset">Accelerometer offset %1$c</string>
+    <string name="setup_imu_calibrate">Calibrate</string>
+    <string name="setup_imu_calibrating">Calibrating (keep it still)</string>
+    <string name="setup_imu_calibrate_body">Put the vehicle on level ground and keep it completely still until calibration finishes, about 5 seconds.</string>
+    <string name="setup_apply_imu_body">Writes the roll, pitch and yaw rotation and the sensor offsets to this controller\'s app config.</string>
 </resources>
