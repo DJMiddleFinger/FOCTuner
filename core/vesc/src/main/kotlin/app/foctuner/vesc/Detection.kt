@@ -10,7 +10,6 @@ import app.foctuner.protocol.CommPacketId.COMM_DETECT_HALL_FOC
 import app.foctuner.protocol.CommPacketId.COMM_DETECT_MOTOR_FLUX_LINKAGE_OPENLOOP
 import app.foctuner.protocol.CommPacketId.COMM_DETECT_MOTOR_PARAM
 import app.foctuner.protocol.CommPacketId.COMM_DETECT_MOTOR_R_L
-import app.foctuner.protocol.CommPacketId.COMM_MOTOR_ESTOP
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -202,16 +201,6 @@ suspend fun VescController.disableAppOutput(duration: Duration, forwardCan: Bool
 }
 
 suspend fun VescController.enableAppOutput(forwardCan: Boolean) = sendAppOutput(0, forwardCan)
-
-/**
- * Best effort to stop a running detection, which the firmware has no command to abort: releases the motor past
- * the detection's lock (COMM_MOTOR_ESTOP) and ignores motor commands for [holdOff]. The detection itself keeps
- * running in the firmware until its next step and may still report a result.
- */
-suspend fun VescController.interruptDetection(holdOff: Duration = 5.seconds) {
-    val ms = holdOff.inWholeMilliseconds.coerceIn(1, 65_535).toInt()
-    session.send(forwarded(ByteWriter().u8(COMM_MOTOR_ESTOP.id).u16(ms).toByteArray()))
-}
 
 private suspend fun VescController.sendAppOutput(ms: Int, forwardCan: Boolean) {
     session.send(forwarded(ByteWriter().u8(COMM_APP_DISABLE_OUTPUT.id).u8(if (forwardCan) 1 else 0).i32(ms).toByteArray()))

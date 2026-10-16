@@ -12,12 +12,12 @@ suspend fun VescController.updateConfig(kind: ConfigKind, base: Config, transfor
     return readConfig(kind, base)
 }
 
-/** CAN ids on the bus that are motor controllers (not BMSs or other modules), as VESC Tool's setup wizards list them. */
-suspend fun VescClient.canVescIds(): List<Int> = pingCan().filter { id ->
+/** The motor controllers on the bus (not BMSs or other modules) with their firmware, as VESC Tool's setup wizards list them. */
+suspend fun VescClient.canVescs(): List<Pair<Int, FirmwareInfo>> = pingCan().mapNotNull { id ->
     try {
-        can(id).firmwareInfo().hardwareType == HardwareType.VESC
+        can(id).firmwareInfo().takeIf { it.hardwareType == HardwareType.VESC }?.let { id to it }
     } catch (e: VescTimeoutException) {
-        false
+        null
     }
 }
 

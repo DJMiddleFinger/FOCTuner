@@ -165,5 +165,10 @@ class DetectionTest {
         assertEquals(cal.gyroOffsets[1].toDouble(), stored.double("imu_conf.gyro_offsets__1"), 1e-4)
     }
 
+    @Test
+    fun theSecondMotorOfADualBoardIsTheOnlyVescOnTheSimulatedBus() = runTest {
+        assertEquals(listOf(1), client().canVescs().map { it.first })
+    }
+
     private fun <T : Any> assertNotNullResult(value: T?): T = kotlin.test.assertNotNull(value)
 }

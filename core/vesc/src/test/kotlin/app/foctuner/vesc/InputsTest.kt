@@ -4,6 +4,7 @@ import app.foctuner.config.BundledDefinitions
 import app.foctuner.config.Config
 import app.foctuner.config.ConfigKind
 import app.foctuner.sim.SimulatedVesc
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.testTimeSource
@@ -11,8 +12,8 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.seconds
 
+@OptIn(ExperimentalCoroutinesApi::class)
 class InputsTest {
     private val app = Config.defaults(BundledDefinitions.load("7.01", ConfigKind.APPCONF))
 
@@ -56,7 +57,6 @@ class InputsTest {
         assertEquals(2.95f, voltage2.max, 1e-3f)
 
         client.updateConfig(ConfigKind.APPCONF, app) { it.with("app_to_use", 5L).withAdcMapping(voltage, voltage2) }
-        delay(7.seconds - (testTimeSource.markNow().elapsedNow()))
         val values = List(240) { client.decodedAdc().value.also { delay(50.milliseconds) } }
         assertEquals(0f, values.min(), 1e-3f)
         assertEquals(1f, values.max(), 1e-3f)
