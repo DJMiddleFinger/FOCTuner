@@ -209,7 +209,7 @@ private suspend fun VescController.readChunk(offset: Int, size: Int): Pair<Int, 
  * null after [timeout]. Replies to these commands carry the offset they belong to, so a late reply to an
  * earlier attempt is skipped instead of being taken for the current one.
  */
-private suspend fun <T : Any> VescController.exchange(
+internal suspend fun <T : Any> VescController.exchange(
     payload: ByteArray,
     replyId: CommPacketId,
     timeout: Duration,
@@ -231,7 +231,7 @@ private suspend fun <T : Any> VescController.exchange(
     reply.await()
 }
 
-private inline fun <T : Any> retrying(tries: Int, attempt: () -> T?): T? {
+internal inline fun <T : Any> retrying(tries: Int, attempt: () -> T?): T? {
     repeat(tries) { attempt()?.let { return it } }
     return null
 }
