@@ -63,13 +63,13 @@ open class VescController internal constructor(
 
     /**
      * Stores [config] on the controller (in flash, so it survives a reboot). The firmware may adjust values to
-     * hardware limits, so read it back to see what was applied. A controller with a different layout ignores
-     * the write and this times out.
+     * hardware limits, so read it back to see what was applied ([writeConfigChecked] does). A controller with a
+     * different layout ignores the write and this times out. Sent twice, as VESC Tool 7.01 does (see [requestTwice]).
      */
     suspend fun writeConfig(kind: ConfigKind, config: Config) {
         val id = Requests.writeConfigId(kind)
         val payload = Requests.bare(id) + ConfigCodec.serialize(config)
-        session.request(Requests.forwarded(canId, payload), id, session.options.configWriteTimeout) { }
+        session.requestTwice(Requests.forwarded(canId, payload), id, session.options.configWriteTimeout)
     }
 
     private suspend fun readConfig(kind: ConfigKind, base: Config, defaults: Boolean): Config {

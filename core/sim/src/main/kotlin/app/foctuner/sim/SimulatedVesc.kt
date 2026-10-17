@@ -64,7 +64,10 @@ import app.foctuner.protocol.CommPacketId.COMM_PSW_GET_STATUS
 import app.foctuner.protocol.CommPacketId.COMM_PSW_SWITCH
 import app.foctuner.protocol.CommPacketId.COMM_RESET_STATS
 import app.foctuner.protocol.CommPacketId.COMM_SET_APPCONF
+import app.foctuner.protocol.CommPacketId.COMM_SET_APPCONF_NO_STORE
 import app.foctuner.protocol.CommPacketId.COMM_SET_MCCONF
+import app.foctuner.protocol.CommPacketId.COMM_SET_MCCONF_TEMP
+import app.foctuner.protocol.CommPacketId.COMM_SET_MCCONF_TEMP_SETUP
 import app.foctuner.protocol.CommPacketId.COMM_SET_ODOMETER
 import app.foctuner.protocol.CommPacketId.COMM_SET_CURRENT
 import app.foctuner.protocol.CommPacketId.COMM_SET_CURRENT_BRAKE
@@ -113,8 +116,9 @@ import kotlin.time.TimeSource
  * the time the firmware takes, see [DetectionSim]), COMM_GET_IMU_CALIBRATION and the decoded PPM / ADC /
  * nunchuk inputs ([DecodedInputsSim]); and firmware updates (erase, write, LZO, bootloader, jump, COMM_FW_INFO;
  * see [FirmwareSim]); and LispBM (COMM_LISP_ERASE_CODE / WRITE_CODE / READ_CODE / SET_RUNNING / GET_STATS /
- * REPL_CMD / STREAM_CODE, printing with COMM_LISP_PRINT, see [LispSim]). Other commands are ignored like unknown
- * ones in the firmware.
+ * REPL_CMD / STREAM_CODE, printing with COMM_LISP_PRINT, see [LispSim]); hardware limits on COMM_SET_MCCONF,
+ * COMM_SET_MCCONF_TEMP(_SETUP) and COMM_SET_APPCONF_NO_STORE ([ConfigWriteSim]). Other commands are ignored like
+ * unknown ones in the firmware.
  *
  * Time comes from [timeSource] and is applied lazily when a request arrives, so the simulation costs nothing
  * while idle and runs on virtual time when given a test scope's time source. Like the firmware, motors
@@ -186,6 +190,7 @@ class SimulatedVesc(
     private val detection = DetectionSim(this, if (dualMotor) listOf(first, second) else listOf(first))
     private val firmware = FirmwareSim(this, hardwareName, FIRMWARE_MAJOR, FIRMWARE_MINOR)
     private val lisp = LispSim(this)
+    private val configWrites = ConfigWriteSim(this)
 
     override suspend fun write(bytes: ByteArray) {
         synchronized(lock) {
@@ -260,7 +265,9 @@ class SimulatedVesc(
             COMM_GET_APPCONF -> reply(byteArrayOf(packet[0]) + storedConfig(motor, ConfigKind.APPCONF))
             COMM_GET_MCCONF_DEFAULT -> reply(byteArrayOf(packet[0]) + defaultConfig(motor, ConfigKind.MCCONF))
             COMM_GET_APPCONF_DEFAULT -> reply(byteArrayOf(packet[0]) + defaultConfig(motor, ConfigKind.APPCONF))
-            COMM_SET_MCCONF -> storeConfig(motor, ConfigKind.MCCONF, packet)
+            COMM_SET_MCCONF -> configWrites.setMcconf(motor, packet)
+            COMM_SET_MCCONF_TEMP, COMM_SET_MCCONF_TEMP_SETUP -> configWrites.setTemporary(motor, r, id.id, if (dualMotor) listOf(first, second) - motor else emptyList())
+            COMM_SET_APPCONF_NO_STORE -> storeConfig(motor, ConfigKind.APPCONF, packet)
             COMM_SET_APPCONF -> storeConfig(motor, ConfigKind.APPCONF, packet)
             COMM_GET_STATS -> reply(motor.stats.reply())
             COMM_DETECT_MOTOR_R_L -> detection.resistanceInductance(motor)
