@@ -64,6 +64,9 @@ class LispModel(private val context: ToolContext) {
     private val samples = HashMap<String, ArrayDeque<Pair<TimeSource.Monotonic.ValueTimeMark, Float>>>()
 
     val console = mutableStateListOf<ConsoleLine>()
+
+    /** Console lines kept (Preferences; VESC Tool's scripting/replMaxLines). */
+    var maxLines = 5_000
     val replHistory = mutableStateListOf<String>()
     var replInput by mutableStateOf("")
     var progress by mutableStateOf<Progress?>(null)
@@ -270,12 +273,10 @@ class LispModel(private val context: ToolContext) {
 
     private fun add(kind: LineKind, text: String = "", @StringRes message: Int = 0, args: List<Any> = emptyList()) {
         console += ConsoleLine(nextLine++, kind, text, message, args)
-        if (console.size > MAX_LINES) console.removeRange(0, console.size - MAX_LINES)
+        if (console.size > maxLines) console.removeRange(0, console.size - maxLines)
     }
 
     private companion object {
-        /** VESC Tool's default for scripting/replMaxLines. */
-        const val MAX_LINES = 5000
         const val MAX_HISTORY = 30
 
         /** VESC Tool streams a "run block" selection longer than this instead of sending it to the REPL. */

@@ -35,6 +35,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.foctuner.R
+import app.foctuner.ui.prefs.appPreferences
 import app.foctuner.ui.components.Hairline
 import app.foctuner.ui.components.Notice
 import app.foctuner.ui.components.NoticeTone
@@ -56,6 +57,7 @@ import java.util.Locale
 @Composable
 fun ControlTool(context: ToolContext) {
     val model = context.model { ControlModel(context) }
+    val lockout = appPreferences().stopDuration
     val state by model.state.collectAsStateWithLifecycle()
     LaunchedEffect(model) {
         while (true) {
@@ -69,7 +71,7 @@ fun ControlTool(context: ToolContext) {
     ControlContent(
         state = state,
         onArm = model::arm,
-        onStop = model::stop,
+        onStop = { model.stop(lockout) },
         onMode = model::select,
         onSetpoint = model::setSetpoint,
         onPress = model::press,

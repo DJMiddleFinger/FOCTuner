@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="prefs_title">Preferences</string>
+    <string name="prefs_open_summary">Units, STOP lockout time, connection and console settings</string>
+    <string name="prefs_section_app">App</string>
+
+    <string name="prefs_section_units">Units</string>
+    <string name="prefs_units_summary">Used for speed, distance and consumption on the ride dashboard and in statistics.</string>
+    <string name="prefs_units_metric">Metric (km, km/h)</string>
+    <string name="prefs_units_imperial">Imperial (mi, mph)</string>
+
+    <string name="prefs_section_stop">Motor STOP</string>
+    <string name="prefs_stop_summary">After STOP, the controllers ignore motor commands from every source, a remote included, for this long. Off only releases the motors.</string>
+    <string name="prefs_stop_off">Off</string>
+    <string name="prefs_seconds">%1$d s</string>
+
+    <string name="prefs_section_connection">Connection</string>
+    <string name="prefs_keep_screen_on">Keep the screen on</string>
+    <string name="prefs_keep_screen_on_summary">While a controller is connected</string>
+    <string name="prefs_scan_can">Scan the CAN bus on connect</string>
+    <string name="prefs_scan_can_summary">Lists the controllers reachable through the one you connect to</string>
+    <string name="prefs_reconnect_can">Reselect the last CAN controller</string>
+    <string name="prefs_reconnect_can_summary">On connect, selects the CAN controller you last used behind the same controller, if it still answers with the same ID</string>
+    <string name="prefs_realtime_rate">Overview update rate</string>
+    <string name="prefs_realtime_rate_summary">How often the overview asks for live values. Lower rates leave more room on slow Bluetooth links.</string>
+    <string name="prefs_hertz">%1$d Hz</string>
+
+    <string name="prefs_section_scripting">LispBM console</string>
+    <string name="prefs_repl_lines_summary">Lines the console keeps before dropping the oldest.</string>
+    <string name="prefs_lines">%1$,d</string>
+
+    <string name="prefs_restore_defaults">Restore defaults</string>
+
+    <string name="prefs_forget_title">Remove from recent?</string>
+    <string name="prefs_forget_body">%1$s is removed from the recent list. It still shows up when a scan finds it.</string>
+    <string name="prefs_forget_confirm">Remove</string>
+    <string name="prefs_forget_cancel">Keep</string>
+</resources>

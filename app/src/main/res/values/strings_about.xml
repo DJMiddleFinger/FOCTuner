@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="about_title">About FOCTuner</string>
+    <string name="about_open_summary">Version, licence, source code, safety and credits</string>
+    <string name="about_back">Back</string>
+    <string name="about_version">%1$s · commit %2$s</string>
+    <string name="about_tagline">Setup, tuning and diagnostics for VESC-based motor controllers.</string>
+    <string name="about_copyright">Copyright © 2026 the FOCTuner contributors. FOCTuner is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.</string>
+    <string name="about_license_gpl">GNU General Public License</string>
+    <string name="about_license_gpl_detail">Version 3, or any later version</string>
+    <string name="about_source">Source code</string>
+    <string name="about_source_url" translatable="false">https://github.com/DJMiddleFinger/FOCTuner</string>
+
+    <string name="about_section_upstream">Based on VESC Tool</string>
+    <string name="about_based_on">Based on VESC Tool by Benjamin Vedder (github.com/vedderb/vesc_tool, commit f1e15cb of 2026-10-15) and the VESC firmware (github.com/vedderb/bldc), copyright © 2016–2026 Benjamin Vedder and the VESC contributors, licensed under the GPL version 3 or later. FOCTuner is a new Android app written in Kotlin: the protocol, payload layouts and behaviour follow VESC Tool and the firmware, and the configuration definitions, bootloaders and LispBM examples listed below are taken from VESC Tool unchanged.</string>
+    <string name="about_not_affiliated">FOCTuner is an independent project. It is not affiliated with, endorsed by or supported by Benjamin Vedder or the VESC Project. VESC is a registered trademark of Benjamin Vedder.</string>
+
+    <string name="about_section_warranty">No warranty</string>
+    <string name="about_no_warranty">This program is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for details. You use it at your own risk, including for any damage to your controller, motor, battery or vehicle.</string>
+
+    <string name="about_section_safety">Safety</string>
+    <string name="about_section_third_party">Bundled software</string>
+    <string name="about_vesc_tool">VESC Tool configuration definitions and bootloaders</string>
+    <string name="about_vesc_tool_detail">Benjamin Vedder · GPL-3.0-or-later</string>
+    <string name="about_lisp_examples">LispBM examples and symbol list</string>
+    <string name="about_lisp_examples_detail">From VESC Tool · GPL-3.0-or-later</string>
+    <string name="about_plex">IBM Plex Sans and IBM Plex Mono</string>
+    <string name="about_plex_detail">IBM Corp. · SIL Open Font License 1.1</string>
+    <string name="about_androidx">Jetpack Compose, AndroidX, DataStore, Kotlin and kotlinx.coroutines</string>
+    <string name="about_androidx_detail">Google, JetBrains · Apache License 2.0</string>
+
+    <string name="intro_title">Before you start</string>
+    <string name="intro_section_purpose">What this app does</string>
+    <string name="intro_purpose_body">FOCTuner reads and changes the settings of VESC-based motor controllers, runs motor detection, drives motors for testing, updates firmware and shows live data. Many of these actions take effect on the controller immediately.</string>
+    <string name="intro_safety_body">A motor controller switches large currents from a battery that can deliver a lot of energy very quickly. Wrong settings, a failed detection or a firmware problem can make a motor start, run away or brake hard without warning, and can destroy the controller, the motor or the battery, or start a fire.\n\nBefore detection or any motor test, lift the drive wheel or remove the belt or propeller, keep hands, hair and clothing away from moving parts, and make sure nobody rides or holds the vehicle. Start with low current limits, check every value before writing it, and keep a way to cut power within reach. Never change settings while riding. STOP releases the motors and blocks motor commands for a while, but it does not replace a hardware power switch.</string>
+    <string name="intro_warranty_body">FOCTuner is free software under the GNU General Public License, version 3 or later, and comes with no warranty of any kind. Nobody behind it is liable for damage or injury resulting from its use. If you are not sure what a setting does, leave it as it is.</string>
+    <string name="intro_section_affiliation">Not affiliated with VESC</string>
+    <string name="intro_accept">I understand</string>
+    <string name="intro_quit">Quit</string>
+</resources>

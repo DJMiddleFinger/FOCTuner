@@ -17,6 +17,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.foctuner.R
+import app.foctuner.prefs.Units
+import app.foctuner.ui.prefs.appPreferences
 import app.foctuner.ui.components.Hairline
 import app.foctuner.ui.components.NO_VALUE
 import app.foctuner.ui.components.Notice
@@ -81,16 +83,16 @@ fun StatsTool(context: ToolContext) {
             delay(1_000)
         }
     }
-    StatsContent(state, model::reset)
+    StatsContent(state, appPreferences().units, model::reset)
 }
 
 @Composable
-private fun StatsContent(state: StatsState, onReset: () -> Unit) {
+private fun StatsContent(state: StatsState, units: Units, onReset: () -> Unit) {
     val s = state.stats
     Column(Modifier.verticalScroll(rememberScrollState())) {
         if (state.failed) Notice(stringResource(R.string.stats_no_reply), tone = NoticeTone.Warning)
         SectionHeader(stringResource(R.string.stats_section))
-        StatRow(R.string.stats_speed, s?.let { (it.speedAvg * MS_TO_KMH).fixed(1) }, s?.let { (it.speedMax * MS_TO_KMH).fixed(1) }, "km/h")
+        StatRow(R.string.stats_speed, s?.let { units.speed(it.speedAvg).fixed(1) }, s?.let { units.speed(it.speedMax).fixed(1) }, units.speed)
         StatRow(R.string.stats_power, s?.powerAvg?.fixed(0), s?.powerMax?.fixed(0), "W")
         StatRow(R.string.stats_current, s?.currentAvg?.fixed(1), s?.currentMax?.fixed(1), "A")
         StatRow(R.string.stats_temp_mosfet, s?.tempMosfetAvg?.fixed(1), s?.tempMosfetMax?.fixed(1), "°C")
@@ -134,4 +136,3 @@ private fun duration(seconds: Float): String {
     return "%d:%02d:%02d".format(total / 3600, total / 60 % 60, total % 60)
 }
 
-private const val MS_TO_KMH = 3.6f

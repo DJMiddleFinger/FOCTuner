@@ -6,6 +6,8 @@ import android.os.Build
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.foctuner.link.Links
+import app.foctuner.prefs.PreferencesStore
+import app.foctuner.prefs.RecentDevice
 import app.foctuner.transport.LinkDevice
 import app.foctuner.transport.Transport
 import kotlinx.coroutines.CancellationException
@@ -22,16 +24,33 @@ import app.foctuner.transport.LinkKind as TransportKind
 /** Scanning and device lists for the connect screen. Opening a link is done by the session. */
 class ConnectViewModel(application: Application) : AndroidViewModel(application) {
     private val links = Links(application)
+    private val store = PreferencesStore(application)
     private val _state = MutableStateFlow(ConnectState())
     val state: StateFlow<ConnectState> = _state.asStateFlow()
 
     private var found = emptyMap<String, LinkDevice>()
+    private var recent = emptyMap<String, RecentDevice>()
 
     /** Devices keep the place where they first appeared, so rows don't jump around as signal strength changes. */
     private val firstSeen = HashMap<String, Int>()
     private var scanJob: Job? = null
 
     val missingBluetoothPermissions: List<String> get() = links.missingPermissions(BLUETOOTH)
+
+    init {
+        viewModelScope.launch {
+            store.recentDevices.collect { devices ->
+                recent = devices.associateBy { it.key }
+                _state.update { state ->
+                    state.copy(
+                        recent = devices.map {
+                            DeviceEntry(it.key, it.name, it.id, it.kind.toLinkKind(), lastConnectedAt = it.lastConnected, pinned = it.pinned)
+                        },
+                    )
+                }
+            }
+        }
+    }
 
     fun scan() {
         scanJob?.cancel()
@@ -62,7 +81,21 @@ class ConnectViewModel(application: Application) : AndroidViewModel(application)
         }
     }
 
-    fun device(entry: DeviceEntry): LinkDevice? = found[entry.key]
+    /** The scanned device, or for a recent entry that isn't around right now, the stored address to try. */
+    fun device(entry: DeviceEntry): LinkDevice? = found[entry.key] ?: recent[entry.key]?.toLinkDevice()
+
+    /** Adds [device] to the recent list after a controller answered through it. */
+    fun remember(device: LinkDevice) {
+        viewModelScope.launch { store.connected(device, System.currentTimeMillis()) }
+    }
+
+    fun togglePin(entry: DeviceEntry) {
+        viewModelScope.launch { store.togglePin(entry.key) }
+    }
+
+    fun forget(entry: DeviceEntry) {
+        viewModelScope.launch { store.forget(entry.key) }
+    }
 
     fun deviceForAddress(address: String): LinkDevice? {
         val host = address.substringBeforeLast(':')

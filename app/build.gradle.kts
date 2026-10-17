@@ -3,6 +3,11 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+/** Shown on the About screen; empty when building outside a git checkout. */
+val gitCommit: String = runCatching {
+    providers.exec { commandLine("git", "rev-parse", "--short=7", "HEAD") }.standardOutput.asText.get().trim()
+}.getOrDefault("")
+
 android {
     namespace = "app.foctuner"
     compileSdk = 37
@@ -13,10 +18,12 @@ android {
         targetSdk = 36
         versionCode = 2
         versionName = "0.2.0"
+        buildConfigField("String", "GIT_COMMIT", "\"$gitCommit\"")
     }
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     compileOptions {
@@ -36,6 +43,7 @@ dependencies {
     implementation(libs.lifecycle.viewmodel.compose)
     implementation(libs.lifecycle.runtime.compose)
     implementation(libs.coroutines.android)
+    implementation(libs.datastore.preferences)
     debugImplementation(libs.compose.ui.tooling)
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:${libs.versions.kotlin.get()}")
 }

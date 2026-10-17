@@ -25,7 +25,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import app.foctuner.R
+import app.foctuner.prefs.Units
+import app.foctuner.ui.prefs.PreferencesViewModel
+import app.foctuner.ui.prefs.appPreferences
 import app.foctuner.ui.components.Hairline
 import app.foctuner.ui.components.NO_VALUE
 import app.foctuner.ui.components.Notice
@@ -53,17 +57,17 @@ fun RideTool(context: ToolContext) {
             delay(POLL_MS)
         }
     }
-    RideContent(state, model::setUnit, model::setOdometer)
+    val preferences: PreferencesViewModel = viewModel()
+    RideContent(state, appPreferences().units, { units -> preferences.update { it.copy(units = units) } }, model::setOdometer)
 }
 
 @Composable
-private fun RideContent(state: RideState, onUnit: (DistanceUnit) -> Unit, onOdometer: (Float) -> Unit) {
+private fun RideContent(state: RideState, u: Units, onUnits: (Units) -> Unit, onOdometer: (Float) -> Unit) {
     val v = state.values
-    val u = state.unit
     var editOdometer by rememberSaveable { mutableStateOf(false) }
     Column(Modifier.verticalScroll(rememberScrollState())) {
         if (state.failed) Notice(stringResource(R.string.ride_no_reply), tone = NoticeTone.Warning)
-        ChoiceRow(DistanceUnit.entries, u, { it.distance }, onUnit)
+        ChoiceRow(Units.entries, u, { it.distance }, onUnits)
         Hairline()
         Row(
             Modifier
@@ -158,7 +162,7 @@ private fun RideContent(state: RideState, onUnit: (DistanceUnit) -> Unit, onOdom
 
 /** Sets the controller's stored odometer, in the unit shown. The value is entered, then confirmed with Set. */
 @Composable
-private fun OdometerDialog(current: Float, unit: DistanceUnit, onSet: (Float) -> Unit, onDismiss: () -> Unit) {
+private fun OdometerDialog(current: Float, unit: Units, onSet: (Float) -> Unit, onDismiss: () -> Unit) {
     val colors = FocTheme.colors
     var text by remember { mutableStateOf(String.format(Locale.ROOT, "%.1f", current)) }
     val value = text.replace(',', '.').toFloatOrNull()?.takeIf { it >= 0f && it / unit.perKm * 1000f <= MAX_ODOMETER_M }

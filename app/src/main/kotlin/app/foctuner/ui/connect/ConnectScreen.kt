@@ -26,6 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -46,6 +47,7 @@ import app.foctuner.ui.theme.FocTheme
 import app.foctuner.ui.theme.Spacing
 import app.foctuner.ui.theme.StressPreview
 import app.foctuner.ui.theme.ThemePreviews
+import app.foctuner.ui.tools.parts.ConfirmDialog
 
 @Composable
 fun ConnectScreen(
@@ -58,9 +60,13 @@ fun ConnectScreen(
     onEnableBluetooth: () -> Unit,
     onRequestPermission: () -> Unit,
     onDismissFailure: () -> Unit,
+    onForget: (DeviceEntry) -> Unit,
+    onOpenPreferences: () -> Unit,
+    onOpenAbout: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val busy = state.connectingKey != null
+    var forgetting by remember { mutableStateOf<DeviceEntry?>(null) }
     Box(
         modifier
             .fillMaxSize()
@@ -108,12 +114,13 @@ fun ConnectScreen(
             }
             if (state.recent.isNotEmpty()) {
                 item { SectionHeader(stringResource(R.string.connect_section_recent)) }
-                deviceRows(state.recent, state.connectingKey) { entry, connecting ->
+                deviceRows(state.recent, state.connectingKey, section = "recent") { entry, connecting ->
                     DeviceRow(
                         title = entry.name,
                         detail = recentDetail(entry),
                         monoDetail = false,
                         onClick = { onConnect(entry) },
+                        onLongClick = { forgetting = entry },
                         enabled = !busy,
                         connecting = connecting,
                         trailing = { PinToggle(entry.pinned) { onTogglePin(entry) } },
@@ -163,9 +170,41 @@ fun ConnectScreen(
                     enabled = !busy,
                     connecting = state.connectingKey == DEMO_KEY,
                 )
+            }
+            item {
+                SectionHeader(stringResource(R.string.prefs_section_app))
+                DeviceRow(
+                    title = stringResource(R.string.prefs_title),
+                    detail = stringResource(R.string.prefs_open_summary),
+                    monoDetail = false,
+                    onClick = onOpenPreferences,
+                    enabled = !busy,
+                )
+                Hairline(Modifier.padding(start = Spacing.x2))
+                DeviceRow(
+                    title = stringResource(R.string.about_title),
+                    detail = stringResource(R.string.about_open_summary),
+                    monoDetail = false,
+                    onClick = onOpenAbout,
+                    enabled = !busy,
+                )
                 Spacer(Modifier.height(Spacing.x4))
             }
         }
+    }
+
+    forgetting?.let { entry ->
+        ConfirmDialog(
+            title = stringResource(R.string.prefs_forget_title),
+            body = stringResource(R.string.prefs_forget_body, entry.name),
+            confirm = stringResource(R.string.prefs_forget_confirm),
+            dismiss = stringResource(R.string.prefs_forget_cancel),
+            onConfirm = {
+                forgetting = null
+                onForget(entry)
+            },
+            onDismiss = { forgetting = null },
+        )
     }
 }
 
@@ -226,7 +265,7 @@ private fun LazyListScope.foundRows(
     connectingKey: String?,
     busy: Boolean,
     onConnect: (DeviceEntry) -> Unit,
-) = deviceRows(entries, connectingKey) { entry, connecting ->
+) = deviceRows(entries, connectingKey, section = "found") { entry, connecting ->
     DeviceRow(
         title = entry.name,
         detail = entry.address,
@@ -240,9 +279,10 @@ private fun LazyListScope.foundRows(
 private fun LazyListScope.deviceRows(
     entries: List<DeviceEntry>,
     connectingKey: String?,
+    section: String,
     row: @Composable (DeviceEntry, Boolean) -> Unit,
 ) {
-    itemsIndexed(entries, key = { _, entry -> entry.link.name + entry.key }) { index, entry ->
+    itemsIndexed(entries, key = { _, entry -> section + entry.link.name + entry.key }) { index, entry ->
         Column {
             row(entry, entry.key == connectingKey)
             if (index < entries.lastIndex) Hairline(Modifier.padding(start = Spacing.x2))
@@ -311,7 +351,7 @@ private val previewState = ConnectState(
 @Composable
 private fun ConnectPreview() {
     FocTheme {
-        ConnectScreen(previewState, {}, {}, {}, {}, {}, {}, {}, {})
+        ConnectScreen(previewState, {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})
     }
 }
 
@@ -319,7 +359,7 @@ private fun ConnectPreview() {
 @Composable
 private fun ConnectBluetoothOffPreview() {
     FocTheme(darkTheme = false) {
-        ConnectScreen(ConnectState(bluetoothStatus = BluetoothStatus.Off), {}, {}, {}, {}, {}, {}, {}, {})
+        ConnectScreen(ConnectState(bluetoothStatus = BluetoothStatus.Off), {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {})
     }
 }
 
@@ -335,7 +375,7 @@ private fun ConnectStressPreview() {
                 scanFinished = true,
                 failure = "The controller stopped answering after 5 s. Move closer, or power-cycle the BLE module.",
             ),
-            {}, {}, {}, {}, {}, {}, {}, {},
+            {}, {}, {}, {}, {}, {}, {}, {}, {}, {}, {},
         )
     }
 }

@@ -2,7 +2,7 @@ package app.foctuner.ui.connect
 
 import android.text.format.DateUtils
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -40,13 +40,14 @@ internal fun DeviceRow(
     enabled: Boolean = true,
     connecting: Boolean = false,
     trailing: (@Composable () -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
 ) {
     val colors = FocTheme.colors
     Row(
         modifier
             .fillMaxWidth()
             .heightIn(min = Spacing.twoLineRow)
-            .clickable(enabled = enabled && !connecting, role = Role.Button, onClick = onClick)
+            .combinedClickable(enabled = enabled && !connecting, role = Role.Button, onLongClick = onLongClick, onClick = onClick)
             .padding(start = Spacing.x2, end = if (trailing == null) Spacing.x2 else Spacing.half),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.x2),

@@ -40,6 +40,7 @@ import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.lifecycle.viewmodel.compose.viewModel
 import app.foctuner.R
+import app.foctuner.ui.prefs.appPreferences
 import app.foctuner.ui.components.Hairline
 import app.foctuner.ui.components.Notice
 import app.foctuner.ui.components.NoticeTone
@@ -85,6 +86,7 @@ private sealed interface Ask {
 fun LispTool(context: ToolContext) {
     val workspace: LispWorkspace = viewModel()
     val model = context.model { LispModel(context) }
+    model.maxLines = appPreferences().replMaxLines
     val scope = rememberCoroutineScope()
     var pane by rememberSaveable { mutableStateOf(Pane.Editor) }
     var ask by remember { mutableStateOf<Ask?>(null) }

@@ -3,6 +3,8 @@ package app.foctuner.ui.tools
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import app.foctuner.R
+import app.foctuner.ui.about.AboutRoute
+import app.foctuner.ui.prefs.PreferencesRoute
 import app.foctuner.ui.tools.bms.BmsTool
 import app.foctuner.ui.tools.control.ControlTool
 import app.foctuner.ui.tools.gnss.GnssTool
@@ -53,6 +55,8 @@ enum class Tool(val section: ToolSection, @param:StringRes val title: Int, @para
     IoBoard(ToolSection.Hardware, R.string.tool_io, R.string.tool_io_summary),
     Lisp(ToolSection.System, R.string.tool_lisp, R.string.tool_lisp_summary),
     Firmware(ToolSection.System, R.string.tool_firmware, R.string.tool_firmware_summary),
+    Preferences(ToolSection.System, R.string.prefs_title, R.string.prefs_open_summary),
+    About(ToolSection.System, R.string.about_title, R.string.about_open_summary),
 }
 
 @Composable
@@ -78,5 +82,7 @@ fun ToolContent(tool: Tool, context: ToolContext) {
         Tool.ImuCalibration -> ImuCalibrationTool(context)
         Tool.Firmware -> FirmwareTool(context)
         Tool.Lisp -> LispTool(context)
+        Tool.Preferences -> PreferencesRoute()
+        Tool.About -> AboutRoute()
     }
 }
