@@ -53,6 +53,10 @@ enum class Tool(val section: ToolSection, @param:StringRes val title: Int, @para
     IoBoard(ToolSection.Hardware, R.string.tool_io, R.string.tool_io_summary),
     Lisp(ToolSection.System, R.string.tool_lisp, R.string.tool_lisp_summary),
     Firmware(ToolSection.System, R.string.tool_firmware, R.string.tool_firmware_summary),
+    ;
+
+    /** Setup tools and manual control command the motor themselves (demo mode pauses its ride for them). */
+    val drivesMotor: Boolean get() = section == ToolSection.Setup || this == Control
 }
 
 @Composable

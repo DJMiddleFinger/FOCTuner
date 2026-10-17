@@ -98,6 +98,13 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
     private var nextLineId = 0L
 
+    private val demoHeld = MutableStateFlow(false)
+
+    /** Pauses the demo ride while the user is on a screen that drives or configures the motor. */
+    fun holdDemoRide(hold: Boolean) {
+        demoHeld.value = hold
+    }
+
     /** Firmware of the CAN controllers found by the last scan. */
     private val canFirmware = HashMap<Int, FirmwareInfo>()
 
@@ -219,7 +226,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                 _attempt.value = ConnectAttempt(failure = string(R.string.connect_link_dropped, active.name))
             }
         }
-        if (demo) active.scope.launch { demoRide(active.client.motor) }
+        if (demo) active.scope.launch { demoRide(active.client.motor, demoHeld) }
         scanCan()
     }
 

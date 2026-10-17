@@ -16,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -35,9 +36,10 @@ import app.foctuner.ui.theme.Spacing
 
 /** The list of tools; opening one shows it full size with a way back. */
 @Composable
-fun ToolsScreen(context: ToolContext?, modifier: Modifier = Modifier) {
+fun ToolsScreen(context: ToolContext?, modifier: Modifier = Modifier, onOpen: (Tool?) -> Unit = {}) {
     val colors = FocTheme.colors
     var open by rememberSaveable { mutableStateOf<Tool?>(null) }
+    LaunchedEffect(open) { onOpen(open) }
     BackHandler(enabled = open != null) { open = null }
 
     Box(

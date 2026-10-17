@@ -93,6 +93,10 @@ private fun ConnectedRoute(session: SessionViewModel) {
     val tools by session.tools.collectAsStateWithLifecycle()
     var destination by rememberSaveable { mutableStateOf(Destination.Overview) }
 
+    LaunchedEffect(destination) {
+        if (destination != Destination.Tools) session.holdDemoRide(false)
+    }
+
     BackHandler {
         if (destination != Destination.Overview) destination = Destination.Overview else session.disconnect()
     }
@@ -103,7 +107,7 @@ private fun ConnectedRoute(session: SessionViewModel) {
             Destination.Overview -> overview?.let { OverviewScreen(it) }
                 ?: Box(Modifier.fillMaxSize().background(FocTheme.colors.background))
             Destination.Settings -> SettingsScreen(settings, session.settings)
-            Destination.Tools -> ToolsScreen(tools)
+            Destination.Tools -> ToolsScreen(tools) { tool -> session.holdDemoRide(tool?.drivesMotor == true) }
             Destination.Terminal -> TerminalScreen(terminal, session::onTerminalInput, session::sendCommand, session::clearTerminal)
             Destination.Controllers -> ControllersScreen(controllers, session::select, session::scanCan)
         }
