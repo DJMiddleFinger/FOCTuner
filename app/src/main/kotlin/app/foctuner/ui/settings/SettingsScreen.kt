@@ -1,6 +1,13 @@
 package app.foctuner.ui.settings
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -27,6 +34,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -37,6 +45,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -59,6 +68,8 @@ import app.foctuner.ui.components.NoticeTone
 import app.foctuner.ui.components.OutlineButton
 import app.foctuner.ui.components.PlainButton
 import app.foctuner.ui.components.SectionHeader
+import app.foctuner.ui.prefs.LocalUiPreferences
+import app.foctuner.ui.prefs.UiPreferences
 import app.foctuner.ui.theme.FocTheme
 import app.foctuner.ui.theme.Spacing
 import app.foctuner.ui.theme.ThemePreviews
@@ -114,28 +125,52 @@ fun SettingsScreen(state: SettingsState, actions: SettingsActions, modifier: Mod
                 )
             }
             Box(Modifier.weight(1f)) {
-                when {
-                    config == null -> Text(
+                if (config == null) {
+                    Text(
                         stringResource(if (pane.work != null) R.string.settings_reading else R.string.settings_not_read),
                         Modifier.padding(Spacing.x2),
                         color = colors.textSecondary,
                         style = FocTheme.type.supporting,
                     )
-                    opened != null -> SubgroupPage(
-                        title = pane.sections[group].name + " · " + opened.name,
-                        subgroup = opened,
-                        config = config,
-                        changed = pane.changed,
-                        onBack = {
-                            group = -1
-                            subgroup = -1
-                        },
-                        onOpen = { editing = it },
-                        onSet = { name, value -> actions.edit(kind, name, value) },
-                    )
-                    else -> SectionList(pane.sections, config.definition, pane.changed) { g, s ->
-                        group = g
-                        subgroup = s
+                } else {
+                    val onBack = {
+                        group = -1
+                        subgroup = -1
+                    }
+                    // The open subgroup, paired with its section name for the breadcrumb; null shows the list.
+                    val openPage = opened?.let { pane.sections[group].name to it }
+                    val renderList: @Composable () -> Unit = {
+                        SectionList(pane.sections, config.definition, pane.changed) { g, s ->
+                            group = g
+                            subgroup = s
+                        }
+                    }
+                    val renderPage: @Composable (Pair<String, ParamSubgroup>) -> Unit = { page ->
+                        SubgroupPage(
+                            section = page.first,
+                            subgroupName = page.second.name,
+                            subgroup = page.second,
+                            config = config,
+                            changed = pane.changed,
+                            onBack = onBack,
+                            onOpen = { editing = it },
+                            onSet = { name, value -> actions.edit(kind, name, value) },
+                        )
+                    }
+                    if (LocalUiPreferences.current.animations) {
+                        AnimatedContent(
+                            targetState = openPage,
+                            transitionSpec = {
+                                val dir = if (targetState != null) 1 else -1
+                                (slideInHorizontally(tween(240)) { full -> dir * full } + fadeIn(tween(160)))
+                                    .togetherWith(slideOutHorizontally(tween(240)) { full -> -dir * full } + fadeOut(tween(120)))
+                            },
+                            label = "settings-page",
+                        ) { page ->
+                            if (page != null) renderPage(page) else renderList()
+                        }
+                    } else {
+                        if (openPage != null) renderPage(openPage) else renderList()
                     }
                 }
             }
@@ -241,7 +276,8 @@ private fun SectionList(
 
 @Composable
 private fun SubgroupPage(
-    title: String,
+    section: String,
+    subgroupName: String,
     subgroup: ParamSubgroup,
     config: Config,
     changed: Set<String>,
@@ -260,7 +296,22 @@ private fun SubgroupPage(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             PlainButton("‹ " + stringResource(R.string.settings_back), onBack)
-            Text(title, Modifier.weight(1f), color = colors.textSecondary, style = FocTheme.type.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Column(Modifier.weight(1f)) {
+                Text(
+                    stringResource(R.string.settings_in_section, section),
+                    color = colors.accent,
+                    style = FocTheme.type.caption,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    subgroupName,
+                    color = colors.text,
+                    style = FocTheme.type.bodyStrong,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
         }
         Hairline()
         LazyColumn(Modifier.fillMaxSize()) {
@@ -404,17 +455,20 @@ private object NoActions : SettingsActions {
 @Composable
 private fun SettingsPreview() {
     val stored = Config.defaults(previewDefinition)
+    val prefs = UiPreferences.from(LocalContext.current)
     FocTheme {
-        SettingsScreen(
-            SettingsState(
-                motor = ConfigPaneState(
-                    sections = previewDefinition.groups,
-                    stored = stored,
-                    edited = stored.with("l_current_max", 80.0),
-                    changed = setOf("l_current_max"),
+        CompositionLocalProvider(LocalUiPreferences provides prefs) {
+            SettingsScreen(
+                SettingsState(
+                    motor = ConfigPaneState(
+                        sections = previewDefinition.groups,
+                        stored = stored,
+                        edited = stored.with("l_current_max", 80.0),
+                        changed = setOf("l_current_max"),
+                    ),
                 ),
-            ),
-            NoActions,
-        )
+                NoActions,
+            )
+        }
     }
 }

@@ -1,5 +1,12 @@
 package app.foctuner.ui.shell
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -33,8 +40,10 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -47,6 +56,8 @@ import androidx.compose.ui.unit.dp
 import app.foctuner.R
 import app.foctuner.ui.components.Hairline
 import app.foctuner.ui.components.PlainButton
+import app.foctuner.ui.prefs.LocalUiPreferences
+import app.foctuner.ui.prefs.UiPreferences
 import app.foctuner.ui.theme.FocTheme
 import app.foctuner.ui.theme.Spacing
 import app.foctuner.ui.theme.ThemePreviews
@@ -94,7 +105,20 @@ fun ConnectedShell(
                             },
                         ),
                 ) {
-                    content(current)
+                    if (LocalUiPreferences.current.animations) {
+                        AnimatedContent(
+                            targetState = current,
+                            modifier = Modifier.fillMaxSize(),
+                            transitionSpec = {
+                                val dir = if (targetState.ordinal >= initialState.ordinal) 1 else -1
+                                (slideInHorizontally(tween(220)) { full -> dir * full / 6 } + fadeIn(tween(180)))
+                                    .togetherWith(slideOutHorizontally(tween(220)) { full -> -dir * full / 6 } + fadeOut(tween(140)))
+                            },
+                            label = "screen",
+                        ) { shown -> content(shown) }
+                    } else {
+                        content(current)
+                    }
                 }
             }
             if (bottomBar) BottomBar(current, onNavigate)
@@ -239,12 +263,15 @@ private fun NavItem(
 @ThemePreviews
 @Composable
 private fun ShellPreview() {
+    val prefs = UiPreferences.from(LocalContext.current)
     FocTheme {
-        ConnectedShell(
-            SessionHeaderState("Onewheel build", "60_MK6", "6.05", "Bluetooth", live = true, targetCanId = 25),
-            Destination.Overview,
-            {},
-            {},
-        ) {}
+        CompositionLocalProvider(LocalUiPreferences provides prefs) {
+            ConnectedShell(
+                SessionHeaderState("Onewheel build", "60_MK6", "6.05", "Bluetooth", live = true, targetCanId = 25),
+                Destination.Overview,
+                {},
+                {},
+            ) {}
+        }
     }
 }

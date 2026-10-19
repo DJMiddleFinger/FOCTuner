@@ -11,4 +11,5 @@ enum class Destination(@param:StringRes val label: Int, @param:DrawableRes val i
     Tools(R.string.nav_tools, R.drawable.ic_nav_tools),
     Terminal(R.string.nav_terminal, R.drawable.ic_nav_terminal),
     Controllers(R.string.nav_controllers, R.drawable.ic_nav_controllers),
+    Display(R.string.nav_display, R.drawable.ic_nav_display),
 }

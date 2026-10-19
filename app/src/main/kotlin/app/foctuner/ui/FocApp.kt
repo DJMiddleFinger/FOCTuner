@@ -27,6 +27,7 @@ import app.foctuner.ui.connect.LinkKind
 import app.foctuner.ui.connect.label
 import app.foctuner.ui.connect.toLinkKind
 import app.foctuner.ui.controllers.ControllersScreen
+import app.foctuner.ui.display.DisplayScreen
 import app.foctuner.ui.overview.OverviewScreen
 import app.foctuner.ui.session.SessionViewModel
 import app.foctuner.ui.settings.SettingsScreen
@@ -110,6 +111,7 @@ private fun ConnectedRoute(session: SessionViewModel) {
             Destination.Tools -> ToolsScreen(tools) { tool -> session.holdDemoRide(tool?.drivesMotor == true) }
             Destination.Terminal -> TerminalScreen(terminal, session::onTerminalInput, session::sendCommand, session::clearTerminal)
             Destination.Controllers -> ControllersScreen(controllers, session::select, session::scanCan)
+            Destination.Display -> DisplayScreen()
         }
     }
 }
