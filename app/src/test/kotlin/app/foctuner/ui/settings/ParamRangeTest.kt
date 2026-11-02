@@ -7,8 +7,16 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class ParamRangeTest {
-    private fun track(min: Double, max: Double, step: Double, value: Double, stored: Double? = null, decimals: Int = 2, integer: Boolean = false) =
-        NumberTracks.track(min, max, step, decimals, integer, value, stored)
+    private fun track(
+        min: Double,
+        max: Double,
+        step: Double,
+        value: Double,
+        stored: Double? = null,
+        decimals: Int = 2,
+        integer: Boolean = false,
+        held: NumberTrack? = null,
+    ) = NumberTracks.track(min, max, step, decimals, integer, value, stored, held)
 
     @Test
     fun wideLimitsGetAWindowAroundTheValue() {
@@ -55,6 +63,18 @@ class ParamRangeTest {
         assertEquals(500.0, track(0.0, 5000.0, 1.0, 200.0, 60.0).max)
         // The stored value keeps it wide while the edit goes down.
         assertEquals(200.0, track(0.0, 5000.0, 1.0, 10.0, 60.0).max)
+    }
+
+    @Test
+    fun aHeldTrackKeepsItsScaleUntilReleased() {
+        // Motor Current Max at 60 A: 0..200 A. Dragging or nudging to 120 A would otherwise give 0..500 A at once.
+        val start = track(0.0, 5000.0, 1.0, 60.0, 60.0)
+        assertEquals(start, track(0.0, 5000.0, 1.0, 120.0, 60.0, held = start))
+        assertEquals(start, track(0.0, 5000.0, 1.0, 200.0, 60.0, held = start))
+        // Released at the end: the next track is 2.5 times as wide.
+        assertEquals(500.0, track(0.0, 5000.0, 1.0, 200.0, 60.0).max)
+        // A held nudge past the end gets a wider track straight away.
+        assertEquals(1000.0, track(0.0, 5000.0, 1.0, 200.5, 60.0, held = start).max)
     }
 
     @Test
