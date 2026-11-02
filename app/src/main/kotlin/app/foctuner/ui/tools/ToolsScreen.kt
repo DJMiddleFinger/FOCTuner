@@ -31,7 +31,7 @@ import app.foctuner.ui.theme.FocTheme
 import app.foctuner.ui.theme.Spacing
 import app.foctuner.ui.theme.push
 
-/** The tools as boxes, grouped by section; opening one shows it full size with a way back. */
+/** The Start page: the tools as boxes in VESC Tool's groups; opening one shows it full size with a way back. */
 @Composable
 fun ToolsScreen(context: ToolContext?, modifier: Modifier = Modifier, onOpen: (Tool?) -> Unit = {}) {
     val colors = FocTheme.colors
@@ -64,7 +64,7 @@ fun ToolsScreen(context: ToolContext?, modifier: Modifier = Modifier, onOpen: (T
                     PageHeader(
                         stringResource(tool.title),
                         onBack = { open = null },
-                        breadcrumb = stringResource(R.string.breadcrumb, stringResource(R.string.nav_tools), stringResource(tool.section.title)),
+                        breadcrumb = stringResource(R.string.breadcrumb, stringResource(R.string.nav_start), stringResource(tool.section.title)),
                     )
                     Hairline()
                     Box(Modifier.weight(1f)) { ToolContent(tool, context) }
@@ -77,12 +77,10 @@ fun ToolsScreen(context: ToolContext?, modifier: Modifier = Modifier, onOpen: (T
                         .verticalScroll(listScroll)
                         .padding(bottom = Spacing.x2),
                 ) {
-                    for (section in ToolSection.entries) {
+                    for (section in ToolSection.entries - ToolSection.Tab) {
                         SectionHeader(stringResource(section.title))
-                        TileGrid(Tool.entries.filter { it.section == section }) { entry, tileModifier ->
-                            Tile(entry.icon, stringResource(entry.title), { open = entry }, tileModifier) {
-                                Text(stringResource(entry.summary), color = colors.textTertiary, style = FocTheme.type.caption)
-                            }
+                        TileGrid(Tool.entries.filter { it.section == section }, minTileWidth = 104.dp) { entry, tileModifier ->
+                            Tile(entry.icon, stringResource(entry.title), { open = entry }, tileModifier, compact = true)
                         }
                     }
                 }

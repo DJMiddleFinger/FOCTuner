@@ -1,41 +1,27 @@
 package app.foctuner.ui.settings
 
-import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -45,14 +31,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import app.foctuner.R
 import app.foctuner.config.Config
@@ -69,11 +55,9 @@ import app.foctuner.ui.components.Hairline
 import app.foctuner.ui.components.Notice
 import app.foctuner.ui.components.NoticeTone
 import app.foctuner.ui.components.OutlineButton
-import app.foctuner.ui.components.PageHeader
 import app.foctuner.ui.components.PlainButton
 import app.foctuner.ui.components.SectionHeader
-import app.foctuner.ui.components.Tile
-import app.foctuner.ui.components.TileGrid
+import app.foctuner.ui.components.TabStrip
 import app.foctuner.ui.settings.curves.ChartBlock
 import app.foctuner.ui.settings.curves.SettingChart
 import app.foctuner.ui.settings.curves.SettingCharts
@@ -82,38 +66,25 @@ import app.foctuner.ui.theme.FocTheme
 import app.foctuner.ui.theme.Spacing
 import app.foctuner.ui.theme.ThemePreviews
 import app.foctuner.ui.theme.lateral
-import app.foctuner.ui.theme.motionSpec
-import app.foctuner.ui.theme.push
-
-/** The subgroup page that is open, with the name of the section it belongs to for the breadcrumb. */
-@Immutable
-private data class OpenPage(val section: String, val subgroup: ParamSubgroup)
+import kotlin.math.sign
 
 /**
- * Every motor and app setting, in VESC Tool's sections: a list of groups and their subgroups, and a page of
- * settings per subgroup with charts of what the settings do. Edits stay pending (marked on their rows and
- * previewed on the charts) until Write, which lists them for review before storing them on the controller.
+ * One config (Motor Cfg or App Cfg) laid out like VESC Tool's mobile config pages: a picker for VESC Tool's groups,
+ * tabs for the group's subgroups, and the subgroup's settings below with an editor on every row and charts of what
+ * they do. Edits stay pending (marked on their rows and previewed on the charts) until Write, which lists them for
+ * review before storing them on the controller.
  */
 @Composable
-fun SettingsScreen(state: SettingsState, actions: SettingsActions, modifier: Modifier = Modifier) {
+fun SettingsScreen(kind: ConfigKind, state: SettingsState, actions: SettingsActions, modifier: Modifier = Modifier) {
     val colors = FocTheme.colors
-    var kind by rememberSaveable { mutableStateOf(ConfigKind.MCCONF) }
-    var group by rememberSaveable { mutableIntStateOf(-1) }
-    var subgroup by rememberSaveable { mutableIntStateOf(-1) }
+    var group by rememberSaveable(kind) { mutableIntStateOf(0) }
+    var subgroup by rememberSaveable(kind) { mutableIntStateOf(0) }
     var editing by remember { mutableStateOf<String?>(null) }
     var reviewing by remember { mutableStateOf(false) }
     val pane = state.pane(kind)
     val config = pane.edited
-    val opened = pane.sections.getOrNull(group)?.subgroups?.getOrNull(subgroup)?.let { OpenPage(pane.sections[group].name, it) }
 
     LaunchedEffect(kind) { actions.open(kind) }
-    BackHandler(enabled = opened != null) {
-        group = -1
-        subgroup = -1
-    }
-    // Outside the page transitions, so coming back from a page returns to the same place in its list.
-    val motorScroll = rememberScrollState()
-    val appScroll = rememberScrollState()
 
     Column(
         modifier
@@ -126,78 +97,70 @@ fun SettingsScreen(state: SettingsState, actions: SettingsActions, modifier: Mod
                 .weight(1f)
                 .widthIn(max = 640.dp),
         ) {
-            KindTabs(kind) {
-                kind = it
-                group = -1
-                subgroup = -1
+            pane.error?.let { error ->
+                Notice(
+                    title = error,
+                    tone = NoticeTone.Warning,
+                    action = stringResource(R.string.settings_read_again),
+                    onAction = { actions.read(kind) },
+                )
             }
-            if (pane.work != null) {
-                LinearProgressIndicator(Modifier.fillMaxWidth().height(2.dp), color = colors.accent, trackColor = colors.hairline, gapSize = 0.dp)
-            } else {
-                Hairline(Modifier.padding(top = 2.dp))
-            }
-            FocAnimatedContent(
-                target = kind,
-                label = "settings-kind",
-                modifier = Modifier.weight(1f),
-                transition = { lateral(if (targetState.ordinal > initialState.ordinal) 1 else -1) },
-            ) { shown ->
-                val shownPane = state.pane(shown)
-                val shownConfig = shownPane.edited
-                Column(
+            val sections = pane.sections
+            if (config == null || sections.isEmpty()) {
+                if (pane.work != null) {
+                    LinearProgressIndicator(Modifier.fillMaxWidth().height(2.dp), color = colors.accent, trackColor = colors.hairline, gapSize = 0.dp)
+                }
+                Text(
+                    stringResource(if (pane.work != null) R.string.settings_reading else R.string.settings_not_read),
                     Modifier
-                        .fillMaxSize()
-                        .background(colors.background),
-                ) {
-                    shownPane.error?.let { error ->
-                        Notice(
-                            title = error,
-                            tone = NoticeTone.Warning,
-                            action = stringResource(R.string.settings_read_again),
-                            onAction = { actions.read(shown) },
-                        )
+                        .weight(1f)
+                        .padding(Spacing.x2),
+                    color = colors.textSecondary,
+                    style = FocTheme.type.supporting,
+                )
+            } else {
+                val shownGroup = group.coerceIn(0, sections.lastIndex)
+                val subgroups = sections[shownGroup].subgroups
+                val shownSubgroup = subgroup.coerceIn(0, maxOf(subgroups.lastIndex, 0))
+                GroupPicker(kind, sections, shownGroup, config.definition, pane.changed) {
+                    group = it
+                    subgroup = 0
+                }
+                if (subgroups.size > 1) {
+                    val labels = subgroups.map { sub ->
+                        val pending = sub.paramNames.count { it in pane.changed }
+                        if (pending > 0) stringResource(R.string.settings_tab_pending, sub.name, pending) else sub.name
                     }
-                    Box(Modifier.weight(1f)) {
-                        if (shownConfig == null) {
-                            Text(
-                                stringResource(if (shownPane.work != null) R.string.settings_reading else R.string.settings_not_read),
-                                Modifier.padding(Spacing.x2),
-                                color = colors.textSecondary,
-                                style = FocTheme.type.supporting,
-                            )
+                    TabStrip(labels, shownSubgroup, { subgroup = it }, scrollable = true)
+                } else {
+                    Hairline()
+                }
+                if (pane.work != null) {
+                    LinearProgressIndicator(Modifier.fillMaxWidth().height(2.dp), color = colors.accent, trackColor = colors.hairline, gapSize = 0.dp)
+                }
+                FocAnimatedContent(
+                    target = shownGroup to shownSubgroup,
+                    label = "settings-page",
+                    modifier = Modifier.weight(1f),
+                    transition = {
+                        val direction = if (targetState.first != initialState.first) {
+                            targetState.first - initialState.first
                         } else {
-                            FocAnimatedContent(
-                                target = if (shown == kind) opened else null,
-                                label = "settings-page",
-                                transition = { push(forward = targetState != null) },
-                            ) { page ->
-                                if (page != null) {
-                                    SubgroupPage(
-                                        breadcrumb = stringResource(
-                                            R.string.breadcrumb,
-                                            stringResource(if (shown == ConfigKind.MCCONF) R.string.settings_motor else R.string.settings_app),
-                                            page.section,
-                                        ),
-                                        subgroup = page.subgroup,
-                                        config = shownConfig,
-                                        stored = shownPane.stored,
-                                        changed = shownPane.changed,
-                                        onBack = {
-                                            group = -1
-                                            subgroup = -1
-                                        },
-                                        onOpen = { editing = it },
-                                        onSet = { name, value -> actions.edit(shown, name, value) },
-                                    )
-                                } else {
-                                    val scroll = if (shown == ConfigKind.MCCONF) motorScroll else appScroll
-                                    SectionList(shown, shownPane.sections, shownConfig.definition, shownPane.changed, scroll) { g, s ->
-                                        group = g
-                                        subgroup = s
-                                    }
-                                }
-                            }
+                            targetState.second - initialState.second
                         }
+                        lateral(direction.sign)
+                    },
+                ) { (g, s) ->
+                    val page = sections.getOrNull(g)?.subgroups?.getOrNull(s)
+                    if (page != null) {
+                        SubgroupPage(
+                            subgroup = page,
+                            config = config,
+                            stored = pane.stored,
+                            changed = pane.changed,
+                            onOpen = { editing = it },
+                            onSet = { name, value -> actions.edit(kind, name, value) },
+                        )
                     }
                 }
             }
@@ -236,95 +199,85 @@ fun SettingsScreen(state: SettingsState, actions: SettingsActions, modifier: Mod
     }
 }
 
+/** VESC Tool's group combo box: the selected group with its picture, opening a list of every group. */
 @Composable
-private fun KindTabs(selected: ConfigKind, onSelect: (ConfigKind) -> Unit) {
+private fun GroupPicker(
+    kind: ConfigKind,
+    sections: List<ParamGroup>,
+    selected: Int,
+    definition: ConfigDefinition,
+    changed: Set<String>,
+    onSelect: (Int) -> Unit,
+) {
     val colors = FocTheme.colors
-    BoxWithConstraints(
-        Modifier
-            .fillMaxWidth()
-            .height(Spacing.touchTarget),
-    ) {
-        val tabWidth = maxWidth / ConfigKind.entries.size
-        val indicator = 48.dp
-        val indicatorX by animateDpAsState(tabWidth * selected.ordinal + (tabWidth - indicator) / 2, motionSpec(), label = "tab-indicator")
+    var open by remember { mutableStateOf(false) }
+    val counts = remember(sections, definition) {
+        sections.map { group -> group.subgroups.flatMap { it.paramNames }.filter { it in definition.params }.distinct() }
+    }
+    @Composable
+    fun summary(index: Int): Pair<String, Boolean> {
+        val names = counts[index]
+        val pending = names.count { it in changed }
+        return if (pending > 0) {
+            pluralStringResource(R.plurals.settings_changed, pending, pending) to true
+        } else {
+            pluralStringResource(R.plurals.settings_count, names.size, names.size) to false
+        }
+    }
+    val current = sections[selected]
+    val (line, pending) = summary(selected)
+    val pickerLabel = stringResource(R.string.settings_group_picker)
+    Box {
         Row(
             Modifier
-                .fillMaxSize()
-                .selectableGroup(),
-        ) {
-            for (kind in ConfigKind.entries) {
-                val isSelected = kind == selected
-                val tint by animateColorAsState(if (isSelected) colors.text else colors.textTertiary, motionSpec(), label = "tab-text")
-                Box(
-                    Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .selectable(selected = isSelected, role = Role.Tab, onClick = { onSelect(kind) }),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        stringResource(if (kind == ConfigKind.MCCONF) R.string.settings_motor else R.string.settings_app),
-                        color = tint,
-                        style = FocTheme.type.label,
-                    )
+                .fillMaxWidth()
+                .heightIn(min = Spacing.row)
+                .clickable(onClickLabel = stringResource(R.string.settings_choose_group), role = Role.DropdownList) { open = true }
+                .semantics {
+                    contentDescription = pickerLabel
+                    stateDescription = "${current.name}, $line"
                 }
+                .padding(horizontal = Spacing.x2, vertical = Spacing.x1),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(painterResource(groupIcon(kind, current.name)), null, Modifier.size(24.dp), tint = colors.textSecondary)
+            Column(
+                Modifier
+                    .weight(1f)
+                    .padding(start = Spacing.x2),
+            ) {
+                Text(current.name, color = colors.text, style = FocTheme.type.bodyStrong)
+                Text(line, color = if (pending) colors.warning else colors.textTertiary, style = FocTheme.type.caption)
+            }
+            Icon(painterResource(R.drawable.ic_expand), null, Modifier.size(24.dp), tint = colors.textSecondary)
+        }
+        DropdownMenu(open, { open = false }, Modifier.widthIn(min = 280.dp), containerColor = colors.surface) {
+            sections.forEachIndexed { index, group ->
+                val (text, groupPending) = summary(index)
+                val isSelected = index == selected
+                DropdownMenuItem(
+                    text = {
+                        Column(Modifier.padding(vertical = Spacing.half)) {
+                            Text(group.name, color = colors.text, style = if (isSelected) FocTheme.type.bodyStrong else FocTheme.type.body)
+                            Text(text, color = if (groupPending) colors.warning else colors.textTertiary, style = FocTheme.type.caption)
+                        }
+                    },
+                    onClick = {
+                        open = false
+                        onSelect(index)
+                    },
+                    modifier = Modifier.semantics { this.selected = isSelected },
+                    leadingIcon = {
+                        Icon(painterResource(groupIcon(kind, group.name)), null, Modifier.size(24.dp), tint = if (isSelected) colors.accent else colors.textSecondary)
+                    },
+                )
             }
         }
-        Box(
-            Modifier
-                .align(Alignment.BottomStart)
-                .offset { IntOffset(indicatorX.roundToPx(), 0) }
-                .width(indicator)
-                .height(2.dp)
-                .background(colors.accent),
-        )
     }
 }
 
-/** VESC Tool's sections as boxes like the Tools tab's, each with a picture of what its settings are about. */
-@Composable
-private fun SectionList(
-    kind: ConfigKind,
-    sections: List<ParamGroup>,
-    definition: ConfigDefinition,
-    changed: Set<String>,
-    scroll: ScrollState,
-    onOpen: (group: Int, subgroup: Int) -> Unit,
-) {
-    val colors = FocTheme.colors
-    val chartLabel = stringResource(R.string.curve_has_chart)
-    Column(
-        Modifier
-            .fillMaxSize()
-            .background(colors.background)
-            .verticalScroll(scroll)
-            .padding(bottom = Spacing.x2),
-    ) {
-        sections.forEachIndexed { g, group ->
-            SectionHeader(group.name)
-            TileGrid(group.subgroups.withIndex().toList()) { (s, subgroup), tileModifier ->
-                val names = subgroup.paramNames.filter { it in definition.params }
-                val pending = names.count { it in changed }
-                val charted = remember(subgroup, definition) { SettingCharts.on(subgroup, definition).isNotEmpty() }
-                Tile(sectionIcon(kind, group.name, subgroup.name), subgroup.name, { onOpen(g, s) }, tileModifier) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            if (pending > 0) {
-                                pluralStringResource(R.plurals.settings_changed, pending, pending)
-                            } else {
-                                pluralStringResource(R.plurals.settings_count, names.size, names.size)
-                            },
-                            Modifier.weight(1f),
-                            color = if (pending > 0) colors.warning else colors.textTertiary,
-                            style = FocTheme.type.caption,
-                        )
-                        if (charted) Icon(painterResource(R.drawable.ic_curve), chartLabel, Modifier.size(18.dp), tint = colors.textTertiary)
-                    }
-                }
-            }
-        }
-    }
-}
+@DrawableRes
+private fun groupIcon(kind: ConfigKind, group: String): Int = sectionIcon(kind, group, "General")
 
 /**
  * A picture for one of VESC Tool's settings pages, by its name, or by its section's name for the many pages called
@@ -367,134 +320,64 @@ private fun sectionIcon(kind: ConfigKind, group: String, subgroup: String): Int 
 
 @Composable
 private fun SubgroupPage(
-    breadcrumb: String,
     subgroup: ParamSubgroup,
     config: Config,
     stored: Config?,
     changed: Set<String>,
-    onBack: () -> Unit,
     onOpen: (String) -> Unit,
     onSet: (String, ParamValue) -> Unit,
 ) {
     val colors = FocTheme.colors
-    val none = stringResource(R.string.settings_none)
     val charts = remember(subgroup, config.definition) { SettingCharts.on(subgroup, config.definition) }
     val anchored = remember(charts) { charts.filterNot { it.atTop }.associateBy { it.anchor } }
-    Column(
+    LazyColumn(
         Modifier
             .fillMaxSize()
             .background(colors.background),
     ) {
-        PageHeader(subgroup.name, onBack, breadcrumb = breadcrumb)
-        Hairline()
-        LazyColumn(Modifier.fillMaxSize()) {
-            // The controller's values are drawn under a chart only while one of its settings has a pending edit.
-            fun storedFor(chart: SettingChart) = stored?.takeIf { chart.params.any { it in changed } }
-            for (chart in charts.filter { it.atTop }) {
-                item(key = "chart-${chart.key}") {
-                    ChartBlock(chart, config, storedFor(chart), R.string.curve_on_controller, Modifier.padding(Spacing.x2))
-                    Hairline()
-                }
+        // The controller's values are drawn under a chart only while one of its settings has a pending edit.
+        fun storedFor(chart: SettingChart) = stored?.takeIf { chart.params.any { it in changed } }
+        val chartSet = { name: String, raw: Double ->
+            config.definition.params[name]?.takeIf { it.isNumber }?.let { p -> onSet(name, p.fromChart(raw, config[name], stored?.get(name))) }
+            Unit
+        }
+        val chartStep = { name: String, up: Boolean ->
+            config.definition.params[name]?.takeIf { it.isNumber }?.let { p -> onSet(name, p.nudged(config[name], stored?.get(name), up)) }
+            Unit
+        }
+        for (chart in charts.filter { it.atTop }) {
+            item(key = "chart-${chart.key}") {
+                ChartBlock(chart, config, storedFor(chart), R.string.curve_on_controller, Modifier.padding(Spacing.x2), onSet = chartSet, onStep = chartStep)
+                Hairline()
             }
-            subgroup.entries.forEachIndexed { index, entry ->
-                when (entry) {
-                    is GroupEntry.Separator -> item(key = "sep$index") { SectionHeader(entry.label) }
-                    is GroupEntry.Param -> {
-                        anchored[entry.name]?.let { chart ->
-                            item(key = "chart-${chart.key}") {
-                                ChartBlock(chart, config, storedFor(chart), R.string.curve_on_controller, Modifier.padding(Spacing.x2))
-                                Hairline()
-                            }
+        }
+        subgroup.entries.forEachIndexed { index, entry ->
+            when (entry) {
+                is GroupEntry.Separator -> item(key = "sep$index") { SectionHeader(entry.label) }
+                is GroupEntry.Param -> {
+                    anchored[entry.name]?.let { chart ->
+                        item(key = "chart-${chart.key}") {
+                            ChartBlock(chart, config, storedFor(chart), R.string.curve_on_controller, Modifier.padding(Spacing.x2), onSet = chartSet, onStep = chartStep)
+                            Hairline()
                         }
-                        val param = config.definition.params[entry.name] ?: return@forEachIndexed
-                        item(key = "param$index") {
-                            Column {
-                                ParamRow(
-                                    param = param,
-                                    value = config[param.name],
-                                    stored = stored?.get(param.name),
-                                    changed = param.name in changed,
-                                    none = none,
-                                    onOpen = { onOpen(param.name) },
-                                ) { onSet(param.name, it) }
-                                Hairline(Modifier.padding(start = Spacing.x2))
-                            }
+                    }
+                    val param = config.definition.params[entry.name] ?: return@forEachIndexed
+                    item(key = "param$index") {
+                        Column {
+                            ParamRow(
+                                param = param,
+                                value = config[param.name],
+                                stored = stored?.get(param.name),
+                                changed = param.name in changed,
+                                onOpen = { onOpen(param.name) },
+                            ) { onSet(param.name, it) }
+                            Hairline(Modifier.padding(start = Spacing.x2))
                         }
                     }
                 }
             }
-            item { Spacer(Modifier.height(Spacing.x2)) }
         }
-    }
-}
-
-@Composable
-private fun ParamRow(
-    param: ParamDefinition,
-    value: ParamValue,
-    stored: ParamValue?,
-    changed: Boolean,
-    none: String,
-    onOpen: () -> Unit,
-    onSet: (ParamValue) -> Unit,
-) {
-    val colors = FocTheme.colors
-    val bar by animateColorAsState(if (changed) colors.warning else Color.Transparent, motionSpec(), label = "changed-bar")
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .height(IntrinsicSize.Min)
-            .heightIn(min = Spacing.row)
-            .clickable(role = Role.Button, onClick = onOpen),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            Modifier
-                .width(3.dp)
-                .fillMaxHeight()
-                .background(bar),
-        )
-        Column(
-            Modifier
-                .weight(1f)
-                .padding(start = Spacing.x2 - 3.dp, top = Spacing.x1, bottom = Spacing.x1),
-            verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-            Text(param.longName, color = colors.text, style = FocTheme.type.body)
-            if (changed && stored != null) {
-                Text(stringResource(R.string.settings_was, param.display(stored, none)), color = colors.warning, style = FocTheme.type.caption)
-            }
-            if (!param.transmittable) {
-                Text(stringResource(R.string.settings_not_on_controller), color = colors.textTertiary, style = FocTheme.type.caption)
-            }
-        }
-        if (param.type == ParamType.BOOL) {
-            val on = (value as? ParamValue.IntValue)?.value == 1L
-            Switch(
-                checked = on,
-                onCheckedChange = { onSet(ParamValue.IntValue(if (it) 1 else 0)) },
-                Modifier.padding(horizontal = Spacing.x2),
-                colors = SwitchDefaults.colors(
-                    checkedThumbColor = colors.onAccent,
-                    checkedTrackColor = colors.accent,
-                    uncheckedThumbColor = colors.outline,
-                    uncheckedTrackColor = colors.surface,
-                    uncheckedBorderColor = colors.outline,
-                ),
-            )
-        } else {
-            Text(
-                param.display(value, none),
-                Modifier
-                    .widthIn(max = 200.dp)
-                    .padding(horizontal = Spacing.x2),
-                color = if (changed) colors.text else colors.textSecondary,
-                style = FocTheme.type.value,
-                textAlign = TextAlign.End,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
+        item { Spacer(Modifier.height(Spacing.x2)) }
     }
 }
 
@@ -533,14 +416,23 @@ private fun ActionBar(pane: ConfigPaneState, kind: ConfigKind, actions: Settings
 
 private val previewDefinition = ConfigDefinition(
     listOf(
-        ParamDefinition("l_current_max", ParamType.DOUBLE, ParamValue.DoubleValue(60.0), longName = "Motor Current Max", suffix = " A", maxDouble = 500.0),
+        ParamDefinition("l_current_max", ParamType.DOUBLE, ParamValue.DoubleValue(60.0), longName = "Motor Current Max", suffix = " A", maxDouble = 5000.0),
         ParamDefinition("m_invert_direction", ParamType.BOOL, ParamValue.IntValue(0), longName = "Invert Motor Direction"),
         ParamDefinition("motor_type", ParamType.ENUM, ParamValue.IntValue(2), longName = "Motor Type", enumNames = listOf("BLDC", "DC", "FOC", "GPD")),
+        ParamDefinition(
+            "sensor_mode", ParamType.ENUM, ParamValue.IntValue(0), longName = "Sensor Mode",
+            enumNames = listOf("Sensorless", "Sensored", "Hybrid", "Encoder plus hall sensors"),
+        ),
     ),
     serializeOrder = emptyList(),
     groups = listOf(
-        ParamGroup("General", listOf(ParamSubgroup("General", listOf(GroupEntry.Param("motor_type"), GroupEntry.Param("m_invert_direction"))))),
-        ParamGroup("Limits", listOf(ParamSubgroup("Current", listOf(GroupEntry.Separator("Motor"), GroupEntry.Param("l_current_max"))))),
+        ParamGroup(
+            "General",
+            listOf(
+                ParamSubgroup("General", listOf(GroupEntry.Param("motor_type"), GroupEntry.Param("sensor_mode"), GroupEntry.Param("m_invert_direction"))),
+                ParamSubgroup("Current", listOf(GroupEntry.Separator("Motor"), GroupEntry.Param("l_current_max"))),
+            ),
+        ),
     ),
 )
 
@@ -559,6 +451,7 @@ private fun SettingsPreview() {
     val stored = Config.defaults(previewDefinition)
     FocTheme {
         SettingsScreen(
+            ConfigKind.MCCONF,
             SettingsState(
                 motor = ConfigPaneState(
                     sections = previewDefinition.groups,

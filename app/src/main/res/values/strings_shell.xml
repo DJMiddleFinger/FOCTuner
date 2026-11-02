@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nav_start">Start</string>
+    <string name="nav_rt_data">RT Data</string>
+    <string name="nav_bms">BMS</string>
+    <string name="nav_lisp">LispBM</string>
+    <string name="nav_motor_cfg">Motor Cfg</string>
+    <string name="nav_app_cfg">App Cfg</string>
+    <string name="session_can">CAN</string>
+    <string name="session_can_target">CAN %1$d</string>
+    <string name="session_menu">More options</string>
+    <string name="rt_realtime">Realtime</string>
+    <string name="rt_ride">Ride</string>
+</resources>

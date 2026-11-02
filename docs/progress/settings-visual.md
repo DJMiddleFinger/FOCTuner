@@ -1,0 +1,41 @@
+# Visual settings editing (Motor Cfg / App Cfg): progress
+
+Requested 2026-11-02: "make all of the settings have a more visual way of altering settings", laid out like VESC Tool's phone app (`mobile/ConfigPageMotor.qml`, `ConfigPageApp.qml`). Owned by the settings-visual side session: `app/.../ui/settings/**`, `res/values/strings_settings.xml`, `res/drawable/ic_minus|ic_plus|ic_expand.xml`. The lead owns the shell around it (`ui/shell/**`, `FocApp.kt`, `ui/start/`, `TabStrip`).
+
+## Done
+
+- **Layout** (`SettingsScreen.kt`): `SettingsScreen(kind, state, actions)` is one config tab. Top: a group picker like VESC Tool's `pageBox` combo (picture, group name, setting or pending count; opens a list of every group with the same). Under it the group's subgroups as a scrollable `TabStrip` (hidden when a group has one subgroup, as VESC Tool hides `tabBox`); a tab with pending edits says how many. Under that the subgroup's settings with VESC Tool's separators and the charts, sliding laterally between pages. Read / Defaults / Revert / Write stay in the bottom bar; Write still opens the review dialog. The old landing grid of section boxes and the per-page back navigation are gone; the section pictures now mark the groups.
+- **Inline editors** (`ParamEditors.kt`), one per type, on every row:
+  - Numbers: a track with −/+ nudges, the value in a bordered box at the top right. Tap the box or the name for `ParamDialog` (exact typed entry, description, chart preview). Dragging is relative (the value follows the finger's movement and never jumps on touch). Holding a nudge repeats after 400 ms every 60 ms. The value on the controller is a tick on the track while an edit is pending, and "Was …" under the name.
+  - Enums: segmented buttons when there are 2–4 options of at most 12 characters (30 in all), otherwise a picker box that lists every option with a radio mark.
+  - Bools: inline switch. Bitfields: a chip per bit (accent outline and check when set). Strings: an inline text field limited to `maxLength`.
+- **Range rule** (`ParamRange.kt`, `NumberTracks.track`, tested in `ParamRangeTest`), all in display units (after `editorScale`, or percent):
+  - Limits at most 200 of the XML's steps apart are dragged across in full (temperatures 0–190 °C, duty 0–100 %, percentages, poles, overmodulation).
+  - Wider limits (currents ±5000 A, ERPM ±1e6, inductance in µH, PID gains) get a window: from zero, or the nearer limit when zero is outside them, to 2.5 × the larger of |current| and |stored|, rounded up to 1, 2, 2.5 or 5 × 10ⁿ, clipped to the limits, both signs when the limits allow both. A zero value with a zero stored value gets 20 XML steps. A window covering half the limits or more becomes the full range.
+  - The window is fixed while the finger is down; it is recomputed when the drag ends, so letting go at an end makes the next track 2.5 × wider ("extend by dragging to the end"). The −/+ nudges are limited by the firmware limits, not the window, and the window follows them. The stored value keeps the window wide while an edit goes down.
+  - Step: the track divided into about 500 round-numbered steps (1, 2, 2.5, 5 × 10ⁿ), never finer than the setting's decimals; integers in multiples of their XML step (poles in twos); percentages in whole percent. Track ends are exact so the limits are reachable. Snapped values are cleaned of binary noise (3 × 0.1 = 0.3).
+  - Examples: Motor Current Max 60 A → 0–200 A in 0.5 A; Max ERPM 100 000 → 0–250 000 in 500; FW current 0 A → 0–20 A.
+- **Chart handles** (`SettingCharts.kt` `ChartHandle`, `CurveChart.kt`, `LimitBars.kt`, `ChartBlock.kt`): round accent handles on the page charts (not in the edit dialog's preview) set the settings directly. A touch within 24 dp of a handle takes it; elsewhere the chart keeps its read-out cursor. While a handle is held the axes (or the bars' scale) stay put and the curves follow without easing; on release the axes ease to fit the new values, so dragging to an edge and letting go extends the range. Dragged values go through the setting's slider grid (`fromChart`), so a drag reads like a slider move.
+  - Current limits: both ends of the motor and battery bars (divided by their `*_scale`) and the absolute maximum (red handle).
+  - Battery voltage: cutoff start/end, regen cutoff start/end while regen cutoff is on. ERPM: max, min and the reduction start (fraction of max ERPM). MOSFET and motor temperature: start (on the drive line) and end. Duty: reduction start (fraction of max duty) and max duty. Field weakening: duty start and current (vertical). PPM: pulse start, center (centered control types only), end.
+  - Throttle curve (PPM, ADC, VESC Remote): a vertical handle at ±50 % input for the drive and brake shape; the shape value is solved by bisection over the setting's limits (each half rises with its value in every mode); hidden in linear mode. Ramping: rise time, and fall time from where the output is back at zero (solved by bisection, since the release point moves with it).
+  - TalkBack: each handle's setting gets "Increase/Decrease <setting>" custom actions on the chart, one slider step each.
+- **New chart, cutoffs and cell count** (`cellsPlot`, above Battery Voltage Cutoff End on General › Voltage): cutoff start and end against cells in series, with VESC Tool's battery calculator suggestion (`widgets/batterycalculator.cpp`: Li-ion only, 3.4 V/cell start, 3.1 V/cell end) as thin lines, and the configured cell count (`si_battery_cells`) as a marker. Handles: cutoff start/end (vertical), cell count (horizontal). Other battery types say VESC Tool has no suggestion.
+- **Accessibility**: tracks have the setting's name, the value with its unit as state (plus "on the controller …" while pending), a range and `setProgress`; nudges are 48 dp buttons named "Increase/Decrease <setting>"; the group picker and option pickers announce name and current value; segments are radio buttons, chips checkboxes, the switch is named.
+
+- **Checked** on Pixel_7_API_35 in demo mode (2026-11-02): Motor Cfg › General (segments, switch), › Current (bar handles and sliders, pending marks, tab and group counts, dashed "on controller" ghost), › Voltage in light at font scale 1.6 (battery chart handle, cells chart and its cell-count handle), App Cfg group picker, › ADC › Throttle Curve (curve handle). Screenshots: `docs/screenshots/settings-visual-current-dark.png`, `-cells-light-1.6x.png`, `-group-picker-dark.png`, `-throttle-dark.png`. `./gradlew :app:assembleDebug :app:testDebugUnitTest :core:config:test` green (`ParamRangeTest`, 10 tests). The emulator was left in dark mode at font scale 1.0.
+- Removed strings the old landing grid used: `settings_motor`, `settings_app`, `curve_has_chart`.
+
+## Next
+
+1. DESIGN.md (lead's file) should say the config pages are a group picker plus subgroup tabs, and under Charts that page charts have drag handles (round accent dots, red for the absolute maximum) and the axes freeze while one is held.
+2. A row's name area is a click target for the dialog, so a horizontal swipe that starts on a name opens it (Compose clickables fire on up inside bounds). Consider starting the slider drag from the whole row.
+3. Handles that sit close together (battery cutoff start/end on a 3-cell default config are 2 V apart) are picked by the nearest one; consider offsetting overlapping handles vertically.
+4. Tablet width (≥600 dp): the page is capped at 640 dp; consider two columns like VESC Tool's horizontal layout.
+5. Search across settings (carried over from `settings.md`).
+
+## Unverified
+
+- TalkBack itself was not run; semantics were checked in a UI dump (names, 48 dp nudges, the track's name and value), not by listening. The chart handles' custom actions were not exercised.
+- Not checked on the emulator: PPM, ramping, ERPM, duty, field weakening and temperature handles (same code path as the checked ones), bitfield chips, the inline text field (`motor_description` etc.), the option picker with a long list (`app_to_use`), and the tablet width.
+- The throttle handle's bisection assumes each half of `utils_throttle_curve` rises with its shape value in modes 0–2; true for the ported formulas in `CurveMath.throttle`, not compared against hardware.

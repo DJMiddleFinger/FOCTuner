@@ -25,14 +25,25 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import app.foctuner.ui.theme.FocTheme
 import app.foctuner.ui.theme.Spacing
 
-/** A box with a picture, a name and, [below] it, whatever says more: an entry of the Tools or Settings grid. */
+/**
+ * A box with a picture, a name and, [below] it, whatever says more: an entry of the Start or Settings grid.
+ * [compact] tiles center a short name under the picture, like VESC Tool's Start buttons.
+ */
 @Composable
-fun Tile(@DrawableRes icon: Int, title: String, onClick: () -> Unit, modifier: Modifier = Modifier, below: @Composable () -> Unit = {}) {
+fun Tile(
+    @DrawableRes icon: Int,
+    title: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    compact: Boolean = false,
+    below: @Composable () -> Unit = {},
+) {
     val colors = FocTheme.colors
     val shape = MaterialTheme.shapes.extraLarge
     Column(
@@ -41,8 +52,9 @@ fun Tile(@DrawableRes icon: Int, title: String, onClick: () -> Unit, modifier: M
             .background(colors.surface)
             .border(Dp.Hairline, colors.hairline, shape)
             .clickable(role = Role.Button, onClick = onClick)
-            .padding(Spacing.x2),
+            .padding(if (compact) Spacing.x1 + Spacing.half else Spacing.x2),
         verticalArrangement = Arrangement.spacedBy(Spacing.x1),
+        horizontalAlignment = if (compact) Alignment.CenterHorizontally else Alignment.Start,
     ) {
         Box(
             Modifier
@@ -52,16 +64,24 @@ fun Tile(@DrawableRes icon: Int, title: String, onClick: () -> Unit, modifier: M
         ) {
             Icon(painterResource(icon), contentDescription = null, tint = colors.text, modifier = Modifier.size(28.dp))
         }
-        Text(title, color = colors.text, style = FocTheme.type.bodyStrong)
+        Text(
+            title,
+            color = colors.text,
+            style = if (compact) FocTheme.type.label else FocTheme.type.bodyStrong,
+            textAlign = if (compact) TextAlign.Center else TextAlign.Start,
+        )
         below()
     }
 }
 
-/** [items] as rows of tiles, two a row on phones and more on wider screens; a row takes its tallest tile's height. */
+/**
+ * [items] as rows of tiles, as many a row as fit at [minTileWidth] (at least two); a row takes its tallest tile's
+ * height.
+ */
 @Composable
-fun <T> TileGrid(items: List<T>, tile: @Composable (item: T, modifier: Modifier) -> Unit) {
+fun <T> TileGrid(items: List<T>, minTileWidth: Dp = 176.dp, tile: @Composable (item: T, modifier: Modifier) -> Unit) {
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val columns = maxOf(2, (maxWidth / 176.dp).toInt())
+        val columns = maxOf(2, (maxWidth / minTileWidth).toInt())
         Column {
             for (row in items.chunked(columns)) {
                 Row(

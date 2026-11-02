@@ -25,39 +25,41 @@ import app.foctuner.ui.tools.firmware.FirmwareTool
 import app.foctuner.ui.tools.lisp.LispTool
 import app.foctuner.ui.tools.stats.StatsTool
 
+/** The Start page's groups, after VESC Tool's; [Tab] tools have a top-level tab of their own instead. */
 enum class ToolSection(@param:StringRes val title: Int) {
-    Setup(R.string.tools_section_setup),
-    Live(R.string.tools_section_live),
+    Configuration(R.string.tools_section_configuration),
+    Detection(R.string.tools_section_detection),
+    Operations(R.string.tools_section_operations),
     Hardware(R.string.tools_section_hardware),
-    System(R.string.tools_section_system),
+    Tab(R.string.tools_section_tab),
 }
 
-/** Everything under the Tools tab, grouped by [section] in the order listed; [icon] pictures what the tool does. */
+/** Every tool, grouped by [section] in the order listed; [icon] pictures what the tool does. */
 enum class Tool(val section: ToolSection, @param:StringRes val title: Int, @param:StringRes val summary: Int, @param:DrawableRes val icon: Int) {
-    FocWizard(ToolSection.Setup, R.string.tool_foc_wizard, R.string.tool_foc_wizard_summary, R.drawable.ic_tool_wizard),
-    FocDetection(ToolSection.Setup, R.string.tool_foc_detection, R.string.tool_foc_detection_summary, R.drawable.ic_tool_sine),
-    HallDetection(ToolSection.Setup, R.string.tool_hall_detection, R.string.tool_hall_detection_summary, R.drawable.ic_tool_magnet),
-    EncoderDetection(ToolSection.Setup, R.string.tool_encoder_detection, R.string.tool_encoder_detection_summary, R.drawable.ic_tool_encoder),
-    BldcDetection(ToolSection.Setup, R.string.tool_bldc_detection, R.string.tool_bldc_detection_summary, R.drawable.ic_tool_trapezoid),
-    Direction(ToolSection.Setup, R.string.tool_direction, R.string.tool_direction_summary, R.drawable.ic_tool_rotate),
-    InputWizard(ToolSection.Setup, R.string.tool_input_wizard, R.string.tool_input_wizard_summary, R.drawable.ic_tool_joystick),
-    PpmMapping(ToolSection.Setup, R.string.tool_ppm_mapping, R.string.tool_ppm_mapping_summary, R.drawable.ic_tool_pulses),
-    AdcMapping(ToolSection.Setup, R.string.tool_adc_mapping, R.string.tool_adc_mapping_summary, R.drawable.ic_tool_slider),
-    ImuCalibration(ToolSection.Setup, R.string.tool_imu_calibration, R.string.tool_imu_calibration_summary, R.drawable.ic_tool_level),
-    Control(ToolSection.Live, R.string.tool_control, R.string.tool_control_summary, R.drawable.ic_tool_play),
-    Ride(ToolSection.Live, R.string.tool_ride, R.string.tool_ride_summary, R.drawable.ic_nav_overview),
-    Stats(ToolSection.Live, R.string.tool_stats, R.string.tool_stats_summary, R.drawable.ic_curve),
-    Imu(ToolSection.Live, R.string.tool_imu, R.string.tool_imu_summary, R.drawable.ic_tool_axes),
-    Bms(ToolSection.Hardware, R.string.tool_bms, R.string.tool_bms_summary, R.drawable.ic_tool_battery),
+    FocWizard(ToolSection.Configuration, R.string.tool_foc_wizard, R.string.tool_foc_wizard_summary, R.drawable.ic_tool_wizard),
+    InputWizard(ToolSection.Configuration, R.string.tool_input_wizard, R.string.tool_input_wizard_summary, R.drawable.ic_tool_joystick),
+    ImuCalibration(ToolSection.Configuration, R.string.tool_imu_calibration, R.string.tool_imu_calibration_summary, R.drawable.ic_tool_level),
+    Direction(ToolSection.Configuration, R.string.tool_direction, R.string.tool_direction_summary, R.drawable.ic_tool_rotate),
+    FocDetection(ToolSection.Detection, R.string.tool_foc_detection, R.string.tool_foc_detection_summary, R.drawable.ic_tool_sine),
+    HallDetection(ToolSection.Detection, R.string.tool_hall_detection, R.string.tool_hall_detection_summary, R.drawable.ic_tool_magnet),
+    EncoderDetection(ToolSection.Detection, R.string.tool_encoder_detection, R.string.tool_encoder_detection_summary, R.drawable.ic_tool_encoder),
+    BldcDetection(ToolSection.Detection, R.string.tool_bldc_detection, R.string.tool_bldc_detection_summary, R.drawable.ic_tool_trapezoid),
+    PpmMapping(ToolSection.Detection, R.string.tool_ppm_mapping, R.string.tool_ppm_mapping_summary, R.drawable.ic_tool_pulses),
+    AdcMapping(ToolSection.Detection, R.string.tool_adc_mapping, R.string.tool_adc_mapping_summary, R.drawable.ic_tool_slider),
+    Control(ToolSection.Operations, R.string.tool_control, R.string.tool_control_summary, R.drawable.ic_tool_play),
+    Firmware(ToolSection.Operations, R.string.tool_firmware, R.string.tool_firmware_summary, R.drawable.ic_tool_firmware),
     Gnss(ToolSection.Hardware, R.string.tool_gnss, R.string.tool_gnss_summary, R.drawable.ic_tool_location),
     PowerSwitch(ToolSection.Hardware, R.string.tool_psw, R.string.tool_psw_summary, R.drawable.ic_tool_power),
     IoBoard(ToolSection.Hardware, R.string.tool_io, R.string.tool_io_summary, R.drawable.ic_tool_chip),
-    Lisp(ToolSection.System, R.string.tool_lisp, R.string.tool_lisp_summary, R.drawable.ic_tool_lambda),
-    Firmware(ToolSection.System, R.string.tool_firmware, R.string.tool_firmware_summary, R.drawable.ic_tool_firmware),
+    Ride(ToolSection.Tab, R.string.tool_ride, R.string.tool_ride_summary, R.drawable.ic_nav_overview),
+    Stats(ToolSection.Tab, R.string.tool_stats, R.string.tool_stats_summary, R.drawable.ic_curve),
+    Imu(ToolSection.Tab, R.string.tool_imu, R.string.tool_imu_summary, R.drawable.ic_tool_axes),
+    Bms(ToolSection.Tab, R.string.tool_bms, R.string.tool_bms_summary, R.drawable.ic_tool_battery),
+    Lisp(ToolSection.Tab, R.string.tool_lisp, R.string.tool_lisp_summary, R.drawable.ic_tool_lambda),
     ;
 
     /** Setup tools and manual control command the motor themselves (demo mode pauses its ride for them). */
-    val drivesMotor: Boolean get() = section == ToolSection.Setup || this == Control
+    val drivesMotor: Boolean get() = section == ToolSection.Configuration || section == ToolSection.Detection || this == Control
 }
 
 @Composable

@@ -29,13 +29,16 @@ import app.foctuner.ui.connect.label
 import app.foctuner.ui.connect.toLinkKind
 import app.foctuner.ui.controllers.ControllersScreen
 import app.foctuner.ui.display.DisplayScreen
-import app.foctuner.ui.overview.OverviewScreen
+import app.foctuner.ui.overview.RtDataScreen
 import app.foctuner.ui.session.SessionViewModel
+import app.foctuner.config.ConfigKind
 import app.foctuner.ui.settings.SettingsScreen
 import app.foctuner.ui.shell.ConnectedShell
 import app.foctuner.ui.shell.Destination
 import app.foctuner.ui.shell.SessionHeaderState
 import app.foctuner.ui.terminal.TerminalScreen
+import app.foctuner.ui.tools.Tool
+import app.foctuner.ui.tools.ToolContent
 import app.foctuner.ui.tools.ToolsScreen
 import app.foctuner.ui.theme.FocAnimatedContent
 import app.foctuner.ui.theme.FocTheme
@@ -107,24 +110,35 @@ private fun ConnectedRoute(session: SessionViewModel) {
     val controllers by session.controllers.collectAsStateWithLifecycle()
     val settings by session.settings.state.collectAsStateWithLifecycle()
     val tools by session.tools.collectAsStateWithLifecycle()
-    var destination by rememberSaveable { mutableStateOf(Destination.Overview) }
+    var destination by rememberSaveable { mutableStateOf(Destination.Start) }
+    var lastTab by rememberSaveable { mutableStateOf(Destination.Start) }
+    val navigate = { to: Destination ->
+        if (to.tab) lastTab = to
+        destination = to
+    }
 
     LaunchedEffect(destination) {
-        if (destination != Destination.Tools) session.holdDemoRide(false)
+        if (destination != Destination.Start) session.holdDemoRide(false)
     }
 
     BackHandler {
-        if (destination != Destination.Overview) destination = Destination.Overview else session.disconnect()
+        when {
+            !destination.tab -> destination = lastTab
+            destination != Destination.Start -> navigate(Destination.Start)
+            else -> session.disconnect()
+        }
     }
 
     val current = header ?: return
-    ConnectedShell(current, destination, { destination = it }, session::disconnect) { shown ->
+    ConnectedShell(current, destination, navigate, { destination = lastTab }, session::disconnect) { shown ->
         when (shown) {
-            Destination.Overview -> overview?.let { OverviewScreen(it) }
-                ?: Box(Modifier.fillMaxSize().background(FocTheme.colors.background))
-            Destination.Settings -> SettingsScreen(settings, session.settings)
-            Destination.Tools -> ToolsScreen(tools) { tool -> session.holdDemoRide(tool?.drivesMotor == true) }
+            Destination.Start -> ToolsScreen(tools) { tool -> session.holdDemoRide(tool?.drivesMotor == true) }
+            Destination.RtData -> RtDataScreen(overview, tools)
+            Destination.Bms -> tools?.let { ToolContent(Tool.Bms, it) }
             Destination.Terminal -> TerminalScreen(terminal, session::onTerminalInput, session::sendCommand, session::clearTerminal)
+            Destination.Lisp -> tools?.let { ToolContent(Tool.Lisp, it) }
+            Destination.MotorCfg -> SettingsScreen(ConfigKind.MCCONF, settings, session.settings)
+            Destination.AppCfg -> SettingsScreen(ConfigKind.APPCONF, settings, session.settings)
             Destination.Controllers -> ControllersScreen(controllers, session::select, session::scanCan)
             Destination.Display -> DisplayScreen()
         }

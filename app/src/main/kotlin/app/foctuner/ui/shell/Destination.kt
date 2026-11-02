@@ -1,15 +1,25 @@
 package app.foctuner.ui.shell
 
-import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import app.foctuner.R
 
-/** Top-level screens once connected. Setup and firmware join this list as they are built. */
-enum class Destination(@param:StringRes val label: Int, @param:DrawableRes val icon: Int) {
-    Overview(R.string.nav_overview, R.drawable.ic_nav_overview),
-    Settings(R.string.nav_settings, R.drawable.ic_nav_settings),
-    Tools(R.string.nav_tools, R.drawable.ic_nav_tools),
-    Terminal(R.string.nav_terminal, R.drawable.ic_nav_terminal),
-    Controllers(R.string.nav_controllers, R.drawable.ic_nav_controllers),
-    Display(R.string.nav_display, R.drawable.ic_nav_display),
+/**
+ * Connected screens. The tabs run along the top in VESC Tool's mobile order; [Controllers] and [Display] are
+ * opened from the header and go back to the tab they were opened from.
+ */
+enum class Destination(@param:StringRes val label: Int, val tab: Boolean = true) {
+    Start(R.string.nav_start),
+    RtData(R.string.nav_rt_data),
+    Bms(R.string.nav_bms),
+    Terminal(R.string.nav_terminal),
+    Lisp(R.string.nav_lisp),
+    MotorCfg(R.string.nav_motor_cfg),
+    AppCfg(R.string.nav_app_cfg),
+    Controllers(R.string.nav_controllers, tab = false),
+    Display(R.string.nav_display, tab = false),
+    ;
+
+    companion object {
+        val tabs = entries.filter { it.tab }
+    }
 }

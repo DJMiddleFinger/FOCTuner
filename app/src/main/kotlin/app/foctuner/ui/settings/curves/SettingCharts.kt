@@ -10,9 +10,25 @@ import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
 
+/** Which way a handle moves. */
+internal enum class HandleAxis { X, Y }
+
+/**
+ * A point on a chart that is dragged to set [param]. [at] is where it sits, in plot units; [value] is the setting's
+ * stored value that puts it at a position along [axis], or null when no value can. [active] hides it while the
+ * settings make it meaningless (the regen cutoff while it's off, the curve shape of a linear throttle).
+ */
+internal class ChartHandle(
+    val param: String,
+    val axis: HandleAxis,
+    val at: (Config) -> Pair<Double, Double>,
+    val active: (Config) -> Boolean = { true },
+    val value: (Config, Double) -> Double?,
+)
+
 /**
  * A chart of what a few related settings do, shown on the settings page that holds [anchor] and in the edit
- * dialog of each of [params], where it previews the value being typed.
+ * dialog of each of [params], where it previews the value being typed. On the page, [handles] set its settings.
  */
 internal class SettingChart(
     val key: String,
@@ -24,6 +40,7 @@ internal class SettingChart(
     val params: List<String>,
     /** Above the first row of the page instead of above [anchor]. */
     val atTop: Boolean = false,
+    val handles: List<ChartHandle> = emptyList(),
     /** Null for the current limits, which [LimitBars] draws as bars. */
     val plot: ((Config) -> Plot)?,
 ) {
@@ -50,13 +67,38 @@ internal object SettingCharts {
                     "l_battery_cut_start", "l_battery_cut_end", "l_battery_regen_cut_start", "l_battery_regen_cut_end",
                     "l_in_current_max", "l_in_current_min", "l_min_vin", "l_max_vin",
                 ),
+                handles = listOf(
+                    ChartHandle("l_battery_cut_start", HandleAxis.X, { it.number("l_battery_cut_start") to it.number("l_in_current_max") }) { _, x -> x },
+                    ChartHandle("l_battery_cut_end", HandleAxis.X, { it.number("l_battery_cut_end") to 0.0 }) { _, x -> x },
+                    ChartHandle("l_battery_regen_cut_start", HandleAxis.X, { it.number("l_battery_regen_cut_start") to it.number("l_in_current_min") }, ::regenShown) { _, x -> x },
+                    ChartHandle("l_battery_regen_cut_end", HandleAxis.X, { it.number("l_battery_regen_cut_end") to 0.0 }, ::regenShown) { _, x -> x },
+                ),
                 plot = ::batteryPlot,
+            ),
+        )
+        add(
+            SettingChart(
+                "cells", R.string.curve_cells_title, R.string.curve_cells_caption, "l_battery_cut_end",
+                listOf("l_battery_cut_start", "l_battery_cut_end", "si_battery_cells", "si_battery_type"),
+                handles = listOf(
+                    ChartHandle("l_battery_cut_start", HandleAxis.Y, { cellsAxisMax(it) * 0.85 to it.number("l_battery_cut_start") }) { _, y -> y },
+                    ChartHandle("l_battery_cut_end", HandleAxis.Y, { cellsAxisMax(it) * 0.65 to it.number("l_battery_cut_end") }) { _, y -> y },
+                    ChartHandle("si_battery_cells", HandleAxis.X, { it.number("si_battery_cells") to 0.0 }) { _, x -> x },
+                ),
+                plot = ::cellsPlot,
             ),
         )
         add(
             SettingChart(
                 "erpm", R.string.curve_erpm_title, R.string.curve_erpm_caption, "l_max_erpm",
                 listOf("l_max_erpm", "l_min_erpm", "l_erpm_start", "l_current_max", "l_current_min"),
+                handles = listOf(
+                    ChartHandle("l_max_erpm", HandleAxis.X, { it.number("l_max_erpm") to 0.0 }) { _, x -> x },
+                    ChartHandle("l_min_erpm", HandleAxis.X, { it.number("l_min_erpm") to 0.0 }) { _, x -> x },
+                    ChartHandle("l_erpm_start", HandleAxis.X, { it.number("l_max_erpm") * it.number("l_erpm_start") to it.number("l_current_max") }) { c, x ->
+                        c.number("l_max_erpm").takeIf { it > 0 }?.let { x / it }
+                    },
+                ),
                 plot = ::erpmPlot,
             ),
         )
@@ -65,6 +107,15 @@ internal object SettingCharts {
                 SettingChart(
                     "temp_$sensor", title, R.string.curve_temp_caption, "l_temp_${sensor}_start",
                     listOf("l_temp_${sensor}_start", "l_temp_${sensor}_end", "l_temp_accel_dec", "l_current_max", "l_current_min"),
+                    handles = listOf(
+                        ChartHandle("l_temp_${sensor}_start", HandleAxis.X, { c ->
+                            val start = c.number("l_temp_${sensor}_start")
+                            start to CurveMath.thermal(
+                                start, start, c.number("l_temp_${sensor}_end"), c.number("l_temp_accel_dec"), c.number("l_current_max"), c.number("l_current_min"),
+                            ).first
+                        }) { _, x -> x },
+                        ChartHandle("l_temp_${sensor}_end", HandleAxis.X, { it.number("l_temp_${sensor}_end") to 0.0 }) { _, x -> x },
+                    ),
                     plot = { thermalPlot(it, sensor) },
                 ),
             )
@@ -73,6 +124,12 @@ internal object SettingCharts {
             SettingChart(
                 "duty", R.string.curve_duty_title, R.string.curve_duty_caption, "l_duty_start",
                 listOf("l_duty_start", "l_max_duty", "l_current_max", "cc_min_current"),
+                handles = listOf(
+                    ChartHandle("l_duty_start", HandleAxis.X, { it.number("l_duty_start") * it.number("l_max_duty") * 100 to it.number("l_current_max") }) { c, x ->
+                        c.number("l_max_duty").takeIf { it > 0 }?.let { x / 100 / it }
+                    },
+                    ChartHandle("l_max_duty", HandleAxis.X, { it.number("l_max_duty") * 100 to 0.0 }) { _, x -> x / 100 },
+                ),
                 plot = ::dutyPlot,
             ),
         )
@@ -80,6 +137,12 @@ internal object SettingCharts {
             SettingChart(
                 "fw", R.string.curve_fw_title, R.string.curve_fw_caption, "foc_fw_current_max",
                 listOf("foc_fw_current_max", "foc_fw_duty_start", "l_max_duty"),
+                handles = listOf(
+                    ChartHandle("foc_fw_duty_start", HandleAxis.X, { it.number("foc_fw_duty_start") * it.number("l_max_duty") * 100 to 0.0 }) { c, x ->
+                        c.number("l_max_duty").takeIf { it > 0 }?.let { x / 100 / it }
+                    },
+                    ChartHandle("foc_fw_current_max", HandleAxis.Y, { it.number("l_max_duty") * 100 to it.number("foc_fw_current_max") }) { _, y -> y },
+                ),
                 plot = ::fieldWeakeningPlot,
             ),
         )
@@ -87,6 +150,9 @@ internal object SettingCharts {
             SettingChart(
                 "ppm_map", R.string.curve_ppm_title, R.string.curve_ppm_caption, "app_ppm_conf.pulse_start",
                 listOf("app_ppm_conf.pulse_start", "app_ppm_conf.pulse_end", "app_ppm_conf.pulse_center", "app_ppm_conf.hyst", "app_ppm_conf.ctrl_type"),
+                handles = listOf("pulse_start", "pulse_center", "pulse_end").map { name ->
+                    ChartHandle("app_ppm_conf.$name", HandleAxis.X, { c -> c.number("app_ppm_conf.$name").let { it to 100 * ppmThrottle(c, it) } }, { name != "pulse_center" || ppmCentered(it) }) { _, x -> x }
+                },
                 plot = ::ppmPlot,
             ),
         )
@@ -96,6 +162,14 @@ internal object SettingCharts {
                 SettingChart(
                     "throttle_$app", R.string.curve_throttle_title, R.string.curve_throttle_caption, "$app.throttle_exp",
                     listOf("$app.throttle_exp", "$app.throttle_exp_brake", "$app.throttle_exp_mode"),
+                    handles = listOf("$app.throttle_exp" to 0.5, "$app.throttle_exp_brake" to -0.5).map { (name, input) ->
+                        ChartHandle(
+                            name,
+                            HandleAxis.Y,
+                            { c -> 100 * input to 100 * throttleOf(c, app, input) },
+                            { c -> c.int("$app.throttle_exp_mode") in 0L..2L },
+                        ) { c, y -> throttleShape(c, app, name, input, y / 100) }
+                    },
                     plot = { throttlePlot(it, app) },
                 ),
             )
@@ -103,6 +177,14 @@ internal object SettingCharts {
                 SettingChart(
                     "ramp_$app", R.string.curve_ramp_title, R.string.curve_ramp_caption, "$app.ramp_time_pos",
                     listOf("$app.ramp_time_pos", "$app.ramp_time_neg"),
+                    handles = listOf(
+                        ChartHandle("$app.ramp_time_pos", HandleAxis.X, { max(it.number("$app.ramp_time_pos"), 0.0) to 100.0 }) { _, x -> x },
+                        ChartHandle("$app.ramp_time_neg", HandleAxis.X, { c -> rampTimes(c, app).second to 0.0 }) { c, x ->
+                            val rise = max(c.number("$app.ramp_time_pos"), 0.0)
+                            val limit = c.definition.param("$app.ramp_time_neg").maxDouble
+                            increasingRoot(0.0, limit, x) { fall -> rampTimes(rise, fall).second }
+                        },
+                    ),
                     plot = { rampPlot(it, app) },
                 ),
             )
@@ -131,6 +213,85 @@ private fun Config.number(name: String): Double = when (val value = get(name)) {
 private fun padded(low: Double, high: Double, fraction: Double, minPad: Double = 0.0): Pair<Double, Double> {
     val pad = max((high - low) * fraction, minPad)
     return low - pad to high + pad
+}
+
+/** The x where increasing [f] reaches [target] in [low]..[high], or the nearer end when it doesn't. */
+private fun increasingRoot(low: Double, high: Double, target: Double, f: (Double) -> Double): Double {
+    var lo = low
+    var hi = high
+    repeat(60) {
+        val mid = (lo + hi) / 2
+        if (f(mid) < target) lo = mid else hi = mid
+    }
+    return (lo + hi) / 2
+}
+
+private fun regenShown(c: Config) = c.number("l_battery_regen_cut_start") < c.number("l_max_vin")
+
+/** The throttle curve's output at [input] (−1..1). */
+private fun throttleOf(c: Config, app: String, input: Double) =
+    CurveMath.throttle(input, c.number("$app.throttle_exp"), c.number("$app.throttle_exp_brake"), c.int("$app.throttle_exp_mode").toInt())
+
+/** The value of [name] (the acceleration or brake shape) that makes the curve pass through [output] at [input]. */
+private fun throttleShape(c: Config, app: String, name: String, input: Double, output: Double): Double {
+    val p = c.definition.param(name)
+    val mode = c.int("$app.throttle_exp_mode").toInt()
+    // Both halves rise with their shape value; the brake half mirrors the drive half.
+    val target = (if (input < 0) -output else output).coerceAtLeast(0.0)
+    return increasingRoot(p.minDouble, p.maxDouble, target) { shape -> CurveMath.throttle(kotlin.math.abs(input), shape, shape, mode) }
+}
+
+/** When the input is let go and when the output is back at zero, for the ramp chart. */
+private fun rampTimes(rise: Double, fall: Double): Pair<Double, Double> {
+    val release = max(rise, 0.05) + 0.25 * max(rise + fall, 0.2)
+    val peak = CurveMath.ramp(release, rise, fall, release)
+    return release to release + if (fall > 0.01) peak * fall else 0.0
+}
+
+private fun rampTimes(c: Config, app: String) = rampTimes(max(c.number("$app.ramp_time_pos"), 0.0), max(c.number("$app.ramp_time_neg"), 0.0))
+
+private fun ppmCentered(c: Config): Boolean {
+    val names = c.definition.param("app_ppm_conf.ctrl_type").enumNames
+    return !names.getOrNull(c.int("app_ppm_conf.ctrl_type").toInt()).orEmpty().endsWith("No Reverse")
+}
+
+private fun ppmThrottle(c: Config, ms: Double) = CurveMath.ppm(
+    ms,
+    c.number("app_ppm_conf.pulse_start"),
+    c.number("app_ppm_conf.pulse_end"),
+    c.number("app_ppm_conf.pulse_center"),
+    c.number("app_ppm_conf.hyst"),
+    ppmCentered(c),
+)
+
+/** The cell count axis reaches 24 cells, or a quarter past the configured count in steps of four. */
+private fun cellsAxisMax(c: Config): Double = max(24.0, kotlin.math.ceil(c.number("si_battery_cells") * 1.25 / 4) * 4)
+
+/** VESC Tool's battery calculator suggests 3.4 V per cell to start reducing current and 3.1 V to stop, for Li-ion only. */
+private const val LI_ION_CUT_START = 3.4
+private const val LI_ION_CUT_END = 3.1
+
+private fun cellsPlot(c: Config): Plot {
+    val cells = c.number("si_battery_cells")
+    val start = c.number("l_battery_cut_start")
+    val end = c.number("l_battery_cut_end")
+    val liIon = c.int("si_battery_type") == 0L
+    val xMax = cellsAxisMax(c)
+    val yMax = max(maxOf(start, end, if (liIon) LI_ION_CUT_START * cells else 0.0) * 1.3, 10.0)
+    return Plot(
+        x = PlotAxis(0.0, xMax, null, 0, R.string.curve_axis_cells),
+        y = PlotAxis(0.0, yMax, R.string.unit_volt, 1),
+        lines = buildList {
+            if (liIon) {
+                add(PlotLine(R.string.curve_line_suggest_start, LineTone.Reference) { n -> LI_ION_CUT_START * n })
+                add(PlotLine(R.string.curve_line_suggest_end, LineTone.Reference) { n -> LI_ION_CUT_END * n })
+            }
+            add(PlotLine(R.string.curve_line_cut_start, LineTone.Primary) { start })
+            add(PlotLine(R.string.curve_line_cut_end, LineTone.Secondary) { end })
+        },
+        markers = listOf(PlotMarker(cells, R.string.curve_marker_cells)),
+        note = if (liIon) null else R.string.curve_cells_no_suggestion,
+    )
 }
 
 /** A current axis from the most negative to the most positive of [values], with headroom, always including zero. */
@@ -326,9 +487,7 @@ private fun ppmPlot(c: Config): Plot {
 private fun rampPlot(c: Config, app: String): Plot {
     val rise = max(c.number("$app.ramp_time_pos"), 0.0)
     val fall = max(c.number("$app.ramp_time_neg"), 0.0)
-    val release = max(rise, 0.05) + 0.25 * max(rise + fall, 0.2)
-    val peak = CurveMath.ramp(release, rise, fall, release)
-    val settled = release + if (fall > 0.01) peak * fall else 0.0
+    val (release, settled) = rampTimes(rise, fall)
     val span = settled + 0.15 * max(settled, 0.2)
     val step = span * 1e-6
     return Plot(

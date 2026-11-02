@@ -5,7 +5,6 @@
     <string name="curve_hint">Tap or drag on the chart to read values.</string>
     <string name="curve_on_controller">On controller</string>
     <string name="curve_current_value">Current value</string>
-    <string name="curve_has_chart">Has a chart</string>
 
     <string name="curve_limits_title">Current limits</string>
     <string name="curve_limits_caption">How far motor and battery current may go each way. Past the absolute maximum the controller cuts out with a fault.</string>

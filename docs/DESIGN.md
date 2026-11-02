@@ -39,15 +39,16 @@ IBM Plex Sans (UI) and IBM Plex Mono (every number), bundled from the official I
 ## Layout
 
 - 8dp grid (`Spacing`); 4dp only inside a component. 16dp gutters. Touch targets ≥48dp, rows 56/72dp.
-- Group by whitespace plus a section label; separate rows with hairlines. No cards, no cards inside cards. The exception is the launchers, the Tools tab and the Settings section list: each entry is a box (`Tile`, `TileGrid`) with its picture (`ic_tool_*`, `ic_set_*`), name and a line about it.
+- Group by whitespace plus a section label; separate rows with hairlines. No cards, no cards inside cards. The exception is the launchers: the Start page is a grid of compact boxes (`Tile(compact = true)` in `TileGrid`, three a row on phones) with a picture (`ic_tool_*`) and a name, like VESC Tool's Start buttons.
 - Labels left, numbers right, units after the number on its baseline.
 - Panel-meter cells: label top left, reading bottom right.
 - Corners 2–8dp, used on controls only.
-- Edge-to-edge; each screen pads for system bars itself. ≥600dp wide: navigation rail and two-pane overview.
+- Navigation follows VESC Tool's mobile app: header (device, firmware, link; CAN button, overflow menu with Display and Disconnect), then scrollable text tabs (`TabStrip`) in VESC Tool's order: Start, RT Data, BMS, Terminal, LispBM, Motor Cfg, App Cfg. RT Data has fixed sub-tabs (Realtime, Ride, IMU, Statistics). Pages opened from the header (Controllers, Display) replace the tabs with a `PageHeader` and go back to the tab they came from.
+- Edge-to-edge; each screen pads for system bars itself. ≥600dp wide: two-pane overview.
 
 ## Components (`ui/components/`)
 
-`Readout`, `Sparkline` (Canvas, fixed sample spacing, minimum span so noise stays flat, zero line when the range crosses zero), `SectionHeader`, `Hairline`, `Notice` (neutral / warning / fault band with a 3dp bar; title, why, what to check, one action), `OutlineButton`, `PlainButton`, `PageHeader` (back arrow, breadcrumb, page title: every page opened from a list). Icons are our own 24dp, 1.75 stroke vectors in `res/drawable/ic_*`; only navigation and a few controls get icons.
+`Readout`, `Sparkline` (Canvas, fixed sample spacing, minimum span so noise stays flat, zero line when the range crosses zero), `SectionHeader`, `Hairline`, `Notice` (neutral / warning / fault band with a 3dp bar; title, why, what to check, one action), `OutlineButton`, `PlainButton`, `TabStrip`, `Tile`/`TileGrid`, `PageHeader` (back arrow, breadcrumb, page title: every page opened from a list). Icons are our own 24dp, 1.75 stroke vectors in `res/drawable/ic_*`; only navigation and a few controls get icons.
 
 ## Charts (`ui/settings/curves/`)
 

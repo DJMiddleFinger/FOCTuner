@@ -28,7 +28,7 @@ internal val ParamDefinition.displayScale: Double
 
 internal val ParamDefinition.displaySuffix: String get() = if (percentage) " %" else suffix
 
-private val ParamDefinition.displayDecimals: Int get() = if (percentage) 0 else decimals
+internal val ParamDefinition.displayDecimals: Int get() = if (percentage) 0 else decimals
 
 internal fun ParamDefinition.bitNames(): List<String> = enumNames.ifEmpty { List(8) { "Bit $it" } }
 
@@ -55,6 +55,12 @@ internal fun ParamDefinition.parse(text: String): ParamValue? {
     if (type == ParamType.STRING) return ParamValue.TextValue(text)
     val number = text.trim().replace(',', '.').replace('−', '-').toDoubleOrNull()?.takeIf { it.isFinite() } ?: return null
     return if (type == ParamType.DOUBLE) ParamValue.DoubleValue(number / displayScale) else ParamValue.IntValue((number / displayScale).roundToLong())
+}
+
+/** A slider end as its label shows it, in display units: no trailing zeros, with the suffix. */
+internal fun ParamDefinition.trackLabel(shown: Double): String {
+    val decimals = if (type == ParamType.INT) 0 else displayDecimals
+    return BigDecimal(shown).setScale(decimals, RoundingMode.HALF_UP).stripTrailingZeros().toPlainString().replace('-', '−') + displaySuffix
 }
 
 internal fun ParamDefinition.range(): Pair<String, String> = if (type == ParamType.DOUBLE) {

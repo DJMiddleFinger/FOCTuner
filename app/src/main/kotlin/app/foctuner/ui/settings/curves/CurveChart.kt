@@ -3,7 +3,10 @@ package app.foctuner.ui.settings.curves
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -12,6 +15,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
@@ -28,7 +33,9 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.TextMeasurer
@@ -44,13 +51,45 @@ import app.foctuner.ui.theme.FocColors
 import app.foctuner.ui.theme.FocTheme
 import app.foctuner.ui.theme.LocalMotion
 import app.foctuner.ui.theme.Motion
+import kotlinx.coroutines.launch
 import kotlin.math.abs
+import kotlin.math.hypot
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
 import kotlin.math.roundToLong
 
 private const val SAMPLES = 96
+
+/** How far from a handle a touch still picks it up: half a 48dp touch target. */
+internal val HandleReach = 24.dp
+
+/** A draggable point at ([x], [y]) in plot units that moves along [axis]. */
+internal class HandlePoint(val x: Double, val y: Double, val axis: HandleAxis)
+
+/** A handle drawn as a ring around an accent dot, larger while [active]. */
+internal fun DrawScope.drawHandle(center: Offset, fill: Color, accent: Color, outline: Color, active: Boolean) {
+    val radius = (if (active) 10 else 8).dp.toPx()
+    drawCircle(fill, radius, center)
+    drawCircle(accent, radius - 2.5.dp.toPx(), center)
+    drawCircle(outline, radius, center, style = Stroke(1.dp.toPx()))
+}
+
+/** The plot's area and axes as last drawn, for turning touches into plot units. */
+private class Frame {
+    var area = Rect.Zero
+    var xMin = 0.0
+    var xMax = 1.0
+    var yMin = 0.0
+    var yMax = 1.0
+    var handles: List<Offset> = emptyList()
+
+    fun plotX(px: Float) = xMin + ((px - area.left) / max(area.width, 1f)).coerceIn(0f, 1f) * (xMax - xMin)
+
+    fun plotY(py: Float) = yMin + ((area.bottom - py) / max(area.height, 1f)).coerceIn(0f, 1f) * (yMax - yMin)
+}
+
+private fun Plot.withAxes(x: PlotAxis, y: PlotAxis) = Plot(x, y, lines, zones, markers, note)
 
 /** Height of the tick label row under the plot. */
 internal val AxisLabelHeight = 20.dp
@@ -77,6 +116,9 @@ internal fun FocColors.zoneEdge(tone: ZoneTone): Color = when (tone) {
  * Draws [plot] on a hairline grid with its zones and markers, reference lines thin and solid, and [ghost] (the same
  * chart for the values on the controller) dashed behind it. When [plot] changes, the old curves bend into the new ones. Tapping or dragging
  * across the plot puts a cursor there and lists every line's value at that point.
+ *
+ * [handles] are drawn on top; dragging one reports its position along its axis to [onHandle]. The axes stay put
+ * while a handle is held, so the point stays under the finger, and move to fit the new values once it's let go.
  */
 @Composable
 internal fun CurveChart(
@@ -86,8 +128,17 @@ internal fun CurveChart(
     modifier: Modifier = Modifier,
     plotHeight: Dp = 176.dp,
     fill: Color = FocTheme.colors.surface,
+    handles: List<HandlePoint> = emptyList(),
+    onHandle: ((index: Int, position: Double) -> Unit)? = null,
+    actions: List<CustomAccessibilityAction> = emptyList(),
 ) {
     val colors = FocTheme.colors
+    val scope = rememberCoroutineScope()
+    val frame = remember { Frame() }
+    var held by remember { mutableStateOf<Int?>(null) }
+    var frozen by remember { mutableStateOf<Pair<PlotAxis, PlotAxis>?>(null) }
+    val handleUpdate by rememberUpdatedState(onHandle)
+    val handlePoints by rememberUpdatedState(handles)
     val motion = LocalMotion.current
     val resources = LocalResources.current
     val measurer = rememberTextMeasurer(cacheSize = 64)
@@ -103,7 +154,11 @@ internal fun CurveChart(
         // Start from wherever an interrupted animation got to, so typing quickly never jumps.
         from = blend(from, to, progress.value)
         to = plot
-        if (motion) {
+        if (held != null) {
+            // While a handle is held the curves follow the finger without easing.
+            from = plot
+            progress.snapTo(1f)
+        } else if (motion) {
             progress.snapTo(0f)
             progress.animateTo(1f, tween(Motion.LONG, easing = Motion.emphasized))
         } else {
@@ -120,7 +175,10 @@ internal fun CurveChart(
         modifier
             .fillMaxWidth()
             .height(plotHeight + AxisLabelHeight)
-            .semantics { contentDescription = description }
+            .semantics {
+                contentDescription = description
+                if (actions.isNotEmpty()) customActions = actions
+            }
             .pointerInput(Unit) {
                 detectTapGestures { offset ->
                     val f = fraction(offset.x)
@@ -132,9 +190,46 @@ internal fun CurveChart(
                     change.consume()
                     probe = fraction(change.position.x)
                 }
+            }
+            // Last, so it sees a touch first and takes it when it lands on a handle.
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val reach = HandleReach.toPx()
+                    val hit = frame.handles.withIndex()
+                        .filter { (_, at) -> hypot(at.x - down.position.x, at.y - down.position.y) <= reach }
+                        .minByOrNull { (_, at) -> hypot(at.x - down.position.x, at.y - down.position.y) }
+                        ?.index
+                    if (hit == null || handleUpdate == null) return@awaitEachGesture
+                    down.consume()
+                    held = hit
+                    probe = null
+                    val axes = PlotAxis(frame.xMin, frame.xMax, to.x.unit, to.x.decimals, to.x.title) to
+                        PlotAxis(frame.yMin, frame.yMax, to.y.unit, to.y.decimals, to.y.title)
+                    frozen = axes
+                    drag(down.id) { change ->
+                        change.consume()
+                        val axis = handlePoints.getOrNull(hit)?.axis ?: return@drag
+                        val position = if (axis == HandleAxis.X) frame.plotX(change.position.x) else frame.plotY(change.position.y)
+                        handleUpdate?.invoke(hit, position)
+                    }
+                    held = null
+                    // Let the axes move from where they were held to where the new values put them.
+                    from = to.withAxes(axes.first, axes.second)
+                    frozen = null
+                    scope.launch {
+                        if (motion) {
+                            progress.snapTo(0f)
+                            progress.animateTo(1f, tween(Motion.LONG, easing = Motion.emphasized))
+                        } else {
+                            progress.snapTo(1f)
+                        }
+                    }
+                }
             },
     ) {
-        val p = blend(from, to, progress.value)
+        val blended = blend(from, to, progress.value)
+        val p = frozen?.let { (x, y) -> blended.withAxes(x, y) } ?: blended
         val xSpan = (p.x.max - p.x.min).takeIf { it > 0 } ?: 1.0
         val ySpan = (p.y.max - p.y.min).takeIf { it > 0 } ?: 1.0
         val xUnit = p.x.unit?.let(resources::getString)
@@ -151,6 +246,12 @@ internal fun CurveChart(
         bounds[1] = area.right
         fun sx(x: Double) = area.left + ((x - p.x.min) / xSpan * area.width).toFloat()
         fun sy(y: Double) = area.bottom - ((y - p.y.min) / ySpan * area.height).toFloat()
+        frame.area = area
+        frame.xMin = p.x.min
+        frame.xMax = p.x.max
+        frame.yMin = p.y.min
+        frame.yMax = p.y.max
+        frame.handles = handles.map { Offset(sx(it.x).coerceIn(area.left, area.right), sy(it.y).coerceIn(area.top, area.bottom)) }
         val dash = PathEffect.dashPathEffect(floatArrayOf(4.dp.toPx(), 4.dp.toPx()))
 
         drawRect(fill, area.topLeft, area.size)
@@ -234,6 +335,10 @@ internal fun CurveChart(
                 top += layout.size.height + 2.dp.toPx()
             }
             taken += labelOnFill(layout, Offset(left, top), fill)
+        }
+
+        if (onHandle != null) {
+            frame.handles.forEachIndexed { i, at -> drawHandle(at, fill, colors.accent, colors.outline, held == i) }
         }
 
         probe?.let { f -> drawReadout(p, p.x.min + f * xSpan, sx(p.x.min + f * xSpan), area, xUnit, yUnit, measurer, readoutStyle, colors, resources::getString) }
