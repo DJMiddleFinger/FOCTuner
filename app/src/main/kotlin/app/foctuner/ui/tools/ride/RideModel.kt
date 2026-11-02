@@ -16,11 +16,6 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.tan
 
-enum class DistanceUnit(val perKm: Float, val distance: String, val speed: String, val efficiency: String) {
-    Metric(1f, "km", "km/h", "Wh/km"),
-    Imperial(0.621371192f, "mi", "mph", "Wh/mi"),
-}
-
 @Immutable
 data class RideState(
     val values: SetupValues? = null,
@@ -28,7 +23,6 @@ data class RideState(
     val incline: Float? = null,
     /** Input power divided by speed, low-passed (VESC Tool's instantaneous efficiency), Wh per km. */
     val whPerKmNow: Float = 0f,
-    val unit: DistanceUnit = DistanceUnit.Metric,
     val failed: Boolean = false,
     val odometerSet: Boolean = false,
 ) {
@@ -49,8 +43,6 @@ data class RideState(
 class RideModel(private val context: ToolContext) {
     private val _state = MutableStateFlow(RideState())
     val state: StateFlow<RideState> = _state.asStateFlow()
-
-    fun setUnit(unit: DistanceUnit) = _state.update { it.copy(unit = unit) }
 
     fun setOdometer(km: Float) {
         context.scope.launch {

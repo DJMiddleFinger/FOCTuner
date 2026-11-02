@@ -52,7 +52,7 @@ import app.foctuner.ui.theme.push
 
 /**
  * Frame around the connected screens, laid out like VESC Tool's mobile app: what we're connected to with a CAN
- * button and a menu, then the tabs along the top. Pages opened from the header replace the tabs with a back bar.
+ * button and a menu (Display, Preferences, About, Disconnect), then the tabs along the top. Pages opened from the header replace the tabs with a back bar.
  */
 @Composable
 fun ConnectedShell(
@@ -74,7 +74,7 @@ fun ConnectedShell(
         Header(
             state = header,
             onCan = { onNavigate(Destination.Controllers) },
-            onDisplay = { onNavigate(Destination.Display) },
+            onMenu = onNavigate,
             onDisconnect = onDisconnect,
         )
         if (current.tab) {
@@ -117,7 +117,7 @@ fun ConnectedShell(
 }
 
 @Composable
-private fun Header(state: SessionHeaderState, onCan: () -> Unit, onDisplay: () -> Unit, onDisconnect: () -> Unit) {
+private fun Header(state: SessionHeaderState, onCan: () -> Unit, onMenu: (Destination) -> Unit, onDisconnect: () -> Unit) {
     val colors = FocTheme.colors
     val liveLabel = stringResource(R.string.session_live)
     var menu by remember { mutableStateOf(false) }
@@ -164,13 +164,15 @@ private fun Header(state: SessionHeaderState, onCan: () -> Unit, onDisplay: () -
                 Icon(painterResource(R.drawable.ic_more), stringResource(R.string.session_menu), tint = colors.textSecondary)
             }
             DropdownMenu(expanded = menu, onDismissRequest = { menu = false }, containerColor = colors.surface) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.nav_display), color = colors.text, style = FocTheme.type.body) },
-                    onClick = {
-                        menu = false
-                        onDisplay()
-                    },
-                )
+                for (page in listOf(Destination.Display, Destination.Preferences, Destination.About)) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(page.label), color = colors.text, style = FocTheme.type.body) },
+                        onClick = {
+                            menu = false
+                            onMenu(page)
+                        },
+                    )
+                }
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.session_disconnect), color = colors.text, style = FocTheme.type.body) },
                     onClick = {

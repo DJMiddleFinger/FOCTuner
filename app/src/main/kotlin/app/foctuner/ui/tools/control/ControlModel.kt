@@ -18,7 +18,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
-import kotlin.time.Duration.Companion.seconds
 
 /** What the value field sets, with VESC Tool's range, step and default for it. */
 enum class ControlMode(
@@ -128,13 +127,14 @@ class ControlModel(private val context: ToolContext) {
         launch { context.controller.motor.release() }
     }
 
-    fun stop() {
+    /** Releases everything and makes the controllers ignore motor commands for [lockout] (Preferences). */
+    fun stop(lockout: Duration) {
         holding?.cancel()
         _state.update { it.copy(running = null) }
-        launch { context.client.emergencyStop(STOP_DURATION) }
+        launch { context.client.emergencyStop(lockout) }
         countdown?.cancel()
         countdown = context.scope.launch {
-            for (left in STOP_DURATION.inWholeSeconds downTo 1) {
+            for (left in lockout.inWholeSeconds downTo 1) {
                 _state.update { it.copy(stopSeconds = left.toInt()) }
                 delay(1_000)
             }
@@ -219,6 +219,3 @@ class ControlModel(private val context: ToolContext) {
 
 private val RESEND = 100.milliseconds
 private val LEASE = 300.milliseconds
-
-/** VESC Tool's default `estop_ms`. */
-private val STOP_DURATION = 5.seconds

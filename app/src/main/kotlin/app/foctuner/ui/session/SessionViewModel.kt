@@ -4,6 +4,8 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.foctuner.R
+import app.foctuner.prefs.CanTarget
+import app.foctuner.prefs.PreferencesStore
 import app.foctuner.transport.Transport
 import app.foctuner.ui.controllers.CanDevice
 import app.foctuner.ui.controllers.ControllersState
@@ -31,7 +33,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -55,6 +59,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         val linkLabel: String,
     )
 
+    private val store = PreferencesStore(application)
     private val session = MutableStateFlow<Active?>(null)
     private val selectedCanId = MutableStateFlow<Int?>(null)
 
@@ -108,8 +113,15 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     /** Firmware of the CAN controllers found by the last scan. */
     private val canFirmware = HashMap<Int, FirmwareInfo>()
 
-    /** Opens the link, checks a controller answers, then makes it the current session. */
-    fun connect(key: String, name: String, linkLabel: String, demo: Boolean = false, open: suspend () -> Transport) {
+    /** Opens the link, checks a controller answers, then makes it the current session and calls [onConnected]. */
+    fun connect(
+        key: String,
+        name: String,
+        linkLabel: String,
+        demo: Boolean = false,
+        onConnected: () -> Unit = {},
+        open: suspend () -> Transport,
+    ) {
         if (_attempt.value.key != null) return
         _attempt.value = ConnectAttempt(key)
         viewModelScope.launch {
@@ -119,6 +131,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                 val info = client.firmwareInfo()
                 begin(Active(client, scope, info, name, linkLabel), demo)
                 _attempt.value = ConnectAttempt()
+                onConnected()
             } catch (e: VescTimeoutException) {
                 scope.cancel()
                 _attempt.value = ConnectAttempt(failure = string(R.string.connect_failed_no_reply, name))
@@ -207,6 +220,10 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         }
         selectedCanId.value = canId
         _controllers.update { it.copy(selectedCanId = device.canId) }
+        session.value?.let { active ->
+            val target = canId?.let { id -> canFirmware[id]?.let { CanTarget(id, it.uuid) } }
+            if (active.info.uuid.isNotEmpty()) viewModelScope.launch { store.setCanTarget(active.info.uuid, target) }
+        }
     }
 
     private fun begin(active: Active, demo: Boolean) {
@@ -227,13 +244,32 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
             }
         }
         if (demo) active.scope.launch { demoRide(active.client.motor, demoHeld) }
-        scanCan()
+        active.scope.launch {
+            val prefs = store.current()
+            if (prefs.reconnectLastCan) reselectLastCan(active)
+            if (prefs.scanCanOnConnect) scanCan()
+        }
+    }
+
+    /**
+     * VESC Tool's reconnectLastCan (6.05): if a CAN controller was selected behind this one last time and it still
+     * answers on the same id with the same UUID, select it again.
+     */
+    private suspend fun reselectLastCan(active: Active) {
+        if (active.info.uuid.isEmpty()) return
+        val target = store.canTarget(active.info.uuid) ?: return
+        val info = answerOrNull { active.client.can(target.canId).firmwareInfo() } ?: return
+        if (info.uuid != target.uuid || session.value !== active) return
+        canFirmware[target.canId] = info
+        select(CanDevice(target.canId, local = false, info.hardwareName, info.version, info.firmwareName))
     }
 
     private suspend fun poll(active: Active) {
-        selectedCanId.collectLatest { canId ->
+        val rate = store.preferences.map { it.realtimeHz }.distinctUntilChanged()
+        combine(selectedCanId, rate, ::Pair).collectLatest { (canId, hz) ->
             val controller = canId?.let(active.client::can) ?: active.client
-            val trends = Trends(TREND_CAPACITY)
+            val capacity = TREND_SECONDS * hz
+            val trends = Trends(capacity)
             var lastReply = TimeSource.Monotonic.markNow()
             coroutineScope {
                 launch {
@@ -244,7 +280,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                     }
                 }
                 try {
-                    controller.realtime(POLL_PERIOD).collect { values ->
+                    controller.realtime((1_000 / hz).milliseconds).collect { values ->
                         lastReply = TimeSource.Monotonic.markNow()
                         trends.add(values.voltageInput, values.currentInput, values.voltageInput * values.currentInput)
                         _overview.value = OverviewState(
@@ -252,7 +288,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                             voltageTrend = trends.voltage.toList(),
                             currentTrend = trends.current.toList(),
                             powerTrend = trends.power.toList(),
-                            trendCapacity = TREND_CAPACITY,
+                            trendCapacity = capacity,
                             trendSeconds = TREND_SECONDS,
                         )
                     }
@@ -289,9 +325,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private companion object {
-        val POLL_PERIOD = 100.milliseconds
         const val TREND_SECONDS = 60
-        const val TREND_CAPACITY = TREND_SECONDS * 10
         const val HISTORY_SIZE = 20
         const val MAX_LINES = 2_000
     }
