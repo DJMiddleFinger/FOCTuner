@@ -39,7 +39,7 @@ IBM Plex Sans (UI) and IBM Plex Mono (every number), bundled from the official I
 ## Layout
 
 - 8dp grid (`Spacing`); 4dp only inside a component. 16dp gutters. Touch targets ≥48dp, rows 56/72dp.
-- Group by whitespace plus a section label; separate rows with hairlines. No cards, no cards inside cards.
+- Group by whitespace plus a section label; separate rows with hairlines. No cards, no cards inside cards. The exception is the Tools tab: a launcher, so each tool is a box with its picture (`ic_tool_*`), name and summary.
 - Labels left, numbers right, units after the number on its baseline.
 - Panel-meter cells: label top left, reading bottom right.
 - Corners 2–8dp, used on controls only.
