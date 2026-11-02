@@ -1,8 +1,10 @@
 package app.foctuner.ui.settings
 
 import androidx.activity.compose.BackHandler
+import androidx.annotation.DrawableRes
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,9 +25,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Switch
@@ -69,6 +72,8 @@ import app.foctuner.ui.components.OutlineButton
 import app.foctuner.ui.components.PageHeader
 import app.foctuner.ui.components.PlainButton
 import app.foctuner.ui.components.SectionHeader
+import app.foctuner.ui.components.Tile
+import app.foctuner.ui.components.TileGrid
 import app.foctuner.ui.settings.curves.ChartBlock
 import app.foctuner.ui.settings.curves.SettingChart
 import app.foctuner.ui.settings.curves.SettingCharts
@@ -106,6 +111,9 @@ fun SettingsScreen(state: SettingsState, actions: SettingsActions, modifier: Mod
         group = -1
         subgroup = -1
     }
+    // Outside the page transitions, so coming back from a page returns to the same place in its list.
+    val motorScroll = rememberScrollState()
+    val appScroll = rememberScrollState()
 
     Column(
         modifier
@@ -182,7 +190,8 @@ fun SettingsScreen(state: SettingsState, actions: SettingsActions, modifier: Mod
                                         onSet = { name, value -> actions.edit(shown, name, value) },
                                     )
                                 } else {
-                                    SectionList(shownPane.sections, shownConfig.definition, shownPane.changed) { g, s ->
+                                    val scroll = if (shown == ConfigKind.MCCONF) motorScroll else appScroll
+                                    SectionList(shown, shownPane.sections, shownConfig.definition, shownPane.changed, scroll) { g, s ->
                                         group = g
                                         subgroup = s
                                     }
@@ -272,63 +281,88 @@ private fun KindTabs(selected: ConfigKind, onSelect: (ConfigKind) -> Unit) {
     }
 }
 
+/** VESC Tool's sections as boxes like the Tools tab's, each with a picture of what its settings are about. */
 @Composable
 private fun SectionList(
+    kind: ConfigKind,
     sections: List<ParamGroup>,
     definition: ConfigDefinition,
     changed: Set<String>,
+    scroll: ScrollState,
     onOpen: (group: Int, subgroup: Int) -> Unit,
 ) {
     val colors = FocTheme.colors
     val chartLabel = stringResource(R.string.curve_has_chart)
-    LazyColumn(
+    Column(
         Modifier
             .fillMaxSize()
-            .background(colors.background),
+            .background(colors.background)
+            .verticalScroll(scroll)
+            .padding(bottom = Spacing.x2),
     ) {
         sections.forEachIndexed { g, group ->
-            item(key = "g$g") { SectionHeader(group.name) }
-            itemsIndexed(group.subgroups, key = { s, _ -> "g$g-s$s" }) { s, subgroup ->
+            SectionHeader(group.name)
+            TileGrid(group.subgroups.withIndex().toList()) { (s, subgroup), tileModifier ->
                 val names = subgroup.paramNames.filter { it in definition.params }
                 val pending = names.count { it in changed }
                 val charted = remember(subgroup, definition) { SettingCharts.on(subgroup, definition).isNotEmpty() }
-                Column {
-                    Hairline(Modifier.padding(start = if (s == 0) 0.dp else Spacing.x2))
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(min = Spacing.row)
-                            .clickable(role = Role.Button) { onOpen(g, s) }
-                            .padding(horizontal = Spacing.x2),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(subgroup.name, Modifier.weight(1f), color = colors.text, style = FocTheme.type.body)
-                        if (charted) {
-                            Icon(
-                                painterResource(R.drawable.ic_curve),
-                                chartLabel,
-                                Modifier
-                                    .padding(end = Spacing.x1)
-                                    .size(18.dp),
-                                tint = colors.textTertiary,
-                            )
-                        }
+                Tile(sectionIcon(kind, group.name, subgroup.name), subgroup.name, { onOpen(g, s) }, tileModifier) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             if (pending > 0) {
                                 pluralStringResource(R.plurals.settings_changed, pending, pending)
                             } else {
                                 pluralStringResource(R.plurals.settings_count, names.size, names.size)
                             },
+                            Modifier.weight(1f),
                             color = if (pending > 0) colors.warning else colors.textTertiary,
                             style = FocTheme.type.caption,
                         )
-                        Text("›", Modifier.padding(start = Spacing.x1), color = colors.textTertiary, style = FocTheme.type.body)
+                        if (charted) Icon(painterResource(R.drawable.ic_curve), chartLabel, Modifier.size(18.dp), tint = colors.textTertiary)
                     }
                 }
             }
         }
-        item(key = "end") { Spacer(Modifier.height(Spacing.x2)) }
     }
+}
+
+/**
+ * A picture for one of VESC Tool's settings pages, by its name, or by its section's name for the many pages called
+ * General. The names are the same in every bundled firmware; one we don't know gets the settings sliders.
+ */
+@DrawableRes
+private fun sectionIcon(kind: ConfigKind, group: String, subgroup: String): Int = when (subgroup) {
+    "Sensors", "Hall Sensors" -> R.drawable.ic_tool_magnet
+    "Current", "Field Weakening" -> R.drawable.ic_set_bolt
+    "Voltage" -> R.drawable.ic_tool_battery
+    "RPM" -> R.drawable.ic_nav_overview
+    "Wattage" -> R.drawable.ic_tool_power
+    "Temperature" -> R.drawable.ic_set_thermometer
+    "BMS" -> R.drawable.ic_tool_chip
+    "Sensorless" -> R.drawable.ic_tool_rotate
+    "Encoder" -> R.drawable.ic_tool_encoder
+    "HFI", "VSS" -> R.drawable.ic_tool_pulses
+    "Filters", "Throttle Curve" -> R.drawable.ic_curve
+    "Offsets" -> R.drawable.ic_tool_level
+    "Setup" -> R.drawable.ic_tool_wizard
+    "Quality" -> R.drawable.ic_set_star
+    "Mapping" -> R.drawable.ic_tool_slider
+    "General" -> when (group) {
+        "General" -> if (kind == ConfigKind.APPCONF) R.drawable.ic_nav_controllers else R.drawable.ic_tool_rotate
+        "BLDC" -> R.drawable.ic_tool_trapezoid
+        "DC", "PAS" -> R.drawable.ic_tool_rotate
+        "FOC" -> R.drawable.ic_tool_sine
+        "PID Controllers" -> R.drawable.ic_set_target
+        "Additional Info" -> R.drawable.ic_set_info
+        "PPM" -> R.drawable.ic_tool_pulses
+        "ADC" -> R.drawable.ic_tool_slider
+        "UART" -> R.drawable.ic_nav_terminal
+        "VESC Remote" -> R.drawable.ic_tool_joystick
+        "NRF" -> R.drawable.ic_set_radio
+        "IMU" -> R.drawable.ic_tool_axes
+        else -> R.drawable.ic_nav_settings
+    }
+    else -> R.drawable.ic_nav_settings
 }
 
 @Composable
