@@ -142,8 +142,6 @@ internal fun ParamDefinition.track(value: ParamValue, stored: ParamValue?, held:
  */
 internal fun ParamDefinition.fromChart(raw: Double, track: NumberTrack): ParamValue = fromShown(track.snap(raw * displayScale))
 
-internal fun ParamDefinition.fromChart(raw: Double, value: ParamValue, stored: ParamValue?): ParamValue = fromChart(raw, track(value, stored))
-
 /** [value] one slider step up or down, as the row's −/+ would set it. */
 internal fun ParamDefinition.nudged(value: ParamValue, stored: ParamValue?, up: Boolean): ParamValue =
     fromShown(track(value, stored).nudge(shown(value), up))
