@@ -62,9 +62,11 @@
     <string name="display_theme_dark">Dark</string>
     <string name="display_theme_system_desc">Follow the device light or dark setting</string>
     <string name="display_motion">Motion</string>
-    <string name="display_animations">Page transitions</string>
-    <string name="display_animations_desc">Animate moving between screens and settings pages</string>
-    <string name="settings_in_section">In %1$s</string>
+    <string name="display_animations">Animations</string>
+    <string name="display_animations_desc">Slide between screens and pages, and animate charts and indicators as values change</string>
+
+    <string name="page_back">Back</string>
+    <string name="breadcrumb">%1$s › %2$s</string>
 
     <string name="settings_motor">Motor</string>
     <string name="settings_app">App</string>
@@ -74,7 +76,6 @@
     <string name="settings_revert">Revert</string>
     <string name="settings_write">Write</string>
     <string name="settings_write_count">Write (%1$d)</string>
-    <string name="settings_back">Back</string>
     <string name="settings_reading">Reading settings from the controller…</string>
     <string name="settings_not_read">Settings have not been read yet.</string>
     <string name="settings_not_on_controller">Kept in the app only, not stored on the controller</string>
@@ -89,6 +90,13 @@
     <string name="settings_error_layout">Firmware %1$s stores its settings in a layout this app doesn\'t know. Reading and writing settings is blocked so nothing gets corrupted. Supported firmware: %2$s.</string>
     <string name="settings_error_no_reply">The controller didn\'t answer. Check the connection and read again.</string>
     <string name="settings_error_invalid">%1$s is outside its allowed range. Fix it before writing.</string>
+    <string name="settings_was">Was %1$s</string>
+    <string name="settings_review_title">Write to the controller?</string>
+    <string name="settings_review_confirm">Write</string>
+    <plurals name="settings_review_body">
+        <item quantity="one">%d setting changes. The controller stores it as soon as it is written.</item>
+        <item quantity="other">%d settings change. The controller stores them as soon as they are written.</item>
+    </plurals>
     <plurals name="settings_count">
         <item quantity="one">%d setting</item>
         <item quantity="other">%d settings</item>
@@ -130,6 +138,8 @@
     <string name="unit_kmh">km/h</string>
     <string name="unit_amp_hour">Ah</string>
     <string name="unit_watt_hour">Wh</string>
+    <string name="unit_ms">ms</string>
+    <string name="unit_s">s</string>
 
     <string name="terminal_copy">Copy all</string>
     <string name="terminal_clear">Clear</string>

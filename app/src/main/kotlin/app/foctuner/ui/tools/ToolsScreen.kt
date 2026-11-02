@@ -6,7 +6,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -25,14 +24,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import app.foctuner.R
 import app.foctuner.ui.components.Hairline
-import app.foctuner.ui.components.PlainButton
+import app.foctuner.ui.components.PageHeader
 import app.foctuner.ui.components.SectionHeader
+import app.foctuner.ui.theme.FocAnimatedContent
 import app.foctuner.ui.theme.FocTheme
 import app.foctuner.ui.theme.Spacing
+import app.foctuner.ui.theme.push
 
 /** The list of tools; opening one shows it full size with a way back. */
 @Composable
@@ -48,27 +48,34 @@ fun ToolsScreen(context: ToolContext?, modifier: Modifier = Modifier, onOpen: (T
             .background(colors.background),
         contentAlignment = Alignment.TopCenter,
     ) {
-        Column(
-            Modifier
+        FocAnimatedContent(
+            target = open.takeIf { context != null },
+            label = "tool",
+            modifier = Modifier
                 .fillMaxSize()
                 .widthIn(max = 640.dp),
-        ) {
-            val tool = open
+            transition = { push(forward = targetState != null) },
+        ) { tool ->
             if (tool != null && context != null) {
-                Row(
+                Column(
                     Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = Spacing.touchTarget)
-                        .padding(start = Spacing.x1, end = Spacing.x2),
-                    verticalAlignment = Alignment.CenterVertically,
+                        .fillMaxSize()
+                        .background(colors.background),
                 ) {
-                    PlainButton("‹ " + stringResource(R.string.tools_back), { open = null })
-                    Text(stringResource(tool.title), Modifier.weight(1f), color = colors.textSecondary, style = FocTheme.type.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    PageHeader(
+                        stringResource(tool.title),
+                        onBack = { open = null },
+                        breadcrumb = stringResource(R.string.breadcrumb, stringResource(R.string.nav_tools), stringResource(tool.section.title)),
+                    )
+                    Hairline()
+                    Box(Modifier.weight(1f)) { ToolContent(tool, context) }
                 }
-                Hairline()
-                Box(Modifier.weight(1f)) { ToolContent(tool, context) }
             } else {
-                LazyColumn(Modifier.fillMaxSize()) {
+                LazyColumn(
+                    Modifier
+                        .fillMaxSize()
+                        .background(colors.background),
+                ) {
                     itemsIndexed(Tool.entries) { index, entry ->
                         if (index == 0 || Tool.entries[index - 1].section != entry.section) {
                             SectionHeader(stringResource(entry.section.title))

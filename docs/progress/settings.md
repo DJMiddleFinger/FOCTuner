@@ -16,15 +16,22 @@ Requested 2026-10-15: the app must expose every setting VESC Tool has, sectioned
 
 - **Firmware 6.05, 6.06, 7.00 and 7.01** (2026-10-16, lead session): definitions for all four are bundled (copied from VESC Tool `res/config/` at `b5fcf93`), and `BundledDefinitionsTest` checks every signature against `confgenerator.h` on the firmware's release branches. The settings pick the series matching the reported firmware version; if the controller's config signature says otherwise (test builds, forks, a CAN controller on other firmware), `BundledDefinitions.versionWithSignature` finds the bundled layout that matches and the read is retried with it. Only a layout we don't bundle is blocked.
 
+- **Charts, review and clarity** (2026-11-01): charts of what the settings do above the settings they show (current limits, battery voltage, ERPM, MOSFET and motor temperature, duty cycle, field weakening, PPM mapping, throttle curve and ramping for PPM, ADC and VESC Remote), drawn with the controller's values dashed under them while edits are pending, and previewed live in the edit dialog. Write first lists every change (on the controller → new) for review. Pending rows say what the value was. The section list marks pages with a chart.
+- **Percentages fixed** (`ParamFormat.kt`, tested in `ParamFormatTest`): `editAsPercentage` doubles are a whole percentage of max(|min|, |max|) without `editorScale`, as VESC Tool's ParamEditDouble shows them. Before, Acceleration Temperature Decrease showed 1500 % (15 %), ADC Throttle Expo −50 % (−10 %), and ERPM Limit Start 80.00 %.
+- **Input wizard** (ADC): listed `cc_button_inverted` and `rev_button_inverted`, which no bundled firmware has (6.05–7.01 use the `buttons` bitfield), so its setup page crashed; it now lists `buttons`, and settings a firmware lacks are left out.
+
 ## Next
 
-1. Emulator pass in light mode, at font scale 1.6 and on a tablet width; check the edit dialog with the keyboard up and long enum lists (e.g. `app_to_use`).
-2. Confirm before writing (list of changes, from `Config.diff`), and confirm before Defaults.
+1. Emulator pass at font scale 1.6 and on a tablet width; check the edit dialog with the keyboard up and long enum lists (e.g. `app_to_use`).
+2. Confirm before Defaults (Write already reviews every change).
 3. Search across all settings (VESC Tool mobile has none; desktop has a filter).
 4. Save and load config backups (VESC Tool XML) so the VESC-Tool-only fields (motor brand, description, quality) persist; today they live only in memory for the session.
-5. Unit tests for `ParamFormat.kt` (scale, percentage, parse with comma decimals, bitfield names) once the app module has a test source set.
+5. More `ParamFormat.kt` tests: parse with comma decimals, bitfield names.
+6. Charts for BMS limits and the ADC voltage mapping (it depends on the control type and its buttons). Check the duty cycle and field weakening charts against firmware behavior on hardware.
 
 ## Unverified
+
+- The charts follow the firmware source (`utils_math.c`, `mc_interface.c` update_override_limits, `mcpwm_foc.c` field weakening, `servo_dec.c`/`app_ppm.c`); none has been compared against a real controller's behavior. The current scale settings (`l_current_max_scale` etc.) are shown on the current limits bars but not applied to the derating charts.
 
 - Nothing has been written to a real controller. Write and read-back are tested only against the simulator, which uses the same definitions, so a layout mistake would be shared.
 - Descriptions are rendered with `Html.fromHtml` after dropping the Qt `<head>`; images and tables in some descriptions were not checked.

@@ -12,6 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -33,18 +34,28 @@ import app.foctuner.ui.session.SessionViewModel
 import app.foctuner.ui.settings.SettingsScreen
 import app.foctuner.ui.shell.ConnectedShell
 import app.foctuner.ui.shell.Destination
+import app.foctuner.ui.shell.SessionHeaderState
 import app.foctuner.ui.terminal.TerminalScreen
 import app.foctuner.ui.tools.ToolsScreen
+import app.foctuner.ui.theme.FocAnimatedContent
 import app.foctuner.ui.theme.FocTheme
+import app.foctuner.ui.theme.fadeThrough
 
-/** Connect screen until a controller answers, then the connected shell. */
+/** Connect screen until a controller answers, then the connected shell; each fades through to the other. */
 @Composable
 fun FocApp(
     connect: ConnectViewModel = viewModel(),
     session: SessionViewModel = viewModel(),
 ) {
     val header by session.header.collectAsStateWithLifecycle()
-    if (header == null) ConnectRoute(connect, session) else ConnectedRoute(session)
+    FocAnimatedContent(
+        target = header != null,
+        label = "route",
+        modifier = Modifier.fillMaxSize().background(FocTheme.colors.background),
+        transition = { fadeThrough() },
+    ) { connected ->
+        if (connected) ConnectedRoute(session) else ConnectRoute(connect, session)
+    }
 }
 
 @Composable
@@ -86,7 +97,11 @@ private fun ConnectRoute(connect: ConnectViewModel, session: SessionViewModel) {
 
 @Composable
 private fun ConnectedRoute(session: SessionViewModel) {
-    val header by session.header.collectAsStateWithLifecycle()
+    val live by session.header.collectAsStateWithLifecycle()
+    // The last connection, so the shell still has its header while it fades out after a disconnect.
+    val last = remember { arrayOfNulls<SessionHeaderState>(1) }
+    if (live != null) last[0] = live
+    val header = last[0]
     val overview by session.overview.collectAsStateWithLifecycle()
     val terminal by session.terminal.collectAsStateWithLifecycle()
     val controllers by session.controllers.collectAsStateWithLifecycle()

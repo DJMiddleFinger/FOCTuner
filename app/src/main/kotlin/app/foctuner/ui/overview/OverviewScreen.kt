@@ -1,5 +1,6 @@
 package app.foctuner.ui.overview
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -42,6 +43,7 @@ import app.foctuner.ui.theme.Spacing
 import app.foctuner.ui.theme.StressPreview
 import app.foctuner.ui.theme.TabletPreview
 import app.foctuner.ui.theme.ThemePreviews
+import app.foctuner.ui.theme.motionSpec
 import app.foctuner.vesc.FaultCode
 import app.foctuner.vesc.RealtimeValues
 import kotlin.math.abs
@@ -61,7 +63,8 @@ fun OverviewScreen(state: OverviewState, modifier: Modifier = Modifier) {
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState()),
         ) {
-            Alerts(state)
+            // Notices push the readings down smoothly instead of making them jump.
+            Column(Modifier.animateContentSize(motionSpec())) { Alerts(state) }
             if (wide) {
                 Row(Modifier.height(IntrinsicSize.Min)) {
                     Column(Modifier.weight(1f)) { Battery(state) }

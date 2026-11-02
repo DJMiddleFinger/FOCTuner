@@ -204,7 +204,7 @@ fun SettingRow(config: Config, name: String, onSet: (ParamValue) -> Unit, enable
     }
     Hairline(Modifier.padding(start = Spacing.x2))
     if (editing) {
-        ParamDialog(param, config.definition, config[name], null, onSet = { onSet(it); editing = false }, onDismiss = { editing = false })
+        ParamDialog(param, config, null, onSet = { onSet(it); editing = false }, onDismiss = { editing = false })
     }
 }
 

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Charts on settings pages and in the edit dialog (ui/settings/curves). -->
+    <string name="curve_preview">Not written yet</string>
+    <string name="curve_hint">Tap or drag on the chart to read values.</string>
+    <string name="curve_on_controller">On controller</string>
+    <string name="curve_current_value">Current value</string>
+    <string name="curve_has_chart">Has a chart</string>
+
+    <string name="curve_limits_title">Current limits</string>
+    <string name="curve_limits_caption">How far motor and battery current may go each way. Past the absolute maximum the controller cuts out with a fault.</string>
+    <string name="curve_battery_title">Battery voltage limits</string>
+    <string name="curve_battery_caption">Current allowed at each battery voltage. Drawing current is reduced as the battery empties, regen as it fills up. Outside the input voltage range the controller stops with a fault.</string>
+    <string name="curve_erpm_title">Speed limit</string>
+    <string name="curve_erpm_caption">Drive current is reduced as the motor nears its ERPM limit in either direction. Braking current stays available.</string>
+    <string name="curve_temp_fet_title">MOSFET temperature limit</string>
+    <string name="curve_temp_motor_title">Motor temperature limit</string>
+    <string name="curve_temp_caption">Current allowed as the temperature rises. Drive is cut back earlier than braking, so some braking is left. Past the end the controller stops with a fault.</string>
+    <string name="curve_duty_title">Duty cycle limit</string>
+    <string name="curve_duty_caption">Drive current is reduced close to maximum duty cycle, so the motor eases into its top speed instead of hitting it.</string>
+    <string name="curve_fw_title">Field weakening</string>
+    <string name="curve_fw_caption">Extra current near maximum duty cycle that lets the motor spin faster than the battery voltage alone allows, at the cost of efficiency and heat.</string>
+    <string name="curve_throttle_title">Throttle curve</string>
+    <string name="curve_throttle_caption">Output for each input position. Below the straight line the throttle is gentler around center; above it, sharper.</string>
+    <string name="curve_ppm_title">Pulse mapping</string>
+    <string name="curve_ppm_caption">Throttle for each receiver pulse length, with the deadband where small stick movements do nothing.</string>
+    <string name="curve_ramp_title">Throttle response</string>
+    <string name="curve_ramp_caption">Output when the input jumps to full and is let go. Positive ramping time sets how fast it rises, negative ramping time how fast it falls.</string>
+
+    <string name="curve_fw_off">Field weakening is off while its maximum current is 0 A.</string>
+    <string name="curve_duty_off">No duty cycle limit while it starts at 100 %.</string>
+    <string name="curve_regen_off">Regen is never reduced: its cutoff starts above the maximum input voltage.</string>
+
+    <string name="curve_line_drive">Drive</string>
+    <string name="curve_line_brake">Brake</string>
+    <string name="curve_line_brake_regen">Brake and regen</string>
+    <string name="curve_line_draw">Battery draw</string>
+    <string name="curve_line_regen">Regen</string>
+    <string name="curve_line_output">Output</string>
+    <string name="curve_line_linear">Linear</string>
+    <string name="curve_line_input">Input</string>
+    <string name="curve_line_throttle">Throttle</string>
+    <string name="curve_line_fw">Field weakening</string>
+    <string name="curve_line_motor">Motor</string>
+    <string name="curve_line_battery">Battery</string>
+    <string name="curve_line_abs">Absolute max</string>
+
+    <string name="curve_zone_reduced">Reduced</string>
+    <string name="curve_zone_fault">Fault</string>
+    <string name="curve_zone_no_drive">No drive</string>
+    <string name="curve_zone_deadband">Deadband</string>
+    <string name="curve_zone_active">Active</string>
+    <string name="curve_zone_above_max_duty">Above max duty</string>
+
+    <string name="curve_marker_start">Start</string>
+    <string name="curve_marker_center">Center</string>
+    <string name="curve_marker_end">End</string>
+
+    <string name="curve_axis_input">Input</string>
+    <string name="curve_axis_output">Output</string>
+    <string name="curve_axis_duty">Duty cycle</string>
+    <string name="curve_axis_pulse">Pulse</string>
+    <string name="curve_axis_time">Time</string>
+    <string name="curve_axis_throttle">Throttle</string>
+</resources>
