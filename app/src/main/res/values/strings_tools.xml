@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="nav_tools">Tools</string>
-    <string name="tools_back">Tools</string>
     <string name="tools_section_setup">Setup and calibration</string>
     <string name="tools_section_live">Drive and live data</string>
     <string name="tools_section_hardware">Connected hardware</string>

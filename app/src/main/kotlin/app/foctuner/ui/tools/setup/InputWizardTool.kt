@@ -52,7 +52,8 @@ enum class InputType(@param:StringRes val title: Int, val app: Long, val mapping
     Nrf(R.string.setup_input_nrf, 3, null, CHUK_SETTINGS),
     Adc(
         R.string.setup_input_adc, 5, MappedInput.Adc,
-        listOf("ctrl_type", "use_filter", "safe_start", "cc_button_inverted", "rev_button_inverted", "ramp_time_pos", "ramp_time_neg", "tc", "tc_max_diff")
+        // Firmware 6.x and 7.x keep cruise control and the button inversions in the `buttons` bitfield.
+        listOf("ctrl_type", "use_filter", "safe_start", "buttons", "ramp_time_pos", "ramp_time_neg", "tc", "tc_max_diff")
             .map { "app_adc_conf.$it" },
     ),
     Nunchuk(R.string.setup_input_nunchuk, 6, null, CHUK_SETTINGS),
@@ -211,7 +212,8 @@ fun InputWizardTool(context: ToolContext) {
                     val app = state.app
                     if (app != null) {
                         SectionHeader(stringResource(R.string.setup_input_settings))
-                        state.type.settings.forEach { SettingRow(app, it, { v -> model.set(it, v) }, !busy) }
+                        // A setting the controller's firmware doesn't have is left out rather than failing the page.
+                        state.type.settings.filter { it in app.definition.params }.forEach { SettingRow(app, it, { v -> model.set(it, v) }, !busy) }
                     }
                     if (state.finished) Notice(stringResource(R.string.setup_written_app))
                 }

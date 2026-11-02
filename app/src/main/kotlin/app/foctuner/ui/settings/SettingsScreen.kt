@@ -1,17 +1,13 @@
 package app.foctuner.ui.settings
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
@@ -21,20 +17,22 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -45,12 +43,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import app.foctuner.R
 import app.foctuner.config.Config
@@ -62,21 +61,33 @@ import app.foctuner.config.ParamGroup
 import app.foctuner.config.ParamSubgroup
 import app.foctuner.config.ParamType
 import app.foctuner.config.ParamValue
+import app.foctuner.config.diff
 import app.foctuner.ui.components.Hairline
 import app.foctuner.ui.components.Notice
 import app.foctuner.ui.components.NoticeTone
 import app.foctuner.ui.components.OutlineButton
+import app.foctuner.ui.components.PageHeader
 import app.foctuner.ui.components.PlainButton
 import app.foctuner.ui.components.SectionHeader
-import app.foctuner.ui.prefs.LocalUiPreferences
-import app.foctuner.ui.prefs.UiPreferences
+import app.foctuner.ui.settings.curves.ChartBlock
+import app.foctuner.ui.settings.curves.SettingChart
+import app.foctuner.ui.settings.curves.SettingCharts
+import app.foctuner.ui.theme.FocAnimatedContent
 import app.foctuner.ui.theme.FocTheme
 import app.foctuner.ui.theme.Spacing
 import app.foctuner.ui.theme.ThemePreviews
+import app.foctuner.ui.theme.lateral
+import app.foctuner.ui.theme.motionSpec
+import app.foctuner.ui.theme.push
+
+/** The subgroup page that is open, with the name of the section it belongs to for the breadcrumb. */
+@Immutable
+private data class OpenPage(val section: String, val subgroup: ParamSubgroup)
 
 /**
  * Every motor and app setting, in VESC Tool's sections: a list of groups and their subgroups, and a page of
- * settings per subgroup. Edits stay pending (marked on their rows) until Write stores them on the controller.
+ * settings per subgroup with charts of what the settings do. Edits stay pending (marked on their rows and
+ * previewed on the charts) until Write, which lists them for review before storing them on the controller.
  */
 @Composable
 fun SettingsScreen(state: SettingsState, actions: SettingsActions, modifier: Modifier = Modifier) {
@@ -85,9 +96,10 @@ fun SettingsScreen(state: SettingsState, actions: SettingsActions, modifier: Mod
     var group by rememberSaveable { mutableIntStateOf(-1) }
     var subgroup by rememberSaveable { mutableIntStateOf(-1) }
     var editing by remember { mutableStateOf<String?>(null) }
+    var reviewing by remember { mutableStateOf(false) }
     val pane = state.pane(kind)
     val config = pane.edited
-    val opened = pane.sections.getOrNull(group)?.subgroups?.getOrNull(subgroup)
+    val opened = pane.sections.getOrNull(group)?.subgroups?.getOrNull(subgroup)?.let { OpenPage(pane.sections[group].name, it) }
 
     LaunchedEffect(kind) { actions.open(kind) }
     BackHandler(enabled = opened != null) {
@@ -116,74 +128,79 @@ fun SettingsScreen(state: SettingsState, actions: SettingsActions, modifier: Mod
             } else {
                 Hairline(Modifier.padding(top = 2.dp))
             }
-            pane.error?.let { error ->
-                Notice(
-                    title = error,
-                    tone = NoticeTone.Warning,
-                    action = stringResource(R.string.settings_read_again),
-                    onAction = { actions.read(kind) },
-                )
-            }
-            Box(Modifier.weight(1f)) {
-                if (config == null) {
-                    Text(
-                        stringResource(if (pane.work != null) R.string.settings_reading else R.string.settings_not_read),
-                        Modifier.padding(Spacing.x2),
-                        color = colors.textSecondary,
-                        style = FocTheme.type.supporting,
-                    )
-                } else {
-                    val onBack = {
-                        group = -1
-                        subgroup = -1
-                    }
-                    // The open subgroup, paired with its section name for the breadcrumb; null shows the list.
-                    val openPage = opened?.let { pane.sections[group].name to it }
-                    val renderList: @Composable () -> Unit = {
-                        SectionList(pane.sections, config.definition, pane.changed) { g, s ->
-                            group = g
-                            subgroup = s
-                        }
-                    }
-                    val renderPage: @Composable (Pair<String, ParamSubgroup>) -> Unit = { page ->
-                        SubgroupPage(
-                            section = page.first,
-                            subgroupName = page.second.name,
-                            subgroup = page.second,
-                            config = config,
-                            changed = pane.changed,
-                            onBack = onBack,
-                            onOpen = { editing = it },
-                            onSet = { name, value -> actions.edit(kind, name, value) },
+            FocAnimatedContent(
+                target = kind,
+                label = "settings-kind",
+                modifier = Modifier.weight(1f),
+                transition = { lateral(if (targetState.ordinal > initialState.ordinal) 1 else -1) },
+            ) { shown ->
+                val shownPane = state.pane(shown)
+                val shownConfig = shownPane.edited
+                Column(
+                    Modifier
+                        .fillMaxSize()
+                        .background(colors.background),
+                ) {
+                    shownPane.error?.let { error ->
+                        Notice(
+                            title = error,
+                            tone = NoticeTone.Warning,
+                            action = stringResource(R.string.settings_read_again),
+                            onAction = { actions.read(shown) },
                         )
                     }
-                    if (LocalUiPreferences.current.animations) {
-                        AnimatedContent(
-                            targetState = openPage,
-                            transitionSpec = {
-                                val dir = if (targetState != null) 1 else -1
-                                (slideInHorizontally(tween(240)) { full -> dir * full } + fadeIn(tween(160)))
-                                    .togetherWith(slideOutHorizontally(tween(240)) { full -> -dir * full } + fadeOut(tween(120)))
-                            },
-                            label = "settings-page",
-                        ) { page ->
-                            if (page != null) renderPage(page) else renderList()
+                    Box(Modifier.weight(1f)) {
+                        if (shownConfig == null) {
+                            Text(
+                                stringResource(if (shownPane.work != null) R.string.settings_reading else R.string.settings_not_read),
+                                Modifier.padding(Spacing.x2),
+                                color = colors.textSecondary,
+                                style = FocTheme.type.supporting,
+                            )
+                        } else {
+                            FocAnimatedContent(
+                                target = if (shown == kind) opened else null,
+                                label = "settings-page",
+                                transition = { push(forward = targetState != null) },
+                            ) { page ->
+                                if (page != null) {
+                                    SubgroupPage(
+                                        breadcrumb = stringResource(
+                                            R.string.breadcrumb,
+                                            stringResource(if (shown == ConfigKind.MCCONF) R.string.settings_motor else R.string.settings_app),
+                                            page.section,
+                                        ),
+                                        subgroup = page.subgroup,
+                                        config = shownConfig,
+                                        stored = shownPane.stored,
+                                        changed = shownPane.changed,
+                                        onBack = {
+                                            group = -1
+                                            subgroup = -1
+                                        },
+                                        onOpen = { editing = it },
+                                        onSet = { name, value -> actions.edit(shown, name, value) },
+                                    )
+                                } else {
+                                    SectionList(shownPane.sections, shownConfig.definition, shownPane.changed) { g, s ->
+                                        group = g
+                                        subgroup = s
+                                    }
+                                }
+                            }
                         }
-                    } else {
-                        if (openPage != null) renderPage(openPage) else renderList()
                     }
                 }
             }
         }
-        ActionBar(pane, kind, actions)
+        ActionBar(pane, kind, actions, onWrite = { reviewing = true })
     }
 
     val param = editing?.let { config?.definition?.params?.get(it) }
     if (param != null && config != null) {
         ParamDialog(
             param = param,
-            definition = config.definition,
-            value = config[param.name],
+            config = config,
             stored = pane.stored?.get(param.name),
             onSet = {
                 actions.edit(kind, param.name, it)
@@ -192,42 +209,66 @@ fun SettingsScreen(state: SettingsState, actions: SettingsActions, modifier: Mod
             onDismiss = { editing = null },
         )
     }
+
+    val stored = pane.stored
+    if (reviewing && stored != null && config != null) {
+        val changes = remember(stored, config) { stored.diff(config) }
+        if (changes.isNotEmpty()) {
+            ReviewDialog(
+                changes = changes,
+                definition = config.definition,
+                onWrite = {
+                    reviewing = false
+                    actions.write(kind)
+                },
+                onDismiss = { reviewing = false },
+            )
+        }
+    }
 }
 
 @Composable
 private fun KindTabs(selected: ConfigKind, onSelect: (ConfigKind) -> Unit) {
     val colors = FocTheme.colors
-    Row(
+    BoxWithConstraints(
         Modifier
             .fillMaxWidth()
-            .height(Spacing.touchTarget)
-            .selectableGroup(),
+            .height(Spacing.touchTarget),
     ) {
-        for (kind in ConfigKind.entries) {
-            val isSelected = kind == selected
-            Box(
-                Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .selectable(selected = isSelected, role = Role.Tab, onClick = { onSelect(kind) }),
-                contentAlignment = Alignment.Center,
-            ) {
-                Text(
-                    stringResource(if (kind == ConfigKind.MCCONF) R.string.settings_motor else R.string.settings_app),
-                    color = if (isSelected) colors.text else colors.textTertiary,
-                    style = FocTheme.type.label,
-                )
-                if (isSelected) {
-                    Box(
-                        Modifier
-                            .align(Alignment.BottomCenter)
-                            .width(48.dp)
-                            .height(2.dp)
-                            .background(colors.accent),
+        val tabWidth = maxWidth / ConfigKind.entries.size
+        val indicator = 48.dp
+        val indicatorX by animateDpAsState(tabWidth * selected.ordinal + (tabWidth - indicator) / 2, motionSpec(), label = "tab-indicator")
+        Row(
+            Modifier
+                .fillMaxSize()
+                .selectableGroup(),
+        ) {
+            for (kind in ConfigKind.entries) {
+                val isSelected = kind == selected
+                val tint by animateColorAsState(if (isSelected) colors.text else colors.textTertiary, motionSpec(), label = "tab-text")
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .selectable(selected = isSelected, role = Role.Tab, onClick = { onSelect(kind) }),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        stringResource(if (kind == ConfigKind.MCCONF) R.string.settings_motor else R.string.settings_app),
+                        color = tint,
+                        style = FocTheme.type.label,
                     )
                 }
             }
         }
+        Box(
+            Modifier
+                .align(Alignment.BottomStart)
+                .offset { IntOffset(indicatorX.roundToPx(), 0) }
+                .width(indicator)
+                .height(2.dp)
+                .background(colors.accent),
+        )
     }
 }
 
@@ -239,12 +280,18 @@ private fun SectionList(
     onOpen: (group: Int, subgroup: Int) -> Unit,
 ) {
     val colors = FocTheme.colors
-    LazyColumn(Modifier.fillMaxSize()) {
+    val chartLabel = stringResource(R.string.curve_has_chart)
+    LazyColumn(
+        Modifier
+            .fillMaxSize()
+            .background(colors.background),
+    ) {
         sections.forEachIndexed { g, group ->
             item(key = "g$g") { SectionHeader(group.name) }
             itemsIndexed(group.subgroups, key = { s, _ -> "g$g-s$s" }) { s, subgroup ->
                 val names = subgroup.paramNames.filter { it in definition.params }
                 val pending = names.count { it in changed }
+                val charted = remember(subgroup, definition) { SettingCharts.on(subgroup, definition).isNotEmpty() }
                 Column {
                     Hairline(Modifier.padding(start = if (s == 0) 0.dp else Spacing.x2))
                     Row(
@@ -256,6 +303,16 @@ private fun SectionList(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(subgroup.name, Modifier.weight(1f), color = colors.text, style = FocTheme.type.body)
+                        if (charted) {
+                            Icon(
+                                painterResource(R.drawable.ic_curve),
+                                chartLabel,
+                                Modifier
+                                    .padding(end = Spacing.x1)
+                                    .size(18.dp),
+                                tint = colors.textTertiary,
+                            )
+                        }
                         Text(
                             if (pending > 0) {
                                 pluralStringResource(R.plurals.settings_changed, pending, pending)
@@ -276,10 +333,10 @@ private fun SectionList(
 
 @Composable
 private fun SubgroupPage(
-    section: String,
-    subgroupName: String,
+    breadcrumb: String,
     subgroup: ParamSubgroup,
     config: Config,
+    stored: Config?,
     changed: Set<String>,
     onBack: () -> Unit,
     onOpen: (String) -> Unit,
@@ -287,41 +344,47 @@ private fun SubgroupPage(
 ) {
     val colors = FocTheme.colors
     val none = stringResource(R.string.settings_none)
-    Column(Modifier.fillMaxSize()) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .heightIn(min = Spacing.touchTarget)
-                .padding(start = Spacing.x1, end = Spacing.x2),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            PlainButton("‹ " + stringResource(R.string.settings_back), onBack)
-            Column(Modifier.weight(1f)) {
-                Text(
-                    stringResource(R.string.settings_in_section, section),
-                    color = colors.accent,
-                    style = FocTheme.type.caption,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                Text(
-                    subgroupName,
-                    color = colors.text,
-                    style = FocTheme.type.bodyStrong,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-        }
+    val charts = remember(subgroup, config.definition) { SettingCharts.on(subgroup, config.definition) }
+    val anchored = remember(charts) { charts.filterNot { it.atTop }.associateBy { it.anchor } }
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(colors.background),
+    ) {
+        PageHeader(subgroup.name, onBack, breadcrumb = breadcrumb)
         Hairline()
         LazyColumn(Modifier.fillMaxSize()) {
-            items(subgroup.entries) { entry ->
+            // The controller's values are drawn under a chart only while one of its settings has a pending edit.
+            fun storedFor(chart: SettingChart) = stored?.takeIf { chart.params.any { it in changed } }
+            for (chart in charts.filter { it.atTop }) {
+                item(key = "chart-${chart.key}") {
+                    ChartBlock(chart, config, storedFor(chart), R.string.curve_on_controller, Modifier.padding(Spacing.x2))
+                    Hairline()
+                }
+            }
+            subgroup.entries.forEachIndexed { index, entry ->
                 when (entry) {
-                    is GroupEntry.Separator -> SectionHeader(entry.label)
-                    is GroupEntry.Param -> config.definition.params[entry.name]?.let { param ->
-                        Column {
-                            ParamRow(param, config[param.name], param.name in changed, none, { onOpen(param.name) }) { onSet(param.name, it) }
-                            Hairline(Modifier.padding(start = Spacing.x2))
+                    is GroupEntry.Separator -> item(key = "sep$index") { SectionHeader(entry.label) }
+                    is GroupEntry.Param -> {
+                        anchored[entry.name]?.let { chart ->
+                            item(key = "chart-${chart.key}") {
+                                ChartBlock(chart, config, storedFor(chart), R.string.curve_on_controller, Modifier.padding(Spacing.x2))
+                                Hairline()
+                            }
+                        }
+                        val param = config.definition.params[entry.name] ?: return@forEachIndexed
+                        item(key = "param$index") {
+                            Column {
+                                ParamRow(
+                                    param = param,
+                                    value = config[param.name],
+                                    stored = stored?.get(param.name),
+                                    changed = param.name in changed,
+                                    none = none,
+                                    onOpen = { onOpen(param.name) },
+                                ) { onSet(param.name, it) }
+                                Hairline(Modifier.padding(start = Spacing.x2))
+                            }
                         }
                     }
                 }
@@ -335,12 +398,14 @@ private fun SubgroupPage(
 private fun ParamRow(
     param: ParamDefinition,
     value: ParamValue,
+    stored: ParamValue?,
     changed: Boolean,
     none: String,
     onOpen: () -> Unit,
     onSet: (ParamValue) -> Unit,
 ) {
     val colors = FocTheme.colors
+    val bar by animateColorAsState(if (changed) colors.warning else Color.Transparent, motionSpec(), label = "changed-bar")
     Row(
         Modifier
             .fillMaxWidth()
@@ -353,7 +418,7 @@ private fun ParamRow(
             Modifier
                 .width(3.dp)
                 .fillMaxHeight()
-                .background(if (changed) colors.warning else Color.Transparent),
+                .background(bar),
         )
         Column(
             Modifier
@@ -362,6 +427,9 @@ private fun ParamRow(
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Text(param.longName, color = colors.text, style = FocTheme.type.body)
+            if (changed && stored != null) {
+                Text(stringResource(R.string.settings_was, param.display(stored, none)), color = colors.warning, style = FocTheme.type.caption)
+            }
             if (!param.transmittable) {
                 Text(stringResource(R.string.settings_not_on_controller), color = colors.textTertiary, style = FocTheme.type.caption)
             }
@@ -386,7 +454,7 @@ private fun ParamRow(
                 Modifier
                     .widthIn(max = 200.dp)
                     .padding(horizontal = Spacing.x2),
-                color = colors.textSecondary,
+                color = if (changed) colors.text else colors.textSecondary,
                 style = FocTheme.type.value,
                 textAlign = TextAlign.End,
                 maxLines = 2,
@@ -397,7 +465,7 @@ private fun ParamRow(
 }
 
 @Composable
-private fun ActionBar(pane: ConfigPaneState, kind: ConfigKind, actions: SettingsActions) {
+private fun ActionBar(pane: ConfigPaneState, kind: ConfigKind, actions: SettingsActions, onWrite: () -> Unit) {
     val colors = FocTheme.colors
     val idle = pane.work == null
     val loaded = pane.stored != null
@@ -422,7 +490,7 @@ private fun ActionBar(pane: ConfigPaneState, kind: ConfigKind, actions: Settings
             PlainButton(stringResource(R.string.settings_revert), { actions.revert(kind) }, enabled = idle && pending > 0)
             OutlineButton(
                 if (pending > 0) stringResource(R.string.settings_write_count, pending) else stringResource(R.string.settings_write),
-                { actions.write(kind) },
+                onWrite,
                 enabled = idle && pending > 0,
             )
         }
@@ -455,20 +523,17 @@ private object NoActions : SettingsActions {
 @Composable
 private fun SettingsPreview() {
     val stored = Config.defaults(previewDefinition)
-    val prefs = UiPreferences.from(LocalContext.current)
     FocTheme {
-        CompositionLocalProvider(LocalUiPreferences provides prefs) {
-            SettingsScreen(
-                SettingsState(
-                    motor = ConfigPaneState(
-                        sections = previewDefinition.groups,
-                        stored = stored,
-                        edited = stored.with("l_current_max", 80.0),
-                        changed = setOf("l_current_max"),
-                    ),
+        SettingsScreen(
+            SettingsState(
+                motor = ConfigPaneState(
+                    sections = previewDefinition.groups,
+                    stored = stored,
+                    edited = stored.with("l_current_max", 80.0),
+                    changed = setOf("l_current_max"),
                 ),
-                NoActions,
-            )
-        }
+            ),
+            NoActions,
+        )
     }
 }

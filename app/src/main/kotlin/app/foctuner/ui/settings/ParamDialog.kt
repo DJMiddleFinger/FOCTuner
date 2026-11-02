@@ -35,33 +35,41 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import app.foctuner.R
-import app.foctuner.config.ConfigDefinition
+import app.foctuner.config.Config
 import app.foctuner.config.ParamDefinition
 import app.foctuner.config.ParamType
 import app.foctuner.config.ParamValue
 import app.foctuner.config.validate
 import app.foctuner.ui.components.PlainButton
+import app.foctuner.ui.settings.curves.ChartBlock
+import app.foctuner.ui.settings.curves.SettingCharts
 import app.foctuner.ui.theme.FocTheme
 import app.foctuner.ui.theme.Spacing
 
-/** Edits one setting with the editor its type needs, and shows VESC Tool's description of it. */
+/**
+ * Edits one setting with the editor its type needs, and shows VESC Tool's description of it. When the setting
+ * feeds a chart, the chart previews the value being entered against the current one ([config] holds the other
+ * pending edits).
+ */
 @Composable
 internal fun ParamDialog(
     param: ParamDefinition,
-    definition: ConfigDefinition,
-    value: ParamValue,
+    config: Config,
     stored: ParamValue?,
     onSet: (ParamValue) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val colors = FocTheme.colors
     val none = stringResource(R.string.settings_none)
+    val definition = config.definition
+    val value = config[param.name]
     var text by remember { mutableStateOf(param.editText(value)) }
     var option by remember { mutableLongStateOf((value as? ParamValue.IntValue)?.value ?: 0L) }
     val usesText = param.type == ParamType.DOUBLE || param.type == ParamType.INT || param.type == ParamType.STRING
     val candidate = if (usesText) param.parse(text) else ParamValue.IntValue(option)
     val issue = candidate?.let { definition.validate(param.name, it) }
     val description = remember(param) { plainDescription(param.description) }
+    val chart = remember(param.name, definition) { SettingCharts.forParam(param.name, definition) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -148,6 +156,18 @@ internal fun ParamDialog(
                 }
                 if (stored != null && stored != value) {
                     Text(stringResource(R.string.settings_on_controller, param.display(stored, none)), color = colors.textTertiary, style = FocTheme.type.caption)
+                }
+                if (chart != null) {
+                    // Only a value that shows differently counts as a change, so re-entering the same number draws no comparison.
+                    val edit = candidate?.takeIf { issue == null && param.accepts(it) && param.display(it, none) != param.display(value, none) }
+                    ChartBlock(
+                        chart,
+                        edit?.let { config.with(param.name, it) } ?: config,
+                        config.takeIf { edit != null },
+                        R.string.curve_current_value,
+                        Modifier.padding(top = Spacing.x1),
+                        compact = true,
+                    )
                 }
                 if (description.isNotEmpty()) {
                     Text(description, Modifier.padding(top = Spacing.x1), color = colors.textSecondary, style = FocTheme.type.supporting)

@@ -47,7 +47,26 @@ IBM Plex Sans (UI) and IBM Plex Mono (every number), bundled from the official I
 
 ## Components (`ui/components/`)
 
-`Readout`, `Sparkline` (Canvas, fixed sample spacing, minimum span so noise stays flat, zero line when the range crosses zero), `SectionHeader`, `Hairline`, `Notice` (neutral / warning / fault band with a 3dp bar; title, why, what to check, one action), `OutlineButton`, `PlainButton`. Icons are our own 24dp, 1.75 stroke vectors in `res/drawable/ic_*`; only navigation and a few controls get icons.
+`Readout`, `Sparkline` (Canvas, fixed sample spacing, minimum span so noise stays flat, zero line when the range crosses zero), `SectionHeader`, `Hairline`, `Notice` (neutral / warning / fault band with a 3dp bar; title, why, what to check, one action), `OutlineButton`, `PlainButton`, `PageHeader` (back arrow, breadcrumb, page title: every page opened from a list). Icons are our own 24dp, 1.75 stroke vectors in `res/drawable/ic_*`; only navigation and a few controls get icons.
+
+## Charts (`ui/settings/curves/`)
+
+Settings that shape a curve get a chart of what the firmware does with them, computed with the firmware's own formulas (`CurveMath`, unit-tested): throttle curves, thermal, battery voltage, ERPM and duty cycle derating, field weakening, PPM pulse mapping, throttle ramping, and the current limits as bars. `SettingCharts` says which chart sits above which setting; the same chart previews the value being typed in that setting's edit dialog.
+
+- Drawn with Canvas on a `surface` plot (`background` inside dialogs) with a hairline grid; tick labels in Plex Mono, the outermost carrying the unit; axis names inside the plot only when the unit doesn't say it.
+- The curve of the value being set is `accent` (it is the selection); its counterpart (braking, regen) `textSecondary`; guides (linear, input step) thin `outline`; the controller's value, while an edit is pending, dashed `textTertiary`.
+- Zones only where the firmware acts: `warningContainer` with a `warning` top edge where it reduces current, `faultContainer`/`fault` where it cuts out or faults.
+- Tap or drag to place a cursor; the readout box lists every line's value at that point, on the side away from the finger.
+- One title (sentence case), a legend, and one sentence of what the chart shows. A note says when the settings switch the feature off.
+
+## Motion (`ui/theme/Motion.kt`)
+
+Emphasized easing (fast start, long settle), 150/300/420 ms. Everything goes through `FocAnimatedContent`, `motionSpec()` or `LocalMotion`, so Display › Animations turns all of it off.
+
+- Into a page from a list (settings subgroup, tool): `push`, the page slides the full width over a list that shifts a quarter and fades; back reverses it.
+- Between siblings (destinations, Motor/App): `lateral`, a fifth-width slide in the direction of travel with a cross-fade.
+- Connect screen and connected shell: `fadeThrough`.
+- Small state: nav and tab indicators, colors of pending rows, notices pushing content, chart curves bending into new values.
 
 ## Copy
 
@@ -55,4 +74,4 @@ Short and specific: "Bluetooth is off", "No controllers found" plus what to chec
 
 ## Don'ts
 
-Gradients, glows, glass, shadows for depth, emoji, decorative icons on every row, rounded cards everywhere, centered hero text, filler copy, chart libraries, accent on things that are neither live nor selected.
+Gradients, glows, glass, shadows for depth, emoji, decorative icons on every row, rounded cards everywhere, centered hero text, filler copy, chart libraries, accent on things that are neither live nor selected, motion that ignores the Animations switch.

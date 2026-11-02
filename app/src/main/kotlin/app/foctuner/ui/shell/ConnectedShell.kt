@@ -1,12 +1,7 @@
 package app.foctuner.ui.shell
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
-import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.animation.togetherWith
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -37,13 +32,14 @@ import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -56,11 +52,12 @@ import androidx.compose.ui.unit.dp
 import app.foctuner.R
 import app.foctuner.ui.components.Hairline
 import app.foctuner.ui.components.PlainButton
-import app.foctuner.ui.prefs.LocalUiPreferences
-import app.foctuner.ui.prefs.UiPreferences
+import app.foctuner.ui.theme.FocAnimatedContent
 import app.foctuner.ui.theme.FocTheme
 import app.foctuner.ui.theme.Spacing
 import app.foctuner.ui.theme.ThemePreviews
+import app.foctuner.ui.theme.lateral
+import app.foctuner.ui.theme.motionSpec
 
 /**
  * Frame around the connected screens: what we're connected to at the top, destinations in a bottom bar on
@@ -105,19 +102,18 @@ fun ConnectedShell(
                             },
                         ),
                 ) {
-                    if (LocalUiPreferences.current.animations) {
-                        AnimatedContent(
-                            targetState = current,
-                            modifier = Modifier.fillMaxSize(),
-                            transitionSpec = {
-                                val dir = if (targetState.ordinal >= initialState.ordinal) 1 else -1
-                                (slideInHorizontally(tween(220)) { full -> dir * full / 6 } + fadeIn(tween(180)))
-                                    .togetherWith(slideOutHorizontally(tween(220)) { full -> -dir * full / 6 } + fadeOut(tween(140)))
-                            },
-                            label = "screen",
-                        ) { shown -> content(shown) }
-                    } else {
-                        content(current)
+                    // Destinations slide in the direction of their place in the navigation bar.
+                    FocAnimatedContent(
+                        target = current,
+                        label = "screen",
+                        modifier = Modifier.fillMaxSize(),
+                        transition = { lateral(if (targetState.ordinal >= initialState.ordinal) 1 else -1) },
+                    ) { shown ->
+                        Box(
+                            Modifier
+                                .fillMaxSize()
+                                .background(colors.background),
+                        ) { content(shown) }
                     }
                 }
             }
@@ -202,7 +198,7 @@ private fun BottomBar(current: Destination, onNavigate: (Destination) -> Unit) {
                 .selectableGroup(),
         ) {
             Destination.entries.forEach { destination ->
-                NavItem(destination, destination == current, onNavigate, indicatorOnTop = true, Modifier.weight(1f).fillMaxHeight())
+                NavItem(destination, destination == current, onNavigate, Modifier.weight(1f).fillMaxHeight())
             }
         }
     }
@@ -221,38 +217,46 @@ private fun Rail(current: Destination, onNavigate: (Destination) -> Unit) {
         verticalArrangement = Arrangement.spacedBy(Spacing.half),
     ) {
         Destination.entries.forEach { destination ->
-            NavItem(destination, destination == current, onNavigate, indicatorOnTop = false, Modifier.fillMaxWidth().height(72.dp))
+            NavItem(destination, destination == current, onNavigate, Modifier.fillMaxWidth().height(72.dp))
         }
     }
 }
 
+/**
+ * One destination: the selected one gets an accent pill behind its icon that grows from the center, so where you
+ * are reads at a glance without a line that could be mistaken for part of the screen above.
+ */
 @Composable
 private fun NavItem(
     destination: Destination,
     selected: Boolean,
     onNavigate: (Destination) -> Unit,
-    indicatorOnTop: Boolean,
     modifier: Modifier,
 ) {
     val colors = FocTheme.colors
-    val tint = if (selected) colors.text else colors.textTertiary
+    val shown by animateFloatAsState(if (selected) 1f else 0f, motionSpec(), label = "nav-indicator")
+    val iconTint by animateColorAsState(if (selected) colors.accent else colors.textTertiary, motionSpec(), label = "nav-icon")
+    val labelTint by animateColorAsState(if (selected) colors.text else colors.textTertiary, motionSpec(), label = "nav-label")
     Box(
         modifier.selectable(selected = selected, role = Role.Tab, onClick = { onNavigate(destination) }),
         contentAlignment = Alignment.Center,
     ) {
-        if (selected) {
-            Box(
-                Modifier
-                    .align(if (indicatorOnTop) Alignment.TopCenter else Alignment.CenterStart)
-                    .size(if (indicatorOnTop) 32.dp else 2.dp, if (indicatorOnTop) 2.dp else 32.dp)
-                    .background(colors.accent),
-            )
-        }
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(Spacing.half)) {
-            Icon(painterResource(destination.icon), contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
+            Box(Modifier.size(56.dp, 32.dp), contentAlignment = Alignment.Center) {
+                Box(
+                    Modifier
+                        .graphicsLayer {
+                            scaleX = 0.4f + 0.6f * shown
+                            alpha = shown
+                        }
+                        .fillMaxSize()
+                        .background(colors.accent.copy(alpha = 0.16f), MaterialTheme.shapes.extraLarge),
+                )
+                Icon(painterResource(destination.icon), contentDescription = null, tint = iconTint, modifier = Modifier.size(24.dp))
+            }
             Text(
                 stringResource(destination.label),
-                color = tint,
+                color = labelTint,
                 style = FocTheme.type.caption.copy(fontWeight = if (selected) FontWeight.Medium else FontWeight.Normal),
                 maxLines = 1,
             )
@@ -263,15 +267,12 @@ private fun NavItem(
 @ThemePreviews
 @Composable
 private fun ShellPreview() {
-    val prefs = UiPreferences.from(LocalContext.current)
     FocTheme {
-        CompositionLocalProvider(LocalUiPreferences provides prefs) {
-            ConnectedShell(
-                SessionHeaderState("Onewheel build", "60_MK6", "6.05", "Bluetooth", live = true, targetCanId = 25),
-                Destination.Overview,
-                {},
-                {},
-            ) {}
-        }
+        ConnectedShell(
+            SessionHeaderState("Onewheel build", "60_MK6", "6.05", "Bluetooth", live = true, targetCanId = 25),
+            Destination.Overview,
+            {},
+            {},
+        ) {}
     }
 }
