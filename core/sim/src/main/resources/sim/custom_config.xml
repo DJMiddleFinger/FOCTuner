@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ConfigParams>
+    <Params>
+        <hw_name>
+            <longName>Demo Package</longName>
+            <type>0</type>
+            <transmittable>0</transmittable>
+            <description>Settings of the simulator's demo package.</description>
+            <cDefine></cDefine>
+        </hw_name>
+        <top_speed>
+            <longName>Top Speed</longName>
+            <type>1</type>
+            <transmittable>1</transmittable>
+            <description>Speed above which the package pushes back.</description>
+            <cDefine>CFG_DFLT_TOP_SPEED</cDefine>
+            <editorDecimalsDouble>1</editorDecimalsDouble>
+            <editorScale>1</editorScale>
+            <editAsPercentage>0</editAsPercentage>
+            <maxDouble>80</maxDouble>
+            <minDouble>0</minDouble>
+            <showDisplay>0</showDisplay>
+            <stepDouble>0.5</stepDouble>
+            <valDouble>25</valDouble>
+            <vTxDoubleScale>1</vTxDoubleScale>
+            <suffix> km/h</suffix>
+            <vTx>9</vTx>
+        </top_speed>
+        <tilt_angle>
+            <longName>Tilt Angle</longName>
+            <type>1</type>
+            <transmittable>1</transmittable>
+            <description>Nose tilt at top speed.</description>
+            <cDefine>CFG_DFLT_TILT_ANGLE</cDefine>
+            <editorDecimalsDouble>2</editorDecimalsDouble>
+            <editorScale>1</editorScale>
+            <editAsPercentage>0</editAsPercentage>
+            <maxDouble>10</maxDouble>
+            <minDouble>-10</minDouble>
+            <showDisplay>0</showDisplay>
+            <stepDouble>0.1</stepDouble>
+            <valDouble>2.5</valDouble>
+            <vTxDoubleScale>100</vTxDoubleScale>
+            <suffix>°</suffix>
+            <vTx>7</vTx>
+        </tilt_angle>
+        <ride_mode>
+            <longName>Ride Mode</longName>
+            <type>4</type>
+            <transmittable>1</transmittable>
+            <description>How the package maps the throttle.</description>
+            <cDefine>CFG_DFLT_RIDE_MODE</cDefine>
+            <valInt>0</valInt>
+            <enumNames>Normal</enumNames>
+            <enumNames>Sport</enumNames>
+            <enumNames>Eco</enumNames>
+        </ride_mode>
+        <lights_on>
+            <longName>Lights</longName>
+            <type>5</type>
+            <transmittable>1</transmittable>
+            <description>Turn the lights on at start.</description>
+            <cDefine>CFG_DFLT_LIGHTS_ON</cDefine>
+            <valInt>1</valInt>
+        </lights_on>
+        <brightness>
+            <longName>Brightness</longName>
+            <type>2</type>
+            <transmittable>1</transmittable>
+            <description>LED brightness.</description>
+            <cDefine>CFG_DFLT_BRIGHTNESS</cDefine>
+            <editorScale>1</editorScale>
+            <editAsPercentage>0</editAsPercentage>
+            <maxInt>100</maxInt>
+            <minInt>0</minInt>
+            <showDisplay>0</showDisplay>
+            <stepInt>5</stepInt>
+            <valInt>60</valInt>
+            <suffix> %</suffix>
+            <vTx>1</vTx>
+        </brightness>
+        <led_outputs>
+            <longName>LED Outputs</longName>
+            <type>6</type>
+            <transmittable>1</transmittable>
+            <description>Which LED strips are driven.</description>
+            <cDefine>CFG_DFLT_LED_OUTPUTS</cDefine>
+            <valInt>3</valInt>
+            <enumNames>Front</enumNames>
+            <enumNames>Rear</enumNames>
+            <enumNames>Left</enumNames>
+            <enumNames>Right</enumNames>
+            <enumNames>Status</enumNames>
+            <enumNames>Unused 5</enumNames>
+            <enumNames>Unused 6</enumNames>
+            <enumNames>Unused 7</enumNames>
+        </led_outputs>
+        <rider_name>
+            <longName>Rider Name</longName>
+            <type>3</type>
+            <transmittable>1</transmittable>
+            <description>Shown on the dashboard.</description>
+            <cDefine>CFG_DFLT_RIDER_NAME</cDefine>
+            <valString>FOCTuner</valString>
+            <maxLen>20</maxLen>
+        </rider_name>
+    </Params>
+    <SerOrder>
+        <ser>top_speed</ser>
+        <ser>tilt_angle</ser>
+        <ser>ride_mode</ser>
+        <ser>lights_on</ser>
+        <ser>brightness</ser>
+        <ser>led_outputs</ser>
+        <ser>rider_name</ser>
+    </SerOrder>
+    <Grouping>
+        <group>
+            <groupName>General</groupName>
+            <subgroup>
+                <subgroupName>Ride</subgroupName>
+                <subgroupParams>
+                    <param>::sep::Speed</param>
+                    <param>top_speed</param>
+                    <param>tilt_angle</param>
+                    <param>::sep::Input</param>
+                    <param>ride_mode</param>
+                </subgroupParams>
+            </subgroup>
+            <subgroup>
+                <subgroupName>Lights</subgroupName>
+                <subgroupParams>
+                    <param>lights_on</param>
+                    <param>brightness</param>
+                    <param>led_outputs</param>
+                </subgroupParams>
+            </subgroup>
+            <subgroup>
+                <subgroupName>About</subgroupName>
+                <subgroupParams>
+                    <param>rider_name</param>
+                </subgroupParams>
+            </subgroup>
+        </group>
+    </Grouping>
+</ConfigParams>

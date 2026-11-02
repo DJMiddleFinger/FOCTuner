@@ -10,6 +10,7 @@ import app.foctuner.protocol.ByteWriter
 import app.foctuner.protocol.CommPacketId
 import app.foctuner.protocol.CommPacketId.COMM_ALIVE
 import app.foctuner.protocol.CommPacketId.COMM_BMS_FORCE_BALANCE
+import app.foctuner.protocol.CommPacketId.COMM_CUSTOM_APP_DATA
 import app.foctuner.protocol.CommPacketId.COMM_BMS_GET_VALUES
 import app.foctuner.protocol.CommPacketId.COMM_BMS_RESET_COUNTERS
 import app.foctuner.protocol.CommPacketId.COMM_BMS_SET_BALANCE_OVERRIDE
@@ -27,17 +28,26 @@ import app.foctuner.protocol.CommPacketId.COMM_ERASE_BOOTLOADER
 import app.foctuner.protocol.CommPacketId.COMM_ERASE_BOOTLOADER_ALL_CAN
 import app.foctuner.protocol.CommPacketId.COMM_ERASE_NEW_APP
 import app.foctuner.protocol.CommPacketId.COMM_ERASE_NEW_APP_ALL_CAN
+import app.foctuner.protocol.CommPacketId.COMM_FILE_LIST
+import app.foctuner.protocol.CommPacketId.COMM_FILE_MKDIR
+import app.foctuner.protocol.CommPacketId.COMM_FILE_READ
+import app.foctuner.protocol.CommPacketId.COMM_FILE_REMOVE
+import app.foctuner.protocol.CommPacketId.COMM_FILE_WRITE
 import app.foctuner.protocol.CommPacketId.COMM_FORWARD_CAN
 import app.foctuner.protocol.CommPacketId.COMM_FW_INFO
 import app.foctuner.protocol.CommPacketId.COMM_FW_VERSION
 import app.foctuner.protocol.CommPacketId.COMM_GET_APPCONF
 import app.foctuner.protocol.CommPacketId.COMM_GET_APPCONF_DEFAULT
+import app.foctuner.protocol.CommPacketId.COMM_GET_CUSTOM_CONFIG
+import app.foctuner.protocol.CommPacketId.COMM_GET_CUSTOM_CONFIG_DEFAULT
+import app.foctuner.protocol.CommPacketId.COMM_GET_CUSTOM_CONFIG_XML
 import app.foctuner.protocol.CommPacketId.COMM_GET_DECODED_ADC
 import app.foctuner.protocol.CommPacketId.COMM_GET_DECODED_CHUK
 import app.foctuner.protocol.CommPacketId.COMM_GET_DECODED_PPM
 import app.foctuner.protocol.CommPacketId.COMM_GET_IMU_CALIBRATION
 import app.foctuner.protocol.CommPacketId.COMM_GET_MCCONF
 import app.foctuner.protocol.CommPacketId.COMM_GET_MCCONF_DEFAULT
+import app.foctuner.protocol.CommPacketId.COMM_GET_QML_UI_APP
 import app.foctuner.protocol.CommPacketId.COMM_GET_STATS
 import app.foctuner.protocol.CommPacketId.COMM_GET_GNSS
 import app.foctuner.protocol.CommPacketId.COMM_GET_IMU_DATA
@@ -62,6 +72,8 @@ import app.foctuner.protocol.CommPacketId.COMM_PING_CAN
 import app.foctuner.protocol.CommPacketId.COMM_PRINT
 import app.foctuner.protocol.CommPacketId.COMM_PSW_GET_STATUS
 import app.foctuner.protocol.CommPacketId.COMM_PSW_SWITCH
+import app.foctuner.protocol.CommPacketId.COMM_QMLUI_ERASE
+import app.foctuner.protocol.CommPacketId.COMM_QMLUI_WRITE
 import app.foctuner.protocol.CommPacketId.COMM_RESET_STATS
 import app.foctuner.protocol.CommPacketId.COMM_SET_APPCONF
 import app.foctuner.protocol.CommPacketId.COMM_SET_APPCONF_NO_STORE
@@ -72,6 +84,7 @@ import app.foctuner.protocol.CommPacketId.COMM_SET_ODOMETER
 import app.foctuner.protocol.CommPacketId.COMM_SET_CURRENT
 import app.foctuner.protocol.CommPacketId.COMM_SET_CURRENT_BRAKE
 import app.foctuner.protocol.CommPacketId.COMM_SET_CURRENT_REL
+import app.foctuner.protocol.CommPacketId.COMM_SET_CUSTOM_CONFIG
 import app.foctuner.protocol.CommPacketId.COMM_SET_DETECT
 import app.foctuner.protocol.CommPacketId.COMM_SET_DUTY
 import app.foctuner.protocol.CommPacketId.COMM_SET_HANDBRAKE
@@ -117,7 +130,10 @@ import kotlin.time.TimeSource
  * nunchuk inputs ([DecodedInputsSim]); and firmware updates (erase, write, LZO, bootloader, jump, COMM_FW_INFO;
  * see [FirmwareSim]); and LispBM (COMM_LISP_ERASE_CODE / WRITE_CODE / READ_CODE / SET_RUNNING / GET_STATS /
  * REPL_CMD / STREAM_CODE, printing with COMM_LISP_PRINT, see [LispSim]); hardware limits on COMM_SET_MCCONF,
- * COMM_SET_MCCONF_TEMP(_SETUP) and COMM_SET_APPCONF_NO_STORE ([ConfigWriteSim]). Other commands are ignored like
+ * COMM_SET_MCCONF_TEMP(_SETUP) and COMM_SET_APPCONF_NO_STORE ([ConfigWriteSim]); one custom config
+ * (COMM_GET_CUSTOM_CONFIG_XML / GET / DEFAULT / SET, see [CustomConfigSim]); the package QML area (COMM_QMLUI_ERASE /
+ * WRITE, COMM_GET_QML_UI_APP, see [QmlUiSim]); a VESC Express style file system (COMM_FILE_*, see [FileSystemSim]); and
+ * COMM_CUSTOM_APP_DATA, which it echoes back like a package that answers everything. Other commands are ignored like
  * unknown ones in the firmware.
  *
  * Time comes from [timeSource] and is applied lazily when a request arrives, so the simulation costs nothing
@@ -191,6 +207,9 @@ class SimulatedVesc(
     private val firmware = FirmwareSim(this, hardwareName, FIRMWARE_MAJOR, FIRMWARE_MINOR)
     private val lisp = LispSim(this)
     private val configWrites = ConfigWriteSim(this)
+    private val customConfig = CustomConfigSim(this)
+    private val qmlUi = QmlUiSim(this)
+    private val files = FileSystemSim(this)
 
     override suspend fun write(bytes: ByteArray) {
         synchronized(lock) {
@@ -299,6 +318,19 @@ class SimulatedVesc(
             COMM_LISP_GET_STATS -> lisp.stats(r)
             COMM_LISP_REPL_CMD -> lisp.repl(r)
             COMM_LISP_STREAM_CODE -> lisp.stream(r)
+            COMM_GET_CUSTOM_CONFIG_XML -> customConfig.definitionChunk(r)
+            COMM_GET_CUSTOM_CONFIG -> customConfig.get(id, r, defaults = false)
+            COMM_GET_CUSTOM_CONFIG_DEFAULT -> customConfig.get(id, r, defaults = true)
+            COMM_SET_CUSTOM_CONFIG -> customConfig.set(r)
+            COMM_QMLUI_ERASE -> qmlUi.erase()
+            COMM_QMLUI_WRITE -> qmlUi.write(r)
+            COMM_GET_QML_UI_APP -> qmlUi.read(r)
+            COMM_FILE_LIST -> files.list(r)
+            COMM_FILE_READ -> files.read(r)
+            COMM_FILE_WRITE -> files.write(r)
+            COMM_FILE_MKDIR -> files.makeDirectory(r)
+            COMM_FILE_REMOVE -> files.remove(r)
+            COMM_CUSTOM_APP_DATA -> reply(packet)
             else -> Unit
         }
     }
@@ -426,10 +458,10 @@ class SimulatedVesc(
             .u8(0) // pairing done
             .u8(0) // test version
             .u8(0) // HW_TYPE_VESC
-            .u8(0) // custom config count
+            .u8(customConfig.count)
             .u8(1) // phase filters
             .u8(0) // QML hardware
-            .u8(0) // QML app
+            .u8(qmlUi.flags) // QML app
             .u8(0) // NRF flags
             .cString("")
             .u32(HARDWARE_CRC)
