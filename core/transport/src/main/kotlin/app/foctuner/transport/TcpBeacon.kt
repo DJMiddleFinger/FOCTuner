@@ -6,8 +6,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.net.DatagramPacket
 import java.net.DatagramSocket
+import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.SocketException
 
@@ -39,6 +41,18 @@ object TcpBeacon {
         }
         awaitClose { socket.close() }
     }.flowOn(Dispatchers.IO)
+
+    /** The beacon VESC Tool's TCP server sends: hardware name, this host's address, the server port. */
+    fun format(name: String, address: String, port: Int): String = "$name::$address::$port"
+
+    /** Sends one beacon to the broadcast address on [udpPort]. */
+    suspend fun broadcast(datagram: String, udpPort: Int = UDP_PORT) = withContext(Dispatchers.IO) {
+        DatagramSocket().use { socket ->
+            socket.broadcast = true
+            val bytes = datagram.toByteArray(Charsets.UTF_8)
+            socket.send(DatagramPacket(bytes, bytes.size, InetAddress.getByName("255.255.255.255"), udpPort))
+        }
+    }
 
     internal fun parse(datagram: String): LinkDevice? {
         val parts = datagram.trimEnd('\u0000', '\n', '\r').split("::")

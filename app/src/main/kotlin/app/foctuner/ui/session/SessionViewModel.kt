@@ -274,6 +274,8 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
             if (session.value !== active) return@launch
             if (updateLock.held) {
                 viewModelScope.launch { relink(active) }
+            } else if (active.simulator == null) {
+                viewModelScope.launch { relink(active, lost = true) }
             } else {
                 session.value = null
                 RideLogHub.attach(null)
@@ -296,9 +298,9 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
      * it runs now. If it never answers the session ends; an interrupted upload can still be resumed from the
      * Firmware tool after connecting by hand.
      */
-    private suspend fun relink(old: Active) {
+    private suspend fun relink(old: Active, lost: Boolean = false) {
         val installing = updateLock.stage.value == UpdateStage.Installing
-        updateLock.hold(UpdateStage.Reconnecting)
+        updateLock.hold(if (lost) UpdateStage.LinkLost else UpdateStage.Reconnecting)
         val before = (selectedCanId.value?.let { canFirmware[it] } ?: old.info).version
         old.scope.coroutineContext[Job]?.cancelAndJoin()
         try {
@@ -306,7 +308,11 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         } catch (e: IOException) {
             // The link is gone already.
         }
-        val next = reopen(RELINK_TIMEOUT, RELINK_PAUSE, retryOn = { it is IOException || it is VescException }) { reconnectOnce(old) }
+        val next = reopen(
+            if (lost) LOST_TIMEOUT else RELINK_TIMEOUT,
+            if (lost) LOST_PAUSE else RELINK_PAUSE,
+            retryOn = { it is IOException || it is VescException },
+        ) { reconnectOnce(old) }
         if (next == null || session.value !== old) {
             next?.client?.close()
             next?.scope?.cancel()
@@ -434,5 +440,9 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         const val MAX_LINES = 2_000
         val RELINK_TIMEOUT = 150.seconds
         val RELINK_PAUSE = 2.seconds
+
+        /** A link that dropped by itself: about five tries a second apart, as VESC Tool does for Bluetooth. */
+        val LOST_TIMEOUT = 6.seconds
+        val LOST_PAUSE = 1.seconds
     }
 }

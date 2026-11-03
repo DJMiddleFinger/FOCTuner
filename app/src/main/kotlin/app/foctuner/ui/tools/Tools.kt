@@ -5,6 +5,8 @@ import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import app.foctuner.R
 import app.foctuner.ui.tools.bms.BmsTool
+import app.foctuner.ui.tools.bridge.BridgeTool
+import app.foctuner.ui.tools.canbus.CanBusTool
 import app.foctuner.ui.tools.configtools.BackupsTool
 import app.foctuner.ui.tools.configtools.MultiSettingsTool
 import app.foctuner.ui.tools.configtools.ProfilesTool
@@ -13,6 +15,7 @@ import app.foctuner.ui.tools.gnss.GnssTool
 import app.foctuner.ui.tools.imu.ImuTool
 import app.foctuner.ui.tools.io.IoBoardTool
 import app.foctuner.ui.tools.psw.PowerSwitchTool
+import app.foctuner.ui.tools.radio.RadioTool
 import app.foctuner.ui.tools.ride.RideTool
 import app.foctuner.ui.tools.setup.AdcMappingTool
 import app.foctuner.ui.tools.setup.BldcDetectionTool
@@ -47,6 +50,7 @@ enum class Tool(val section: ToolSection, @param:StringRes val title: Int, @para
     Backups(ToolSection.Configuration, R.string.tool_backups, R.string.tool_backups_summary, R.drawable.ic_history),
     Profiles(ToolSection.Configuration, R.string.tool_profiles, R.string.tool_profiles_summary, R.drawable.ic_set_star),
     MultiSettings(ToolSection.Configuration, R.string.tool_multi, R.string.tool_multi_summary, R.drawable.ic_nav_controllers),
+    Radio(ToolSection.Configuration, R.string.tool_radio, R.string.tool_radio_summary, R.drawable.ic_set_radio),
     FocDetection(ToolSection.Detection, R.string.tool_foc_detection, R.string.tool_foc_detection_summary, R.drawable.ic_tool_sine),
     HallDetection(ToolSection.Detection, R.string.tool_hall_detection, R.string.tool_hall_detection_summary, R.drawable.ic_tool_magnet),
     EncoderDetection(ToolSection.Detection, R.string.tool_encoder_detection, R.string.tool_encoder_detection_summary, R.drawable.ic_tool_encoder),
@@ -55,9 +59,11 @@ enum class Tool(val section: ToolSection, @param:StringRes val title: Int, @para
     AdcMapping(ToolSection.Detection, R.string.tool_adc_mapping, R.string.tool_adc_mapping_summary, R.drawable.ic_tool_slider),
     Control(ToolSection.Operations, R.string.tool_control, R.string.tool_control_summary, R.drawable.ic_tool_play),
     Firmware(ToolSection.Operations, R.string.tool_firmware, R.string.tool_firmware_summary, R.drawable.ic_tool_firmware),
+    Bridge(ToolSection.Operations, R.string.tool_bridge, R.string.tool_bridge_summary, R.drawable.ic_nav_terminal),
     Gnss(ToolSection.Hardware, R.string.tool_gnss, R.string.tool_gnss_summary, R.drawable.ic_tool_location),
     PowerSwitch(ToolSection.Hardware, R.string.tool_psw, R.string.tool_psw_summary, R.drawable.ic_tool_power),
     IoBoard(ToolSection.Hardware, R.string.tool_io, R.string.tool_io_summary, R.drawable.ic_tool_chip),
+    CanBus(ToolSection.Hardware, R.string.tool_canbus, R.string.tool_canbus_summary, R.drawable.ic_tool_bus),
     Ride(ToolSection.Tab, R.string.tool_ride, R.string.tool_ride_summary, R.drawable.ic_nav_overview),
     Stats(ToolSection.Tab, R.string.tool_stats, R.string.tool_stats_summary, R.drawable.ic_curve),
     Imu(ToolSection.Tab, R.string.tool_imu, R.string.tool_imu_summary, R.drawable.ic_tool_axes),
@@ -97,5 +103,8 @@ fun ToolContent(tool: Tool, context: ToolContext) {
         Tool.Backups -> BackupsTool(context)
         Tool.Profiles -> ProfilesTool(context)
         Tool.MultiSettings -> MultiSettingsTool(context)
+        Tool.Radio -> RadioTool(context)
+        Tool.CanBus -> CanBusTool(context)
+        Tool.Bridge -> BridgeTool(context)
     }
 }

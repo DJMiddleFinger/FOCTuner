@@ -93,12 +93,13 @@ fun ConnectedShell(
         }
         header.updating?.let { stage ->
             Notice(
-                stringResource(R.string.fw_locked_title),
+                stringResource(if (stage == UpdateStage.LinkLost) R.string.session_link_lost_title else R.string.fw_locked_title),
                 body = stringResource(
                     when (stage) {
                         UpdateStage.Uploading -> R.string.fw_locked_uploading
                         UpdateStage.Installing -> R.string.fw_locked_installing
                         UpdateStage.Reconnecting -> R.string.fw_locked_reconnecting
+                        UpdateStage.LinkLost -> R.string.session_link_lost_body
                     },
                 ),
                 tone = NoticeTone.Warning,
@@ -137,6 +138,7 @@ private fun Header(state: SessionHeaderState, onCan: () -> Unit, onMenu: (Destin
     val colors = FocTheme.colors
     val liveLabel = stringResource(R.string.session_live)
     var menu by remember { mutableStateOf(false) }
+    val canDisconnect = state.updating == null || state.updating == UpdateStage.LinkLost
     Row(
         Modifier
             .fillMaxWidth()
@@ -191,8 +193,8 @@ private fun Header(state: SessionHeaderState, onCan: () -> Unit, onMenu: (Destin
                     )
                 }
                 DropdownMenuItem(
-                    text = { Text(stringResource(R.string.session_disconnect), color = if (state.updating == null) colors.text else colors.textTertiary, style = FocTheme.type.body) },
-                    enabled = state.updating == null,
+                    text = { Text(stringResource(R.string.session_disconnect), color = if (canDisconnect) colors.text else colors.textTertiary, style = FocTheme.type.body) },
+                    enabled = canDisconnect,
                     onClick = {
                         menu = false
                         onDisconnect()

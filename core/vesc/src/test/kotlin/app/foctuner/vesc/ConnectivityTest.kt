@@ -31,6 +31,7 @@ class ConnectivityTest {
         assertFailsWith<IllegalArgumentException> { blePin("12a4") }
         assertFailsWith<IllegalArgumentException> { blePin("1234567") }
         assertEquals("x".repeat(25), bleNameOrDefault("x".repeat(30)))
+        assertEquals(listOf(3, 4, 5), (0..10).filter(::uartPortServed))
     }
 
     @Test

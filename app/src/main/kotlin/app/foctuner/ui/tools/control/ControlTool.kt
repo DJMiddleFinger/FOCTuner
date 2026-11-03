@@ -72,6 +72,7 @@ fun ControlTool(context: ToolContext) {
         state = state,
         onArm = model::arm,
         onStop = { model.stop(lockout) },
+        onReleaseAll = model::releaseAll,
         onMode = model::select,
         onSetpoint = model::setSetpoint,
         onPress = model::press,
@@ -88,6 +89,7 @@ private fun ControlContent(
     state: ControlState,
     onArm: () -> Unit,
     onStop: () -> Unit,
+    onReleaseAll: () -> Unit,
     onMode: (ControlMode) -> Unit,
     onSetpoint: (ControlMode, Float) -> Unit,
     onPress: (ControlAction) -> Unit,
@@ -100,7 +102,7 @@ private fun ControlContent(
     val colors = FocTheme.colors
     var confirmKeepRunning by rememberSaveable { mutableStateOf(false) }
     Column {
-        StopButton(onStop, Modifier.padding(Spacing.x2))
+        StopAndRelease(onStop, onReleaseAll, Modifier.padding(Spacing.x2))
         if (state.stopSeconds > 0) {
             Notice(
                 stringResource(R.string.control_stopped, state.stopSeconds),

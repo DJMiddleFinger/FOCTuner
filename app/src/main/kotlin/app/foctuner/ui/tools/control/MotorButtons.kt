@@ -4,6 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
+import app.foctuner.ui.theme.Spacing
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.MaterialTheme
@@ -108,5 +111,40 @@ internal fun StopButton(onStop: () -> Unit, modifier: Modifier = Modifier) {
             color = colors.background,
             style = FocTheme.type.title.copy(fontWeight = FontWeight.SemiBold),
         )
+    }
+}
+
+/**
+ * STOP with RELEASE beside it: RELEASE lets every motor coast (zero current) without STOP's lockout, so a remote,
+ * a script or this page can drive again at once. Both fire when the finger goes down.
+ */
+@Composable
+internal fun StopAndRelease(onStop: () -> Unit, onReleaseAll: () -> Unit, modifier: Modifier = Modifier) {
+    val colors = FocTheme.colors
+    val release by rememberUpdatedState(onReleaseAll)
+    Row(modifier) {
+        StopButton(onStop, Modifier.weight(2f))
+        Box(Modifier.width(Spacing.x1))
+        Box(
+            Modifier
+                .weight(1f)
+                .heightIn(min = HOLD_BUTTON_HEIGHT)
+                .border(1.dp, colors.outline, MaterialTheme.shapes.small)
+                .semantics {
+                    role = Role.Button
+                    onClick {
+                        release()
+                        true
+                    }
+                }
+                .pointerInput(Unit) { detectTapGestures(onPress = { release() }) },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                stringResource(R.string.control_release_all),
+                color = colors.text,
+                style = FocTheme.type.title.copy(fontWeight = FontWeight.Medium),
+            )
+        }
     }
 }

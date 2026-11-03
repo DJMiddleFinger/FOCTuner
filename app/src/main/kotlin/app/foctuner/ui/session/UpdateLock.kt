@@ -14,6 +14,12 @@ enum class UpdateStage {
 
     /** The link closed during an update; the session is opening it again. */
     Reconnecting,
+
+    /**
+     * The link closed outside an update; the session tries to open it again for a few seconds before it ends
+     * (VESC Tool retries a dropped Bluetooth link 5 times). Disconnect stays available.
+     */
+    LinkLost,
 }
 
 /** What the controller reported when it answered again after an update, and what it ran before. */

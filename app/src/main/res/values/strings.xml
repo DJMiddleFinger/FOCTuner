@@ -46,6 +46,8 @@
     <string name="connect_link_dropped">Lost the connection to %1$s.</string>
 
     <string name="session_disconnect">Disconnect</string>
+    <string name="session_link_lost_title">Connection lost</string>
+    <string name="session_link_lost_body">Trying to connect again for a few seconds. Motor commands from this app stopped with the link; the controller released the motor on its own timeout.</string>
     <string name="session_firmware">FW %1$s</string>
     <string name="session_live">Live</string>
 

@@ -105,3 +105,10 @@ private const val BLE_PIN_LENGTH = 6
 private const val NRF_PAIR_STARTED = 0
 private const val NRF_PAIR_OK = 1
 private const val NRF_PAIR_FAIL = 2
+
+/**
+ * Whether the firmware runs the UART on the COMM header for appconf `app_to_use` [appToUse]: only the UART apps
+ * (UART, PPM and UART, ADC and UART) start it (`app.c`). With any other app a Bluetooth or WiFi module plugged into
+ * that port gets no answers; with plain ADC the firmware even reads the RX/TX pins as buttons.
+ */
+fun uartPortServed(appToUse: Int): Boolean = appToUse in 3..5

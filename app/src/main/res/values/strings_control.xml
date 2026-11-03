@@ -4,6 +4,7 @@
     <string name="tool_control_summary">Run the motor by hand with duty, current, speed, position or handbrake, with STOP and rotor position</string>
 
     <string name="control_stop">STOP</string>
+    <string name="control_release_all">RELEASE</string>
     <string name="control_stopped">Motor commands are ignored for %1$d s</string>
     <string name="control_stopped_why">STOP released the motors on this controller and told it to ignore motor commands for 5 s, as VESC Tool does.</string>
     <string name="control_no_reply">The controller didn\'t answer. Retrying.</string>

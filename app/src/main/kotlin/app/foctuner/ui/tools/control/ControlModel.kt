@@ -127,6 +127,13 @@ class ControlModel(private val context: ToolContext) {
         launch { context.controller.motor.release() }
     }
 
+    /** Lets every motor this app drives, and the attached controller's, coast; nothing is locked out. */
+    fun releaseAll() {
+        holding?.cancel()
+        _state.update { it.copy(running = null) }
+        launch { context.client.releaseAll() }
+    }
+
     /** Releases everything and makes the controllers ignore motor commands for [lockout] (Preferences). */
     fun stop(lockout: Duration) {
         holding?.cancel()
