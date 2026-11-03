@@ -1,6 +1,7 @@
 package app.foctuner.ui.shell
 
 import androidx.compose.runtime.Immutable
+import app.foctuner.ui.session.UpdateStage
 
 @Immutable
 data class SessionHeaderState(
@@ -12,4 +13,6 @@ data class SessionHeaderState(
     val live: Boolean,
     /** CAN id of the controller commands go to, when it isn't the attached one. */
     val targetCanId: Int? = null,
+    /** A firmware upload is running: tabs, CAN selection and Disconnect are locked. */
+    val updating: UpdateStage? = null,
 )

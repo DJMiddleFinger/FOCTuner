@@ -22,6 +22,9 @@ import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -47,7 +50,8 @@ import app.foctuner.vesc.firmware.HardwareCheck
 
 @Composable
 fun FirmwareTool(context: ToolContext) {
-    val model = context.model { FirmwareModel(context) }
+    val appContext = LocalContext.current.applicationContext
+    val model = context.model { FirmwareModel(context, FirmwareStorage(appContext.filesDir, context.demo, context.firmware.hardwareName)) }
     val state by model.state.collectAsStateWithLifecycle()
     val resolver = LocalContext.current.contentResolver
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -55,18 +59,24 @@ fun FirmwareTool(context: ToolContext) {
     }
     // Leaving mid-upload wouldn't stop it, but the user should stay and watch until it is over.
     BackHandler(enabled = state.running != null) {}
+    var recovery by rememberSaveable { mutableStateOf(false) }
 
     Column(Modifier.verticalScroll(rememberScrollState())) {
         if (state.running != null) {
             Notice(stringResource(R.string.fw_keep_powered), tone = NoticeTone.Warning, body = stringResource(R.string.fw_keep_powered_body))
         }
         Installed(model, state)
+        ResumeSection(model, state)
+        ArchiveSection(model, state)
         FileSection(model, state) { picker.launch(arrayOf("application/octet-stream", "text/plain", "*/*")) }
         BootloaderSection(model, state)
         TargetSection(model, state)
         ProgressSection(model, state)
+        PlainButton(stringResource(R.string.fw_recovery_help), { recovery = true }, Modifier.padding(horizontal = Spacing.x1, vertical = Spacing.x1))
     }
     state.confirming?.let { Confirmation(model, state, it) }
+    state.changelog?.let { ChangelogDialog(it, model::dismissChangelog) }
+    if (recovery) RecoveryDialog { recovery = false }
 }
 
 @Composable
@@ -87,6 +97,7 @@ private fun FileSection(model: FirmwareModel, state: FirmwareState, onChoose: ()
     val file = state.file
     if (file != null) {
         InfoRow(R.string.fw_file_name, file.name)
+        state.source?.let { source -> InfoRow(R.string.fw_source, sourceLabel(source)) }
         InfoRow(R.string.fw_file_size, stringResource(R.string.fw_bytes, file.bytes.size))
         when (model.hardwareCheck(file)) {
             HardwareCheck.Match -> InfoRow(R.string.fw_built_for, file.hardware.joinToString())
@@ -116,6 +127,7 @@ private fun FileSection(model: FirmwareModel, state: FirmwareState, onChoose: ()
         OutlineButton(stringResource(R.string.fw_choose_file), onChoose, enabled = state.running == null)
         val ready = file != null && (model.hardwareCheck(file) == HardwareCheck.Match || state.allowMismatch)
         PlainButton(stringResource(R.string.fw_install), { model.ask(UploadKind.Firmware) }, Modifier.padding(start = Spacing.x1), enabled = ready && state.running == null)
+        state.source?.takeIf { it.version != null }?.let { PlainButton(stringResource(R.string.fw_changelog), { model.showChangelog(it) }) }
     }
 }
 

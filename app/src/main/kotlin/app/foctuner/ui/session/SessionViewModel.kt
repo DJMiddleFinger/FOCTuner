@@ -75,7 +75,12 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     private val _controllers = MutableStateFlow(ControllersState())
     val controllers: StateFlow<ControllersState> = _controllers.asStateFlow()
 
-    val header: StateFlow<SessionHeaderState?> = combine(session, _overview, selectedCanId) { active, overview, target ->
+    /** Held while firmware is uploaded; see [UpdateLock]. */
+    val updateLock = UpdateLock()
+
+    private var demoSession = false
+
+    val header: StateFlow<SessionHeaderState?> = combine(session, _overview, selectedCanId, updateLock.stage) { active, overview, target, updating ->
         active?.let {
             SessionHeaderState(
                 deviceName = it.name,
@@ -84,6 +89,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                 linkLabel = it.linkLabel,
                 live = overview != null && overview.staleSeconds == 0,
                 targetCanId = target,
+                updating = updating,
             )
         }
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
@@ -151,6 +157,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
     fun disconnect() {
         val active = session.value ?: return
+        updateLock.release()
         session.value = null
         settings.reset()
         _tools.value = null
@@ -210,12 +217,13 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     }
 
     fun select(device: CanDevice) {
+        if (updateLock.held) return
         val canId = if (device.local) null else device.canId
         if (canId != selectedCanId.value) {
             settings.reset()
             session.value?.let { active ->
                 val firmware = canId?.let { canFirmware[it] } ?: active.info
-                _tools.value = ToolContext(canId?.let(active.client::can) ?: active.client, active.client, firmware, active.scope)
+                _tools.value = ToolContext(canId?.let(active.client::can) ?: active.client, active.client, firmware, active.scope, updateLock, demoSession)
             }
         }
         selectedCanId.value = canId
@@ -234,13 +242,18 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         _terminal.value = TerminalState()
         _controllers.value = ControllersState()
         session.value = active
-        _tools.value = ToolContext(active.client, active.client, active.info, active.scope)
+        demoSession = demo
+        _tools.value = ToolContext(active.client, active.client, active.info, active.scope, updateLock, demo)
         active.scope.launch { poll(active) }
         active.scope.launch {
             active.client.connected.first { !it }
             if (session.value === active) {
+                val installing = updateLock.stage.value == UpdateStage.Installing
+                updateLock.release()
                 session.value = null
-                _attempt.value = ConnectAttempt(failure = string(R.string.connect_link_dropped, active.name))
+                _attempt.value = ConnectAttempt(
+                    failure = string(if (installing) R.string.connect_link_dropped_installing else R.string.connect_link_dropped, active.name),
+                )
             }
         }
         if (demo) active.scope.launch { demoRide(active.client.motor, demoHeld) }
@@ -266,7 +279,9 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
     private suspend fun poll(active: Active) {
         val rate = store.preferences.map { it.realtimeHz }.distinctUntilChanged()
-        combine(selectedCanId, rate, ::Pair).collectLatest { (canId, hz) ->
+        val paused = updateLock.stage.map { it != null }.distinctUntilChanged()
+        combine(selectedCanId, rate, paused, ::Triple).collectLatest { (canId, hz, updating) ->
+            if (updating) return@collectLatest
             val controller = canId?.let(active.client::can) ?: active.client
             val capacity = TREND_SECONDS * hz
             val trends = Trends(capacity)
