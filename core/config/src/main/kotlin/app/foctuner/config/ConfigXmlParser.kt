@@ -169,7 +169,8 @@ object ConfigXmlParser {
                 "vTx" -> wire = WireType.fromId(int(field, text)) ?: fail("$name: unknown vTx $text")
                 "vTxDoubleScale" -> wireScale = double(field, text)
                 "valDouble" -> valDouble = double(field, text)
-                "valInt" -> valInt = long(field, text)
+                // 5.00 and 5.01 write one default as "1,000"; VESC Tool's QString::toInt reads anything unparseable as 0.
+                "valInt" -> valInt = text.trim().toLongOrNull() ?: 0L
                 "minDouble" -> minDouble = double(field, text)
                 "maxDouble" -> maxDouble = double(field, text)
                 "stepDouble" -> stepDouble = double(field, text)
@@ -186,13 +187,23 @@ object ConfigXmlParser {
             }
         }
 
+        /**
+         * Definitions before 4.01 give the hall table a default of -1 on a uint8 wire (an `int8_t` in that firmware);
+         * VESC Tool sends it truncated to 255, so the default is taken the same way.
+         */
+        private fun wrappedDefault(): Long = when (wire) {
+            WireType.UINT8 -> if (valInt in -128L..-1L) valInt and 0xFF else valInt
+            WireType.UINT16 -> if (valInt in -32768L..-1L) valInt and 0xFFFF else valInt
+            else -> valInt
+        }
+
         fun build(): ParamDefinition = ParamDefinition(
             name = name,
             type = type,
             default = when (type) {
                 ParamType.DOUBLE -> ParamValue.DoubleValue(valDouble)
                 ParamType.STRING -> ParamValue.TextValue(valString)
-                else -> ParamValue.IntValue(valInt)
+                else -> ParamValue.IntValue(wrappedDefault())
             },
             wire = wire,
             wireScale = wireScale,

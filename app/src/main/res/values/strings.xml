@@ -85,7 +85,9 @@
     <string name="settings_range">Allowed %1$s to %2$s</string>
     <string name="settings_invalid_number">Enter a number</string>
     <string name="settings_on_controller">On the controller: %1$s</string>
-    <string name="settings_error_layout">Firmware %1$s stores its settings in a layout this app doesn\'t know. Reading and writing settings is blocked so nothing gets corrupted. Supported firmware: %2$s.</string>
+    <string name="settings_error_layout">Firmware %1$s stores its settings in a layout this app doesn\'t know, and VESC Tool publishes no definitions for it. Reading and writing settings is blocked so nothing gets corrupted. The app bundles firmware %2$s to %3$s.</string>
+    <string name="settings_error_layout_offline">Firmware %1$s needs settings definitions the app doesn\'t bundle, and downloading them from VESC Tool\'s repository failed. Connect the phone to the internet and read again. Until then reading and writing settings is blocked so nothing gets corrupted.</string>
+    <string name="settings_error_layout_mismatch">VESC Tool\'s definitions for firmware %1$s don\'t match the layout this controller sent (a test or custom build). Reading and writing settings is blocked so nothing gets corrupted.</string>
     <string name="settings_error_no_reply">The controller didn\'t answer. Check the connection and read again.</string>
     <string name="settings_error_invalid">%1$s is outside its allowed range. Fix it before writing.</string>
     <string name="settings_was">Was %1$s</string>

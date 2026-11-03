@@ -10,6 +10,7 @@ import app.foctuner.config.ConfigXmlException
 import app.foctuner.config.ParamValue
 import app.foctuner.config.PayloadException
 import app.foctuner.config.SignatureMismatchException
+import app.foctuner.vesc.RemoteDefinitions
 import app.foctuner.config.diff
 import app.foctuner.config.restoredFrom
 import app.foctuner.config.sections
@@ -260,8 +261,9 @@ class SettingsModel(
                 try {
                     attempt(kind, target, block)
                 } catch (e: SignatureMismatchException) {
-                    val match = withContext(Dispatchers.Default) { BundledDefinitions.versionWithSignature(kind, e.actual) }
-                    if (match == null || match == layout(kind)) throw e
+                    val found = withContext(Dispatchers.IO) { storage.definitionFor(kind, firmware()?.version.orEmpty(), e.actual) }
+                    val match = found.version ?: throw UnknownLayoutException(found.outcome, e)
+                    if (match == layout(kind)) throw e
                     layouts[kind] = match
                     update(kind) { it.copy(sections = emptyList(), stored = null, edited = null) }
                     attempt(kind, target, block)
@@ -275,8 +277,15 @@ class SettingsModel(
     private suspend fun failureOf(block: suspend () -> Unit): String? = try {
         block()
         null
+    } catch (e: UnknownLayoutException) {
+        val version = firmware()?.version ?: "?"
+        when (e.outcome) {
+            RemoteDefinitions.Outcome.Unreachable -> text(R.string.settings_error_layout_offline, version)
+            RemoteDefinitions.Outcome.WrongLayout -> text(R.string.settings_error_layout_mismatch, version)
+            else -> text(R.string.settings_error_layout, version, BundledDefinitions.versions.first(), BundledDefinitions.versions.last())
+        }
     } catch (e: SignatureMismatchException) {
-        text(R.string.settings_error_layout, firmware()?.version ?: "?", BundledDefinitions.versions.joinToString())
+        text(R.string.settings_error_layout, firmware()?.version ?: "?", BundledDefinitions.versions.first(), BundledDefinitions.versions.last())
     } catch (e: PayloadException) {
         e.message
     } catch (e: VescTimeoutException) {
@@ -299,7 +308,7 @@ class SettingsModel(
     }
 
     private fun layout(kind: ConfigKind): String = layouts[kind]
-        ?: firmware()?.version?.takeIf { it in BundledDefinitions.versions }
+        ?: firmware()?.version?.takeIf { BundledDefinitions.has(it, kind) }
         ?: BundledDefinitions.versions.last()
 
     private fun update(kind: ConfigKind, transform: (ConfigPaneState) -> ConfigPaneState) {
@@ -318,3 +327,7 @@ class SettingsModel(
 
     private fun text(id: Int, vararg args: Any): String = string(id, args)
 }
+
+/** No bundled, kept or downloadable definition has the controller's layout; [outcome] says why none was fetched. */
+private class UnknownLayoutException(val outcome: RemoteDefinitions.Outcome, cause: SignatureMismatchException) :
+    Exception("Unknown config layout ${cause.actual}", cause)

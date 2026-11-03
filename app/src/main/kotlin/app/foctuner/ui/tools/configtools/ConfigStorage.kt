@@ -7,6 +7,8 @@ import app.foctuner.config.ConfigCache
 import app.foctuner.config.ConfigDefinition
 import app.foctuner.config.ConfigKind
 import app.foctuner.vesc.ConfigProfile
+import app.foctuner.vesc.RemoteDefinitions
+import app.foctuner.vesc.firmware.archive.UrlConnectionFetcher
 import app.foctuner.vesc.profilesFrom
 import app.foctuner.vesc.toProperties
 import java.io.File
@@ -21,6 +23,27 @@ class ConfigStorage private constructor(dir: File) {
     val backups = ConfigBackupStore(File(dir, "config_backups"))
     val cache = ConfigCache(File(dir, "conf_cache"))
     private val profilesFile = File(dir, "profiles.properties")
+    private val definitions = RemoteDefinitions(UrlConnectionFetcher(), File(dir, "definitions"))
+
+    @Volatile
+    private var definitionsRestored = false
+
+    /**
+     * The definition series to read [kind] of firmware [version] with, given the layout [signature] the controller
+     * sent: a bundled one, one downloaded earlier, or VESC Tool's file for that firmware fetched now and checked.
+     * Blocking file and network work: call it off the main thread.
+     */
+    suspend fun definitionFor(kind: ConfigKind, version: String, signature: Long): RemoteDefinitions.Result {
+        if (!definitionsRestored) {
+            definitions.restore()
+            definitionsRestored = true
+        }
+        return try {
+            definitions.fetch(version, kind, signature)
+        } catch (e: IllegalArgumentException) {
+            RemoteDefinitions.Result(RemoteDefinitions.Outcome.NotPublished)
+        }
+    }
 
     /** The settings controller [uuid] doesn't store (motor description and the like): its last read, else defaults. */
     fun base(uuid: String): (ConfigKind, ConfigDefinition) -> Config = { kind, definition ->

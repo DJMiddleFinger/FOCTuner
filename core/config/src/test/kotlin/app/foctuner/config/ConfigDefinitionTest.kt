@@ -122,7 +122,8 @@ class ConfigDefinitionTest {
     @Test
     fun bundledLoaderCachesAndRejectsUnknownVersions() {
         assertTrue(BundledDefinitions.load("7.01", ConfigKind.MCCONF) === mcconf)
-        assertFailsWith<IllegalArgumentException> { BundledDefinitions.load("5.00", ConfigKind.MCCONF) }
+        assertFailsWith<IllegalArgumentException> { BundledDefinitions.load("6.01", ConfigKind.MCCONF) }
+        assertEquals(255L, (BundledDefinitions.load("3.55", ConfigKind.MCCONF).params.getValue("foc_hall_table__0").default as ParamValue.IntValue).value)
     }
 
     @Test
