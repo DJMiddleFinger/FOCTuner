@@ -1,6 +1,7 @@
 package app.foctuner.ui.tools.setup
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -8,10 +9,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -21,8 +24,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.foctuner.R
 import app.foctuner.ui.components.Hairline
@@ -164,7 +169,7 @@ private fun UsagePage(state: FocWizardState, model: FocWizardModel, busy: Boolea
 @Composable
 private fun MotorPage(state: FocWizardState, model: FocWizardModel, busy: Boolean) {
     SectionHeader(stringResource(R.string.setup_motor_question))
-    Choices(MotorPreset.entries, state.motor, { stringResource(it.title) }, model::selectMotor, !busy)
+    MotorChoices(state.motor, model::selectMotor, !busy)
     SwitchRow(stringResource(R.string.setup_override), state.overrideMotor, { on ->
         if (!on) model.selectMotor(state.motor)
         model.edit { it.copy(overrideMotor = on) }
@@ -266,6 +271,46 @@ private fun <T> Choices(options: List<T>, selected: T, label: @Composable (T) ->
         }
     }
 }
+
+/** The motor classes with their picture, drawn at the class's size, and the line that tells the kinds apart. */
+@Composable
+private fun MotorChoices(selected: MotorPreset, onSelect: (MotorPreset) -> Unit, enabled: Boolean) {
+    val colors = FocTheme.colors
+    Column(Modifier.selectableGroup()) {
+        MotorPreset.entries.forEach { motor ->
+            val on = motor == selected
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = Spacing.row)
+                    .background(if (on) colors.surface else colors.background)
+                    .selectable(on, enabled = enabled, role = Role.RadioButton) { onSelect(motor) }
+                    .padding(horizontal = Spacing.x2, vertical = Spacing.x1),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.size(MotorImageSize), contentAlignment = Alignment.Center) {
+                    Icon(
+                        painterResource(motor.kind.image),
+                        null,
+                        Modifier.size(MotorImageSize * motor.imageScale),
+                        tint = if (on) colors.accent else colors.textSecondary,
+                    )
+                }
+                Column(Modifier.padding(start = Spacing.x2)) {
+                    Text(
+                        stringResource(motor.title),
+                        color = if (on) colors.accent else colors.text,
+                        style = if (on) FocTheme.type.bodyStrong else FocTheme.type.body,
+                    )
+                    Text(stringResource(motor.kind.hint), color = colors.textSecondary, style = FocTheme.type.supporting)
+                }
+            }
+            Hairline(Modifier.padding(start = Spacing.x2))
+        }
+    }
+}
+
+private val MotorImageSize = 56.dp
 
 @Composable
 fun targetName(target: SetupTarget): String =

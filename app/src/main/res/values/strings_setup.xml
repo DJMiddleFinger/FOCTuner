@@ -137,6 +137,10 @@
     <string name="setup_motor_large_inrunner">Large inrunner (~2000 g)</string>
     <string name="setup_motor_ebike_hub">E-bike direct-drive hub (~6 kg)</string>
     <string name="setup_motor_edf_inrunner">Small EDF inrunner (~200 g)</string>
+    <string name="setup_motor_kind_outrunner">The outside case spins, the base stays still</string>
+    <string name="setup_motor_kind_inrunner">Closed can that stays still, only the shaft spins</string>
+    <string name="setup_motor_kind_hub">Built into the wheel hub</string>
+    <string name="setup_motor_kind_edf">Sits inside a ducted fan</string>
     <string name="setup_max_power_loss">Max power loss</string>
     <string name="setup_openloop_erpm">Open loop speed</string>
     <string name="setup_sensorless_erpm">Sensorless speed</string>

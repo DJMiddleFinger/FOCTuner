@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Motor type for the FOC wizard's size step; tinted, drawn at the motor's size class. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="48dp"
+    android:height="48dp"
+    android:viewportWidth="48"
+    android:viewportHeight="48">
+    <path android:pathData="M8,16 H32 Q34,16 34,18 V30 Q34,32 32,32 H8 Q6,32 6,30 V18 Q6,16 8,16 Z" android:strokeWidth="1.75" android:strokeColor="#FF000000" android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path android:pathData="M29,16 V32 M11,16 V32" android:strokeWidth="1.25" android:strokeColor="#FF000000" android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path android:pathData="M34,22.5 H44 M34,25.5 H44" android:strokeWidth="1.75" android:strokeColor="#FF000000" android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path android:pathData="M6,20 H3 M6,24 H3 M6,28 H3" android:strokeWidth="1.25" android:strokeColor="#FF000000" android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path android:pathData="M41,19 Q45,21 45,24 Q45,27 41,29" android:strokeWidth="1.25" android:strokeColor="#FF000000" android:strokeLineCap="round" android:strokeLineJoin="round" />
+    <path android:pathData="M41,29 L43.8,29.4 L41.4,31.6 Z" android:fillColor="#FF000000" />
+</vector>
