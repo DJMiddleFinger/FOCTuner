@@ -132,13 +132,13 @@ private fun names(changes: Map<ConfigKind, List<ParamChange>>, state: SettingsSt
 }
 
 @Composable
-private fun backupTitle(backup: ConfigBackup): String = when {
+internal fun backupTitle(backup: ConfigBackup): String = when {
     backup.name.isNotEmpty() -> backup.name
     backup.automatic -> stringResource(R.string.settings_history_automatic)
     else -> stringResource(R.string.settings_history_manual)
 }
 
-private fun backupDate(backup: ConfigBackup): String =
+internal fun backupDate(backup: ConfigBackup): String =
     DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT).format(Date(backup.created))
 
 /** The review for a restore or an undo, one section per config. */

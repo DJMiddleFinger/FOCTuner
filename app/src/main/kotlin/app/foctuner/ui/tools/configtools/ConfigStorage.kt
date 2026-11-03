@@ -1,8 +1,11 @@
 package app.foctuner.ui.tools.configtools
 
 import android.content.Context
+import app.foctuner.config.Config
 import app.foctuner.config.ConfigBackupStore
 import app.foctuner.config.ConfigCache
+import app.foctuner.config.ConfigDefinition
+import app.foctuner.config.ConfigKind
 import app.foctuner.vesc.ConfigProfile
 import app.foctuner.vesc.profilesFrom
 import app.foctuner.vesc.toProperties
@@ -18,6 +21,12 @@ class ConfigStorage private constructor(dir: File) {
     val backups = ConfigBackupStore(File(dir, "config_backups"))
     val cache = ConfigCache(File(dir, "conf_cache"))
     private val profilesFile = File(dir, "profiles.properties")
+
+    /** The settings controller [uuid] doesn't store (motor description and the like): its last read, else defaults. */
+    fun base(uuid: String): (ConfigKind, ConfigDefinition) -> Config = { kind, definition ->
+        val defaults = Config.defaults(definition)
+        cache.load(uuid, kind, defaults) ?: defaults
+    }
 
     fun profiles(): List<ConfigProfile> = try {
         if (!profilesFile.exists()) emptyList() else profilesFile.inputStream().use { input -> profilesFrom(Properties().apply { load(input) }) }

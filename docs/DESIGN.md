@@ -50,6 +50,11 @@ IBM Plex Sans (UI) and IBM Plex Mono (every number), bundled from the official I
 
 `Readout`, `Sparkline` (Canvas, fixed sample spacing, minimum span so noise stays flat, zero line when the range crosses zero), `SectionHeader`, `Hairline`, `Notice` (neutral / warning / fault band with a 3dp bar; title, why, what to check, one action), `OutlineButton`, `PlainButton`, `TabStrip`, `Tile`/`TileGrid`, `PageHeader` (back arrow, breadcrumb, page title: every page opened from a list). Icons are our own 24dp, 1.75 stroke vectors in `res/drawable/ic_*`; only navigation and a few controls get icons.
 
+## Settings pages (`ui/settings/`)
+
+- Action bar: Read · Revert · Write · ⋮ (Defaults, History, Save to file, Load from file). Search sits at the end of the group picker.
+- `ParamRow` puts the editor on the row; a pending edit gets a `warning` bar and "Was …"; values dangerous together list their warning under the name. Config tools (Multi settings) reuse the same rows.
+
 ## Charts (`ui/settings/curves/`)
 
 Settings that shape a curve get a chart of what the firmware does with them, computed with the firmware's own formulas (`CurveMath`, unit-tested): throttle curves, thermal, battery voltage, ERPM and duty cycle derating, field weakening, PPM pulse mapping, throttle ramping, and the current limits as bars. `SettingCharts` says which chart sits above which setting; the same chart previews the value being typed in that setting's edit dialog.

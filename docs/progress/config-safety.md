@@ -17,13 +17,18 @@ Branch `claude/config-safety-bab75b`. Scope: `docs/ROADMAP.md` wave 1 `config-sa
 - **Fixed: `ConfigXml.read` failed on Android.** Android's SAX parser doesn't recognize `disallow-doctype-decl`, so every XML read threw on devices (cache, backups, loaded files) while JVM tests passed. A DOCTYPE is now refused by a check before parsing.
 - **Checked on Pixel_7_API_35** in demo mode: Cutoff End warning on its row (dark), review dialog with warnings, write → Undo notice → undo review → value back (dark), History listing, search over both configs and the jump from Motor Cfg into App Cfg › General (light). Screenshots `docs/screenshots/config-safety-warning-dark.png`, `-review-dark.png`, `-undo-dark.png`, `-search-dark.png`, `-jump-light.png`, `-history-light.png`. The emulator was left in dark mode.
 
-## Next (in order, resume here)
+## Done (wave 1 finish, lead, 2026-11-03, branch `claude/wave1-finish`)
 
-1. **Backups tool** (Start › Configuration; add an entry at the end of the section in `ui/tools/Tools.kt`, don't reorder, other sessions add tools there): back up all (`configTargets()` + `backUpConfigs`, optional name, confirm), restore all (newest manual backup per UUID on the bus; read each controller first and confirm per controller with the number of settings that change; `writeWithBackup` per controller so each gets an automatic backup), and the backup list across controllers (restore through the settings review for the selected controller, export XML via SAF, delete, delete all). Reuse the `HistoryPage` rows.
-2. **Profiles tool**: VESC Tool `Profiles.qml` (list with in-use mark from a fresh mcconf read; add/edit: name, speed fwd/rev in km/h or mph, accel/brake current %, power limit, "Read current configuration"; up/down; delete). Battery settings (vesc_tool issue #432): add optional `batteryCutStart/End`, `inCurrentMin/Max` to `ConfigProfile` and its properties. The firmware takes optional input currents in `COMM_SET_MCCONF_TEMP` (check `ConfigWriteSim` first); the cutoff isn't part of MCCONF_TEMP, so a profile with a cutoff is applied as pending Motor Cfg edits (`Config.withProfile` extended) that go through the normal review and backed-up write. "Use until reboot" / "Use permanently" each confirm with the values first.
-3. **Multi settings tool**: tabs per `MultiSettingGroup`, rows via `ParamRow` seeded from the selected controller's mcconf, "Write to all" with a confirm listing controllers and values, `writeWithBackup` per controller (instead of `writeMotorParams`, so each gets an automatic backup), results per controller.
-4. `HardwareLimits` has no source yet, so the four hardware rules never fire. Options: a table per hardware name from bldc `hwconf/**` (`HW_LIM_*`), or remember per UUID what the firmware clamped on the last checked write (`notApplied`).
-5. DESIGN.md (lead's file): the config action bar is Read · Revert · Write · ⋮; rows can carry a warning line; the search button sits at the end of the group picker.
+- **Backups tool** (`ui/tools/configtools/BackupsTool.kt`, Start › Configuration): Back up all (optional name) and Restore all (newest named/manual backup per UUID on the bus, confirm listing each controller's backup; each controller gets an automatic backup first), results per controller, all saved backups across controllers with Delete / Delete all. Restoring one backup with a review stays in Settings › History.
+- **Profiles tool** (`ProfilesTool.kt`): list with the in-use mark from a fresh mcconf read, Add (from the current limits) / Edit (name, speeds in the app's units, motor/brake current %, power and regen W, empty = no limit), Delete, Use until restart / Use permanently (confirm with the values).
+- **Multi settings tool** (`MultiSettingsTool.kt`): tabs per `MultiSettingGroup`, `ParamRow`s seeded from the selected controller's mcconf, "Write <group> to all" (the whole group as shown, as VESC Tool does) with a confirm listing the controllers; per controller an automatic backup, then `writeMotorParams`; results per controller.
+- `ConfigStorage.base(uuid)` gives the cache-backed base the tools pass to `backUpConfigs`. DESIGN.md has the settings page conventions.
+- Checked on Pixel_7_API_35 in demo mode (attached + CAN 1): back up all, restore all, add and apply a profile (shows "in use"), write Limits to all. Screenshots `docs/screenshots/config-tools-{backups,profiles,multi}-dark.png`.
+
+## Left out on purpose
+
+- `HardwareLimits` still has no source, so the four hardware rules never fire; the firmware clamps anyway and the write notice lists what it changed. Add a per-hardware table from bldc `hwconf/**` if users ask for warnings before the write.
+- Battery cutoff and input currents in profiles (vesc_tool #432), profile reordering, per-backup XML export (Settings › Save to file exports the edited config), Kp/Ki from Ts in Multi settings.
 
 ## Unverified
 

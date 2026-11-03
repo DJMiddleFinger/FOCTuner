@@ -28,6 +28,8 @@ Status: done 2026-11-02 (`1232849`, 241 tests green). Preferences and About open
 | `logging` | Download logs stored on the controller (`COMM_LOG_*`, `COMM_FILE_*`) with progress. Background ride logging with phone GPS (foreground service). Log browser and analysis: plots and the GPS track. CSV/GPX export. Lifetime odometer and trip history. |
 | `firmware-dl` | Firmware archive download with cache and pre-flash checks. BMS and ESP32 images. Resume an interrupted upload after the link drops. Recovery guidance when only the bootloader is left. Firmware changelog. Pause polling and block navigation while uploading. |
 
+Status: done 2026-11-03 (`claude/wave1-finish`): the three config tools, the archive fetcher test, a lint error in the Logs tool. Emulator passes for logging and firmware-dl (see their progress notes) and hardware runs are still open.
+
 ## Wave 2: reach
 
 | Session | Scope |
