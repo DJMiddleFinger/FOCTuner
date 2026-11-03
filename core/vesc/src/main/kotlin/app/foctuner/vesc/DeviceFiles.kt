@@ -41,16 +41,21 @@ suspend fun VescController.readFile(path: String, onProgress: (read: Int, total:
     var total: Int
     do {
         val offset = data.length
-        val request = ByteWriter().u8(COMM_FILE_READ.id).cString(path).i32(offset).toByteArray()
-        val (size, bytes) = fileExchange(request, COMM_FILE_READ) { r ->
-            if (r.i32() == offset) r.i32() to r.restBytes() else null
-        }
+        val (size, bytes) = readFileChunk(path, offset)
         total = size
         if (bytes.isEmpty() && data.length < total) throw VescException("The controller sent no data at byte $offset of $path")
         data.bytes(bytes)
         onProgress(data.length, total)
     } while (data.length < total)
     return data.toByteArray()
+}
+
+/** One reply to COMM_FILE_READ at [offset]: the file's size and up to 400 bytes (more over Wi-Fi) from there. */
+internal suspend fun VescController.readFileChunk(path: String, offset: Int): Pair<Int, ByteArray> {
+    val request = ByteWriter().u8(COMM_FILE_READ.id).cString(path).i32(offset).toByteArray()
+    return fileExchange(request, COMM_FILE_READ) { r ->
+        if (r.i32() == offset) r.i32() to r.restBytes() else null
+    }
 }
 
 /**

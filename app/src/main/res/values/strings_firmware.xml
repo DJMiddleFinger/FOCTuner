@@ -75,6 +75,7 @@
     <string name="fw_fail_write">The controller couldn\'t write its flash.</string>
     <string name="fw_fail_no_reply">The controller stopped answering.</string>
     <string name="fw_fail_link">The connection dropped.</string>
+    <string name="fw_fail_cannot_resume">The saved upload doesn\'t belong to this firmware or this controller, so it can\'t be continued. Start the update again.</string>
 
     <string name="fw_confirm_title">Install firmware?</string>
     <string name="fw_confirm_go">Install</string>
@@ -92,4 +93,60 @@
     <string name="fw_confirm_bootloader_only">The %1$s bootloader goes to %2$s.</string>
     <string name="fw_confirm_bootloader_risk">If this upload fails, don\'t install firmware until a bootloader upload has completed.</string>
     <string name="fw_confirm_bootloader_no_erase">This firmware can\'t erase the bootloader first. If the controller already has one, it will be destroyed and firmware updates won\'t work any more.</string>
+
+    <string name="connect_link_dropped_installing">%1$s closed the connection to install the update. It restarts by itself, which takes up to a minute. Keep it powered, then connect again to see the new version.</string>
+    <string name="fw_locked_title">Updating firmware</string>
+    <string name="fw_locked_uploading">Tabs, CAN selection and Disconnect are locked until the upload ends. The old firmware keeps running until the controller installs the new one.</string>
+    <string name="fw_locked_installing">The controller is installing the update. Keep it powered; the connection closes and comes back by itself.</string>
+
+    <string name="fw_dl_title">Download</string>
+    <string name="fw_dl_loading">Looking up firmware for %1$s…</string>
+    <string name="fw_dl_offline">No connection to the firmware archive. These are the downloads saved on this phone.</string>
+    <string name="fw_dl_none">No firmware for %1$s is offered. Choose a file instead.</string>
+    <string name="fw_dl_incomplete">Part of the archive couldn\'t be read, so older versions may be missing.</string>
+    <string name="fw_dl_latest">Latest</string>
+    <string name="fw_dl_older">Older versions</string>
+    <string name="fw_dl_show_older">Show older versions</string>
+    <string name="fw_dl_hide_older">Hide older versions</string>
+    <string name="fw_dl_saved">Saved on this phone</string>
+    <string name="fw_dl_use">Use</string>
+    <string name="fw_dl_download">Download</string>
+    <string name="fw_dl_row">%1$s, %2$s</string>
+    <string name="fw_dl_progress">Downloading %1$s</string>
+    <string name="fw_dl_progress_size">%1$d of %2$d KB</string>
+    <string name="fw_dl_cancel">Cancel download</string>
+    <string name="fw_dl_no_limits">Removes the hardware\'s protective limits. Only install it if you know why.</string>
+    <string name="fw_dl_http_note">The archive is served over plain HTTP, like VESC Tool\'s. The checks catch a wrong or damaged file, not one changed on the way.</string>
+    <string name="fw_dl_error_network">Couldn\'t download the firmware. Check the connection and try again.</string>
+    <string name="fw_dl_error_mismatch">That image is for other hardware than this controller, so it was refused.</string>
+    <string name="fw_dl_error_damaged">The download didn\'t pass the checks (size, hardware name) and was thrown away.</string>
+    <string name="fw_source">Source</string>
+    <string name="fw_source_archive">VESC Project archive</string>
+    <string name="fw_source_repository">VESC Tool repository</string>
+
+    <string name="fw_changelog">What\'s new</string>
+    <string name="fw_changelog_title">Changes in %1$s</string>
+    <string name="fw_changelog_since">Since %1$s</string>
+    <string name="fw_changelog_none">No notes for these versions. The changelog may not be online yet, or this is not an upgrade.</string>
+    <string name="fw_changelog_offline">The changelog couldn\'t be loaded and none is saved on this phone.</string>
+    <string name="fw_changelog_close">Close</string>
+
+    <string name="fw_resume_title">Update interrupted at %1$d %%</string>
+    <string name="fw_resume_safe">The controller still runs its old firmware. It only installs a complete image whose CRC matches, so stopping here loses nothing.</string>
+    <string name="fw_resume_erased">The upload area is shared with the LispBM script and QML package, so those were erased when the upload started. Install them again afterwards.</string>
+    <string name="fw_resume_body">Resume continues from the last chunk the controller confirmed and doesn\'t erase again.</string>
+    <string name="fw_resume_need_file">Choose the same firmware again to resume it.</string>
+    <string name="fw_resume">Resume</string>
+    <string name="fw_start_over">Start over</string>
+    <string name="fw_resumed">Resumed</string>
+
+    <string name="fw_recovery_help">Recovery help</string>
+    <string name="fw_recovery_title">The controller doesn\'t answer after an update</string>
+    <string name="fw_recovery_wait">Wait. Installing takes up to a minute and the controller doesn\'t answer meanwhile. Keep it powered.</string>
+    <string name="fw_recovery_powercycle">Disconnect the battery, wait ten seconds, power it on and connect again, over USB if you can. Bluetooth drops more often during updates.</string>
+    <string name="fw_recovery_old_version">If it answers with the old version, the bootloader found the uploaded image damaged and kept the old firmware. Nothing is broken; update again.</string>
+    <string name="fw_recovery_leds">Where the bootloader drives the LEDs, red blinks after an update mean: 3 image too large, 4 image empty, 5 CRC mismatch (the old firmware started). Eight red blinks: the application area couldn\'t be written, and a programmer is needed.</string>
+    <string name="fw_recovery_usb">No answer at all usually means there is no application left, for example when power was lost while the bootloader rewrote it. VESC bootloaders can\'t receive firmware themselves. Hold BOOT0 high while powering on (some boards have a boot pad or button) to start the STM32\'s own USB bootloader, then write the .bin to 0x08000000 with STM32CubeProgrammer or dfu-util. VESC Express (ESP32) modules: hold BOOT while connecting USB and flash with esptool.</string>
+    <string name="fw_recovery_swd">If the board has no boot pad, or the ROM bootloader doesn\'t answer, use an SWD programmer such as an ST-Link on the board\'s SWD pads, with the same addresses. Write the bootloader to 0x080E0000 too if you can.</string>
+    <string name="fw_recovery_close">Close</string>
 </resources>

@@ -64,6 +64,11 @@ import app.foctuner.protocol.CommPacketId.COMM_LISP_REPL_CMD
 import app.foctuner.protocol.CommPacketId.COMM_LISP_SET_RUNNING
 import app.foctuner.protocol.CommPacketId.COMM_LISP_STREAM_CODE
 import app.foctuner.protocol.CommPacketId.COMM_LISP_WRITE_CODE
+import app.foctuner.protocol.CommPacketId.COMM_LOG_CONFIG_FIELD
+import app.foctuner.protocol.CommPacketId.COMM_LOG_DATA_F32
+import app.foctuner.protocol.CommPacketId.COMM_LOG_DATA_F64
+import app.foctuner.protocol.CommPacketId.COMM_LOG_START
+import app.foctuner.protocol.CommPacketId.COMM_LOG_STOP
 import app.foctuner.protocol.CommPacketId.COMM_MOTOR_ESTOP
 import app.foctuner.protocol.CommPacketId.COMM_IO_BOARD_GET_ALL
 import app.foctuner.protocol.CommPacketId.COMM_IO_BOARD_SET_DIGITAL
@@ -132,7 +137,8 @@ import kotlin.time.TimeSource
  * REPL_CMD / STREAM_CODE, printing with COMM_LISP_PRINT, see [LispSim]); hardware limits on COMM_SET_MCCONF,
  * COMM_SET_MCCONF_TEMP(_SETUP) and COMM_SET_APPCONF_NO_STORE ([ConfigWriteSim]); one custom config
  * (COMM_GET_CUSTOM_CONFIG_XML / GET / DEFAULT / SET, see [CustomConfigSim]); the package QML area (COMM_QMLUI_ERASE /
- * WRITE, COMM_GET_QML_UI_APP, see [QmlUiSim]); a VESC Express style file system (COMM_FILE_*, see [FileSystemSim]); and
+ * WRITE, COMM_GET_QML_UI_APP, see [QmlUiSim]); a VESC Express style file system (COMM_FILE_*, see [FileSystemSim]) with
+ * three stored rides and the Express logger (COMM_LOG_START / STOP / CONFIG_FIELD / DATA_F32 / DATA_F64, see [LogSim]); and
  * COMM_CUSTOM_APP_DATA, which it echoes back like a package that answers everything. Other commands are ignored like
  * unknown ones in the firmware.
  *
@@ -157,7 +163,7 @@ class SimulatedVesc(
 
     override val maxWriteSize = chunkSize
 
-    private val outbound = Channel<ByteArray>(Channel.UNLIMITED)
+    private var outbound = Channel<ByteArray>(Channel.UNLIMITED)
     private val wakeUp = Channel<Unit>(Channel.CONFLATED)
 
     /** Replies, plus the ones [later] scheduled, delivered once their time has come (waiting on the collector's clock). */
@@ -166,6 +172,7 @@ class SimulatedVesc(
             // No timeout when nothing is scheduled: an infinite one would let a test clock jump to the end of time.
             val wait = synchronized(lock) { runDue() }
             val next = (if (wait == null) nextReply() else withTimeoutOrNull(wait) { nextReply() }) ?: continue
+            if (next.isClosed) next.exceptionOrNull()?.let { throw it }
             emit(next.getOrNull() ?: break)
         }
     }
@@ -177,7 +184,7 @@ class SimulatedVesc(
     }
 
     private val lock = Any()
-    private val decoder = PacketDecoder()
+    private var decoder = PacketDecoder()
     private val started = timeSource.markNow()
 
     /** Time since the simulated controller booted. */
@@ -210,6 +217,7 @@ class SimulatedVesc(
     private val customConfig = CustomConfigSim(this)
     private val qmlUi = QmlUiSim(this)
     private val files = FileSystemSim(this)
+    private val logs = LogSim(files)
 
     override suspend fun write(bytes: ByteArray) {
         synchronized(lock) {
@@ -225,6 +233,40 @@ class SimulatedVesc(
             outbound.close()
         }
     }
+
+    /**
+     * The link fails the way a radio link does: the collector of [received] gets an [IOException] and writes
+     * fail. The controller keeps running and keeps what it holds (an upload's partial image included); [reattach]
+     * opens the link again.
+     */
+    fun dropLink() {
+        synchronized(lock) {
+            closed = true
+            outbound.close(IOException("Simulated link dropped"))
+        }
+    }
+
+    /** Opens the link again after [dropLink] or [close], for the next client; replies that were in flight are gone. */
+    fun reattach(): SimulatedVesc {
+        synchronized(lock) {
+            closed = false
+            outbound = Channel(Channel.UNLIMITED)
+            decoder = PacketDecoder()
+        }
+        return this
+    }
+
+    /**
+     * Drops the link right after the controller has stored the chunk that brings the update buffer to [bytes]
+     * written, without acknowledging it, as when the radio fails mid-upload. Once.
+     */
+    fun dropLinkDuringUpload(bytes: Int) = firmware.dropAfter(bytes)
+
+    /** How often the update area was erased (COMM_ERASE_NEW_APP) since the simulator was created. */
+    val firmwareErases: Int get() = firmware.erases
+
+    /** Offsets of the writes the update area received, in order. */
+    val firmwareWriteOffsets: List<Long> get() = firmware.writeOffsets.toList()
 
     /** Whether the motor of controller [id] is being driven right now (a command is in effect and has not timed out). */
     fun isDriven(id: Int): Boolean = synchronized(lock) {
@@ -246,6 +288,7 @@ class SimulatedVesc(
         val id = CommPacketId.fromId(packet[0].toInt() and 0xFF) ?: return
         val r = ByteReader(packet, 1)
         advance()
+        logs.step(uptime)
         if (!firmware.answering) return
         when (id) {
             COMM_FW_VERSION -> reply(firmwareVersion(motor))
@@ -330,6 +373,11 @@ class SimulatedVesc(
             COMM_FILE_WRITE -> files.write(r)
             COMM_FILE_MKDIR -> files.makeDirectory(r)
             COMM_FILE_REMOVE -> files.remove(r)
+            COMM_LOG_START -> logs.start(r, uptime)
+            COMM_LOG_STOP -> logs.stop()
+            COMM_LOG_CONFIG_FIELD -> logs.configure(r)
+            COMM_LOG_DATA_F32 -> logs.data(r, wide = false)
+            COMM_LOG_DATA_F64 -> logs.data(r, wide = true)
             COMM_CUSTOM_APP_DATA -> reply(packet)
             else -> Unit
         }

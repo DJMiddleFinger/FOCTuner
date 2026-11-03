@@ -1,5 +1,6 @@
 package app.foctuner.ui.tools
 
+import app.foctuner.ui.session.UpdateLock
 import app.foctuner.vesc.FirmwareInfo
 import app.foctuner.vesc.VescClient
 import app.foctuner.vesc.VescController
@@ -17,6 +18,10 @@ class ToolContext(
     /** Firmware of [controller]. */
     val firmware: FirmwareInfo,
     val scope: CoroutineScope,
+    /** Held by a firmware upload; the session pauses polling and locks navigation while it is. */
+    val updateLock: UpdateLock = UpdateLock(),
+    /** The controller is the simulator: tools that would use the network use the simulated sources. */
+    val demo: Boolean = false,
 ) {
     @PublishedApi
     internal val models = HashMap<Class<*>, Any>()

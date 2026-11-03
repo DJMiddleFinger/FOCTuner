@@ -23,6 +23,7 @@ import app.foctuner.ui.tools.setup.InputWizardTool
 import app.foctuner.ui.tools.setup.PpmMappingTool
 import app.foctuner.ui.tools.firmware.FirmwareTool
 import app.foctuner.ui.tools.lisp.LispTool
+import app.foctuner.ui.tools.logs.LogsTool
 import app.foctuner.ui.tools.stats.StatsTool
 
 /** The Start page's groups, after VESC Tool's; [Tab] tools have a top-level tab of their own instead. */
@@ -56,6 +57,7 @@ enum class Tool(val section: ToolSection, @param:StringRes val title: Int, @para
     Imu(ToolSection.Tab, R.string.tool_imu, R.string.tool_imu_summary, R.drawable.ic_tool_axes),
     Bms(ToolSection.Tab, R.string.tool_bms, R.string.tool_bms_summary, R.drawable.ic_tool_battery),
     Lisp(ToolSection.Tab, R.string.tool_lisp, R.string.tool_lisp_summary, R.drawable.ic_tool_lambda),
+    Logs(ToolSection.Operations, R.string.tool_logs, R.string.tool_logs_summary, R.drawable.ic_curve),
     ;
 
     /** Setup tools and manual control command the motor themselves (demo mode pauses its ride for them). */
@@ -85,5 +87,6 @@ fun ToolContent(tool: Tool, context: ToolContext) {
         Tool.ImuCalibration -> ImuCalibrationTool(context)
         Tool.Firmware -> FirmwareTool(context)
         Tool.Lisp -> LispTool(context)
+        Tool.Logs -> LogsTool(context)
     }
 }

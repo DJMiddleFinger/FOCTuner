@@ -80,7 +80,7 @@ fun FocApp(
             transition = { fadeThrough() },
         ) { connected ->
             if (connected) {
-                KeepScreenOn(loaded.keepScreenOn)
+                KeepScreenOn(loaded.keepScreenOn || header?.updating != null)
                 ConnectedRoute(session)
             } else {
                 ConnectRoute(connect, session)
@@ -162,8 +162,10 @@ private fun ConnectedRoute(session: SessionViewModel) {
     var destination by rememberSaveable { mutableStateOf(Destination.Start) }
     var lastTab by rememberSaveable { mutableStateOf(Destination.Start) }
     val navigate = { to: Destination ->
-        if (to.tab) lastTab = to
-        destination = to
+        if (live?.updating == null) {
+            if (to.tab) lastTab = to
+            destination = to
+        }
     }
 
     LaunchedEffect(destination) {
@@ -174,7 +176,7 @@ private fun ConnectedRoute(session: SessionViewModel) {
         when {
             !destination.tab -> destination = lastTab
             destination != Destination.Start -> navigate(Destination.Start)
-            else -> session.disconnect()
+            live?.updating == null -> session.disconnect()
         }
     }
 
