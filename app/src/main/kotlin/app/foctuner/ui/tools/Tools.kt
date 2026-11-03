@@ -4,6 +4,8 @@ import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import app.foctuner.R
+import app.foctuner.ui.tools.analysis.ExperimentsTool
+import app.foctuner.ui.tools.analysis.SampledDataTool
 import app.foctuner.ui.tools.bms.BmsTool
 import app.foctuner.ui.tools.bridge.BridgeTool
 import app.foctuner.ui.tools.canbus.CanBusTool
@@ -62,6 +64,8 @@ enum class Tool(val section: ToolSection, @param:StringRes val title: Int, @para
     AdcMapping(ToolSection.Detection, R.string.tool_adc_mapping, R.string.tool_adc_mapping_summary, R.drawable.ic_tool_slider),
     Control(ToolSection.Operations, R.string.tool_control, R.string.tool_control_summary, R.drawable.ic_tool_play),
     Firmware(ToolSection.Operations, R.string.tool_firmware, R.string.tool_firmware_summary, R.drawable.ic_tool_firmware),
+    SampledData(ToolSection.Operations, R.string.tool_sampled, R.string.tool_sampled_summary, R.drawable.ic_tool_sine),
+    Experiments(ToolSection.Operations, R.string.tool_experiments, R.string.tool_experiments_summary, R.drawable.ic_curve),
     Bridge(ToolSection.Operations, R.string.tool_bridge, R.string.tool_bridge_summary, R.drawable.ic_nav_terminal),
     Gnss(ToolSection.Hardware, R.string.tool_gnss, R.string.tool_gnss_summary, R.drawable.ic_tool_location),
     PowerSwitch(ToolSection.Hardware, R.string.tool_psw, R.string.tool_psw_summary, R.drawable.ic_tool_power),
@@ -79,7 +83,7 @@ enum class Tool(val section: ToolSection, @param:StringRes val title: Int, @para
     ;
 
     /** Setup tools and manual control command the motor themselves (demo mode pauses its ride for them). */
-    val drivesMotor: Boolean get() = section == ToolSection.Detection || this in setOf(FocWizard, InputWizard, ImuCalibration, Direction, Control)
+    val drivesMotor: Boolean get() = section == ToolSection.Detection || this in setOf(FocWizard, InputWizard, ImuCalibration, Direction, Control, Experiments)
 }
 
 /** [onOpenTool] switches to another tool, for tools that link to one. */
@@ -113,6 +117,8 @@ fun ToolContent(tool: Tool, context: ToolContext, onOpenTool: (Tool) -> Unit = {
         Tool.Radio -> RadioTool(context)
         Tool.CanBus -> CanBusTool(context)
         Tool.Bridge -> BridgeTool(context)
+        Tool.SampledData -> SampledDataTool(context)
+        Tool.Experiments -> ExperimentsTool(context)
         Tool.Packages -> PackagesTool(context, onOpenRefloat = { onOpenTool(Tool.Refloat) })
         Tool.Refloat -> RefloatTool(context, onOpenSettings = { onOpenTool(Tool.PackageSettings) })
         Tool.PackageSettings -> PackageSettingsTool(context)

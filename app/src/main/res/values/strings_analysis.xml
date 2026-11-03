@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tool_sampled">Sampled data</string>
+    <string name="tool_sampled_summary">Raw phase currents and voltages, PWM cycle by PWM cycle, like a scope</string>
+    <string name="sampled_intro">The controller records its ADC samples and sends them here. Use it to look at current ripple, noise and what happens at start-up or in a fault. Start and the triggers wait for the motor to start (from Control, a remote or a script) or for a fault.</string>
+    <string name="sampled_when">When to record</string>
+    <string name="sampled_now">Now</string>
+    <string name="sampled_on_start">From start</string>
+    <string name="sampled_around_start">Around start</string>
+    <string name="sampled_before_fault">Before a fault</string>
+    <string name="sampled_last">Last again</string>
+    <string name="sampled_samples">Samples</string>
+    <string name="sampled_decimation">Record</string>
+    <string name="sampled_every">every %1$d</string>
+    <string name="sampled_start">Record</string>
+    <string name="sampled_stop">Stop waiting</string>
+    <string name="sampled_save">Save CSV</string>
+    <string name="sampled_waiting">Waiting for the trigger…</string>
+    <string name="sampled_receiving">Received %1$d samples</string>
+    <string name="sampled_failed">No samples</string>
+    <string name="sampled_nothing">The controller sent nothing. For a trigger, nothing triggered in time; otherwise its firmware may not record samples.</string>
+    <string name="sampled_currents">Currents</string>
+    <string name="sampled_voltages">Voltages</string>
+
+    <string name="tool_experiments">Experiments</string>
+    <string name="tool_experiments_summary">Step duty, current or speed and log what the controller does</string>
+    <string name="experiments_warning">This spins the motor</string>
+    <string name="experiments_warning_body">Run it on a bench with the wheel or prop free and the motor secured. Leaving this page stops the sweep and releases the motor.</string>
+    <string name="experiments_duty">Duty</string>
+    <string name="experiments_current">Current</string>
+    <string name="experiments_rpm">Speed</string>
+    <string name="experiments_unit_duty">0 to 1</string>
+    <string name="experiments_unit_current">A</string>
+    <string name="experiments_unit_rpm">ERPM</string>
+    <string name="experiments_from">From (%1$s)</string>
+    <string name="experiments_to">To (%1$s)</string>
+    <string name="experiments_step">Step (%1$s)</string>
+    <string name="experiments_step_time">Seconds per step</string>
+    <string name="experiments_summary">%1$d steps, %2$d s in all</string>
+    <string name="experiments_run">Run</string>
+    <string name="experiments_stop">Stop</string>
+    <string name="experiments_save">Save CSV</string>
+    <string name="experiments_failed">The experiment stopped</string>
+    <string name="experiments_confirm_title">Spin the motor?</string>
+    <string name="experiments_confirm_body">The motor runs for about %1$d s through the steps, then is released. Keep clear of the wheel or prop.</string>
+    <string name="experiments_cancel">Cancel</string>
+</resources>

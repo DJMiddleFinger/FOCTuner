@@ -86,6 +86,7 @@ import app.foctuner.protocol.CommPacketId.COMM_PSW_SWITCH
 import app.foctuner.protocol.CommPacketId.COMM_QMLUI_ERASE
 import app.foctuner.protocol.CommPacketId.COMM_QMLUI_WRITE
 import app.foctuner.protocol.CommPacketId.COMM_RESET_STATS
+import app.foctuner.protocol.CommPacketId.COMM_SAMPLE_PRINT
 import app.foctuner.protocol.CommPacketId.COMM_SET_APPCONF
 import app.foctuner.protocol.CommPacketId.COMM_SET_APPCONF_NO_STORE
 import app.foctuner.protocol.CommPacketId.COMM_SET_MCCONF
@@ -148,7 +149,7 @@ import kotlin.time.TimeSource
  * COMM_CUSTOM_APP_DATA, which it echoes back like a package that answers everything (except Refloat's commands, see
  * [RefloatSim]); the nRF module and CAN bus commands
  * (COMM_SET_BLE_NAME / PIN, COMM_NRF_START_PAIRING, COMM_CAN_UPDATE_BAUD_ALL, COMM_SET_CAN_MODE, COMM_CAN_FWD_FRAME, see
- * [RadioSim]). Other commands are ignored like
+ * [RadioSim]); and COMM_SAMPLE_PRINT ([SamplingSim]). Other commands are ignored like
  * unknown ones in the firmware.
  *
  * Time comes from [timeSource] and is applied lazily when a request arrives, so the simulation costs nothing
@@ -228,6 +229,7 @@ class SimulatedVesc(
     private val files = FileSystemSim(this)
     private val logs = LogSim(files)
     private val refloat = RefloatSim(first)
+    private val sampling = SamplingSim(this, first) { packVoltage }
     private val radio = RadioSim(this, if (dualMotor) listOf(first, second) else listOf(first), if (dualMotor) controllerId + 1 else null)
 
     override suspend fun write(bytes: ByteArray) {
@@ -272,6 +274,9 @@ class SimulatedVesc(
      * written, without acknowledging it, as when the radio fails mid-upload. Once.
      */
     fun dropLinkDuringUpload(bytes: Int) = firmware.dropAfter(bytes)
+
+    /** Sample indices of the next ADC recording that get lost on the way (once each), for tests. */
+    fun dropSamples(vararg indices: Int) = synchronized(lock) { sampling.drop += indices.toList() }
 
     /** The Bluetooth name and PIN last sent with COMM_SET_BLE_NAME / PIN, null if none was. */
     val bleName: String? get() = synchronized(lock) { radio.bleName }
@@ -397,6 +402,7 @@ class SimulatedVesc(
                 val data = packet.copyOfRange(1, packet.size)
                 if (data.firstOrNull()?.toInt() == REFLOAT_ID) refloat.handle(data, uptime)?.let(::reply) else reply(packet)
             }
+            COMM_SAMPLE_PRINT -> sampling.request(r)
             COMM_SET_BLE_NAME -> radio.setBleName(r)
             COMM_SET_BLE_PIN -> radio.setBlePin(r)
             COMM_NRF_START_PAIRING -> radio.startPairing(r)
