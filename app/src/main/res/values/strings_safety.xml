@@ -52,4 +52,8 @@
         <item quantity="one">Restoring changes %1$d setting: %2$s</item>
         <item quantity="other">Restoring changes %1$d settings: %2$s</item>
     </plurals>
+    <string name="settings_search">Search settings</string>
+    <string name="settings_search_hint">Search motor and app settings</string>
+    <string name="settings_search_close">Close search</string>
+    <string name="settings_search_none">No setting matches. Try fewer or shorter words.</string>
 </resources>

@@ -68,6 +68,8 @@ data class SettingsState(
     val restore: RestoreReview? = null,
     /** Set while a restore is being prepared or written. */
     val restoring: Boolean = false,
+    /** A search result to open, picked on either config's page. */
+    val jump: SettingHit? = null,
 ) {
     fun pane(kind: ConfigKind) = if (kind == ConfigKind.MCCONF) motor else app
 }
@@ -95,4 +97,7 @@ interface SettingsActions {
     fun confirmRestore()
     fun dismissRestore()
     fun deleteBackup(backup: ConfigBackup)
+
+    /** Opens [hit]'s page and marks its row on the page of its config; null once done. */
+    fun jumpTo(hit: SettingHit?)
 }

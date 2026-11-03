@@ -16,7 +16,13 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.graphics.Color
+import app.foctuner.ui.theme.Motion
+import app.foctuner.ui.theme.motionSpec
+import kotlinx.coroutines.delay
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -81,7 +87,13 @@ import kotlin.math.sign
  * review before storing them on the controller.
  */
 @Composable
-fun SettingsScreen(kind: ConfigKind, state: SettingsState, actions: SettingsActions, modifier: Modifier = Modifier) {
+fun SettingsScreen(
+    kind: ConfigKind,
+    state: SettingsState,
+    actions: SettingsActions,
+    modifier: Modifier = Modifier,
+    onShow: (ConfigKind) -> Unit = {},
+) {
     val colors = FocTheme.colors
     var group by rememberSaveable(kind) { mutableIntStateOf(0) }
     var subgroup by rememberSaveable(kind) { mutableIntStateOf(0) }
@@ -100,7 +112,7 @@ fun SettingsScreen(kind: ConfigKind, state: SettingsState, actions: SettingsActi
         if (showHistory) {
             HistoryPage(state, actions, stringResource(if (kind == ConfigKind.MCCONF) R.string.nav_motor_cfg else R.string.nav_app_cfg)) { history = false }
         } else {
-            ConfigPage(kind, pane, actions, files, onEdit = { editing = it }, onWrite = { reviewing = true }, onHistory = { history = true })
+            ConfigPage(kind, state, actions, files, onEdit = { editing = it }, onWrite = { reviewing = true }, onHistory = { history = true }, onShow = onShow)
         }
     }
 
@@ -139,17 +151,46 @@ fun SettingsScreen(kind: ConfigKind, state: SettingsState, actions: SettingsActi
 @Composable
 private fun ConfigPage(
     kind: ConfigKind,
-    pane: ConfigPaneState,
+    state: SettingsState,
     actions: SettingsActions,
     files: ConfigFiles,
     onEdit: (String) -> Unit,
     onWrite: () -> Unit,
     onHistory: () -> Unit,
+    onShow: (ConfigKind) -> Unit,
 ) {
     val colors = FocTheme.colors
+    val pane = state.pane(kind)
     var group by rememberSaveable(kind) { mutableIntStateOf(0) }
     var subgroup by rememberSaveable(kind) { mutableIntStateOf(0) }
+    var searching by rememberSaveable(kind) { mutableStateOf(false) }
+    var query by rememberSaveable(kind) { mutableStateOf("") }
+    var highlight by remember { mutableStateOf<String?>(null) }
     val config = pane.edited
+    LaunchedEffect(state.jump) {
+        val hit = state.jump ?: return@LaunchedEffect
+        if (hit.kind != kind) return@LaunchedEffect
+        group = hit.group
+        subgroup = hit.subgroup
+        highlight = hit.name
+        searching = false
+        actions.jumpTo(null)
+    }
+    BackHandler(enabled = searching) { searching = false }
+    if (searching) {
+        SettingsSearch(
+            query = query,
+            onQuery = { query = it },
+            state = state,
+            onPick = { hit ->
+                searching = false
+                actions.jumpTo(hit)
+                if (hit.kind != kind) onShow(hit.kind)
+            },
+            onClose = { searching = false },
+        )
+        return
+    }
     Column(
         Modifier
             .fillMaxSize()
@@ -196,9 +237,18 @@ private fun ConfigPage(
                 val shownGroup = group.coerceIn(0, sections.lastIndex)
                 val subgroups = sections[shownGroup].subgroups
                 val shownSubgroup = subgroup.coerceIn(0, maxOf(subgroups.lastIndex, 0))
-                GroupPicker(kind, sections, shownGroup, config.definition, pane.changed) {
-                    group = it
-                    subgroup = 0
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f)) {
+                        GroupPicker(kind, sections, shownGroup, config.definition, pane.changed) {
+                            group = it
+                            subgroup = 0
+                        }
+                    }
+                    SearchButton {
+                        highlight = null
+                        searching = true
+                        ConfigKind.entries.forEach(actions::open)
+                    }
                 }
                 if (subgroups.size > 1) {
                     val labels = subgroups.map { sub ->
@@ -233,6 +283,7 @@ private fun ConfigPage(
                             stored = pane.stored,
                             changed = pane.changed,
                             warnings = pane.warnings,
+                            highlight = highlight,
                             onOpen = onEdit,
                             onSet = { name, value -> actions.edit(kind, name, value) },
                         )
@@ -370,6 +421,7 @@ private fun SubgroupPage(
     stored: Config?,
     changed: Set<String>,
     warnings: List<ConfigWarning>,
+    highlight: String?,
     onOpen: (String) -> Unit,
     onSet: (String, ParamValue) -> Unit,
 ) {
@@ -377,12 +429,40 @@ private fun SubgroupPage(
     val charts = remember(subgroup, config.definition) { SettingCharts.on(subgroup, config.definition) }
     val rowWarnings = remember(warnings) { warnings.byParam() }
     val anchored = remember(charts) { charts.filterNot { it.atTop }.associateBy { it.anchor } }
+    val list = rememberLazyListState()
+    // The same item order as below: charts at the top, then each entry with the chart anchored above it.
+    LaunchedEffect(highlight, subgroup) {
+        val target = highlight ?: return@LaunchedEffect
+        var index = charts.count { it.atTop }
+        for (entry in subgroup.entries) {
+            when (entry) {
+                is GroupEntry.Separator -> index++
+                is GroupEntry.Param -> {
+                    if (entry.name in anchored) index++
+                    if (entry.name == target) {
+                        list.scrollToItem(index)
+                        return@LaunchedEffect
+                    }
+                    if (entry.name in config.definition.params) index++
+                }
+            }
+        }
+    }
+    val flash = remember { Animatable(0f) }
+    val fade = motionSpec<Float>(Motion.LONG)
+    LaunchedEffect(highlight, subgroup) {
+        if (highlight == null || subgroup.paramNames.none { it == highlight }) return@LaunchedEffect
+        flash.snapTo(1f)
+        delay(900)
+        flash.animateTo(0f, fade)
+    }
     // A handle snaps to the slider grid its setting had when it was taken, until it's let go.
     val heldTracks = remember { HashMap<String, NumberTrack>() }
     LazyColumn(
         Modifier
             .fillMaxSize()
             .background(colors.background),
+        state = list,
     ) {
         // The controller's values are drawn under a chart only while one of its settings has a pending edit.
         fun storedFor(chart: SettingChart) = stored?.takeIf { chart.params.any { it in changed } }
@@ -415,7 +495,8 @@ private fun SubgroupPage(
                     }
                     val param = config.definition.params[entry.name] ?: return@forEachIndexed
                     item(key = "param$index") {
-                        Column {
+                        val marked = param.name == highlight
+                        Column(Modifier.background(if (marked) colors.accent.copy(alpha = 0.18f * flash.value) else Color.Transparent)) {
                             ParamRow(
                                 param = param,
                                 value = config[param.name],
@@ -533,6 +614,7 @@ private object NoActions : SettingsActions {
     override fun confirmRestore() = Unit
     override fun dismissRestore() = Unit
     override fun deleteBackup(backup: ConfigBackup) = Unit
+    override fun jumpTo(hit: SettingHit?) = Unit
 }
 
 @ThemePreviews

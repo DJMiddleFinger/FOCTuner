@@ -141,6 +141,10 @@ class SettingsModel(
         }
     }
 
+    override fun jumpTo(hit: SettingHit?) {
+        _state.update { it.copy(jump = hit) }
+    }
+
     override fun dismissRestore() {
         _state.update { it.copy(restore = null) }
     }
