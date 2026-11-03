@@ -30,6 +30,7 @@ import app.foctuner.ui.tools.setup.PpmMappingTool
 import app.foctuner.ui.tools.firmware.FirmwareTool
 import app.foctuner.ui.tools.lisp.LispTool
 import app.foctuner.ui.tools.logs.LogsTool
+import app.foctuner.ui.tools.packages.PackagesTool
 import app.foctuner.ui.tools.stats.StatsTool
 
 /** The Start page's groups, after VESC Tool's; [Tab] tools have a top-level tab of their own instead. */
@@ -70,6 +71,7 @@ enum class Tool(val section: ToolSection, @param:StringRes val title: Int, @para
     Bms(ToolSection.Tab, R.string.tool_bms, R.string.tool_bms_summary, R.drawable.ic_tool_battery),
     Lisp(ToolSection.Tab, R.string.tool_lisp, R.string.tool_lisp_summary, R.drawable.ic_tool_lambda),
     Logs(ToolSection.Operations, R.string.tool_logs, R.string.tool_logs_summary, R.drawable.ic_curve),
+    Packages(ToolSection.Operations, R.string.tool_packages, R.string.tool_packages_summary, R.drawable.ic_tool_lambda),
     ;
 
     /** Setup tools and manual control command the motor themselves (demo mode pauses its ride for them). */
@@ -106,5 +108,6 @@ fun ToolContent(tool: Tool, context: ToolContext) {
         Tool.Radio -> RadioTool(context)
         Tool.CanBus -> CanBusTool(context)
         Tool.Bridge -> BridgeTool(context)
+        Tool.Packages -> PackagesTool(context)
     }
 }
