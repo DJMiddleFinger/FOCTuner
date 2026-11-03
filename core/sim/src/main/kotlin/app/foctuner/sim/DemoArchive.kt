@@ -53,6 +53,7 @@ object DemoArchive {
                 listOf(
                     RccWriter.File("/res/firmwares_esp/esp32c3/$EXPRESS/vesc_express.bin", image(EXPRESS, "6.05", size = 64 * 1024)),
                     RccWriter.File("/res/firmwares_esp/esp32c3/$EXPRESS/bootloader.bin", ByteArray(2048) { 7 }),
+                    RccWriter.File("/res/firmwares_esp/esp32c3/$EXPRESS/partition-table.bin", ByteArray(3072) { 0x55 }),
                 ),
             ),
         )

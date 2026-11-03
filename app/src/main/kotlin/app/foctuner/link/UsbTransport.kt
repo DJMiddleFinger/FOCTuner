@@ -9,6 +9,7 @@ import android.hardware.usb.UsbInterface
 import android.hardware.usb.UsbManager
 import android.os.SystemClock
 import app.foctuner.transport.Transport
+import app.foctuner.vesc.esp.SerialLines
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -32,7 +33,7 @@ import java.io.IOException
 class UsbTransport private constructor(
     private val connection: UsbDeviceConnection,
     private val port: CdcPort,
-) : Transport {
+) : Transport, SerialLines {
     private val incoming = Channel<ByteArray>(Channel.UNLIMITED)
     private val writeLock = Mutex()
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -57,6 +58,16 @@ class UsbTransport private constructor(
                     offset += sent
                 }
             }
+        }
+    }
+
+    /** CDC SET_CONTROL_LINE_STATE: the modem lines an ESP32's auto-reset circuit (or its own USB serial port) reads. */
+    override suspend fun set(dtr: Boolean, rts: Boolean) {
+        withContext(Dispatchers.IO) {
+            val control = port.control ?: port.data
+            val value = (if (dtr) DTR else 0) or (if (rts) RTS else 0)
+            val result = connection.controlTransfer(REQUEST_TYPE_CLASS_INTERFACE_OUT, SET_CONTROL_LINE_STATE, value, control.id, null, 0, CONTROL_TIMEOUT_MS)
+            if (result < 0) throw IOException("The USB serial port refused the control lines")
         }
     }
 
@@ -101,6 +112,7 @@ class UsbTransport private constructor(
         private const val REQUEST_TYPE_CLASS_INTERFACE_OUT = 0x21
         private const val SET_CONTROL_LINE_STATE = 0x22
         private const val DTR = 0x01
+        private const val RTS = 0x02
 
         /** Whether [device] has the CDC-ACM interfaces this transport needs. */
         fun isSerialDevice(device: UsbDevice): Boolean = device.cdcPort() != null

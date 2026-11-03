@@ -147,6 +147,7 @@ private fun ConnectRoute(connect: ConnectViewModel, session: SessionViewModel) {
         onForget = connect::forget,
         onOpenPreferences = { page = AppPage.Preferences },
         onOpenAbout = { page = AppPage.About },
+        onOpenEspProgrammer = { page = AppPage.EspProgrammer },
     )
 }
 

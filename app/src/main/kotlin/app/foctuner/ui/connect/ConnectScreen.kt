@@ -63,6 +63,7 @@ fun ConnectScreen(
     onForget: (DeviceEntry) -> Unit,
     onOpenPreferences: () -> Unit,
     onOpenAbout: () -> Unit,
+    onOpenEspProgrammer: () -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
     val busy = state.connectingKey != null
@@ -186,6 +187,14 @@ fun ConnectScreen(
                     detail = stringResource(R.string.about_open_summary),
                     monoDetail = false,
                     onClick = onOpenAbout,
+                    enabled = !busy,
+                )
+                Hairline(Modifier.padding(start = Spacing.x2))
+                DeviceRow(
+                    title = stringResource(R.string.tool_esp),
+                    detail = stringResource(R.string.tool_esp_summary),
+                    monoDetail = false,
+                    onClick = onOpenEspProgrammer,
                     enabled = !busy,
                 )
                 Spacer(Modifier.height(Spacing.x4))

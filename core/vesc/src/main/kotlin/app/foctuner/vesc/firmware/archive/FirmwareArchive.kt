@@ -141,6 +141,37 @@ class FirmwareArchive(
         return emptyList()
     }
 
+    /**
+     * Every VESC Express build in `res_fw_esp32.rcc` that has the three images a blank ESP32 needs (bootloader,
+     * partition table, app), for flashing over the ESP's own bootloader rather than through the VESC protocol.
+     */
+    suspend fun expressBuilds(): List<ExpressBuild> {
+        val index = bundleIndex(EXPRESS_BUNDLE)
+        return index.entries
+            .mapNotNull { entry ->
+                val parts = entry.path.split('/').drop(1)
+                if (parts.size == 5 && parts[0] == "res" && parts[1] == "firmwares_esp") Triple(parts[2], parts[3], entry) else null
+            }
+            .groupBy { it.first to it.second }
+            .mapNotNull { (key, files) ->
+                val byName = files.associate { it.third.name.lowercase() to it.third }
+                if (ExpressBuild.FILES.all { it in byName }) ExpressBuild(key.first, key.second, byName.filterKeys { it in ExpressBuild.FILES }) else null
+            }
+            .sortedWith(compareBy({ it.chip }, { it.hardware.lowercase() }))
+    }
+
+    /** The bootloader, partition table and app of [build], in that order. */
+    suspend fun expressImages(build: ExpressBuild, onProgress: (file: Int, received: Long, total: Long?) -> Unit = { _, _, _ -> }): List<ByteArray> {
+        val index = bundleIndex(EXPRESS_BUNDLE)
+        return ExpressBuild.FILES.mapIndexed { i, name ->
+            val path = build.entries.getValue(name).path
+            val fresh = index.entries.firstOrNull { it.path == path }
+                ?: throw ArchiveException(ArchiveException.Reason.NotFound, "$path is no longer in $EXPRESS_BUNDLE")
+            val entry = ArchiveEntry(ArchiveOrigin.Express, null, listOf(build.hardware), fresh.name, EXPRESS_BUNDLE, fresh.path, fresh.dataOffset, fresh.flags)
+            fetch(entry, index.dataSection) { received, total -> onProgress(i, received, total) }
+        }
+    }
+
     private suspend fun bmsEntries(target: ArchiveTarget): List<ArchiveEntry> {
         val base = "res/firmwares_bms"
         val listed = try {

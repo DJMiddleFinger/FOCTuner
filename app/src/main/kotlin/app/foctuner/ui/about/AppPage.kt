@@ -26,11 +26,13 @@ import app.foctuner.ui.components.PlainButton
 import app.foctuner.ui.prefs.PreferencesRoute
 import app.foctuner.ui.theme.FocTheme
 import app.foctuner.ui.theme.Spacing
+import app.foctuner.ui.tools.programmers.EspProgrammerScreen
 
 /** App-level pages reachable without a connection. In the connected shell the Tools tab lists them. */
 enum class AppPage(@param:StringRes val title: Int) {
     Preferences(R.string.prefs_title),
     About(R.string.about_title),
+    EspProgrammer(R.string.tool_esp),
 }
 
 /** [page] full screen with a way back, for the connect screen. */
@@ -59,6 +61,7 @@ fun AppPageScreen(page: AppPage, onBack: () -> Unit) {
             when (page) {
                 AppPage.Preferences -> PreferencesRoute()
                 AppPage.About -> AboutRoute()
+                AppPage.EspProgrammer -> EspProgrammerScreen()
             }
         }
     }

@@ -89,3 +89,11 @@ sealed interface ArchiveDownload {
     data class Progress(val received: Long, val total: Long?) : ArchiveDownload
     data class Done(val image: ArchiveImage) : ArchiveDownload
 }
+
+/** A VESC Express build for one board ([hardware]) and chip directory (`esp32c3`, `esp32s3`, ...). */
+data class ExpressBuild(val chip: String, val hardware: String, internal val entries: Map<String, RccEntry>) {
+    companion object {
+        /** In flashing order: bootloader at 0x0, partition table at 0x8000, app at 0x20000. */
+        val FILES = listOf("bootloader.bin", "partition-table.bin", "vesc_express.bin")
+    }
+}
