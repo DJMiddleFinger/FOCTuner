@@ -17,6 +17,7 @@ import app.foctuner.ui.theme.lateral
 import app.foctuner.ui.tools.Tool
 import app.foctuner.ui.tools.ToolContent
 import app.foctuner.ui.tools.ToolContext
+import app.foctuner.ui.tools.logs.RideLogBar
 
 private val pages = listOf(null to R.string.rt_realtime, Tool.Ride to R.string.rt_ride, Tool.Imu to R.string.tool_imu, Tool.Stats to R.string.tool_stats)
 
@@ -25,6 +26,7 @@ private val pages = listOf(null to R.string.rt_realtime, Tool.Ride to R.string.r
 fun RtDataScreen(overview: OverviewState?, tools: ToolContext?, modifier: Modifier = Modifier) {
     var selected by rememberSaveable { mutableIntStateOf(0) }
     Column(modifier.fillMaxSize()) {
+        if (tools != null) RideLogBar()
         TabStrip(pages.map { stringResource(it.second) }, selected, { selected = it })
         FocAnimatedContent(
             target = selected,
