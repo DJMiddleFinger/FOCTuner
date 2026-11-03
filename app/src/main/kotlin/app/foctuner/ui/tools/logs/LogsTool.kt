@@ -139,13 +139,14 @@ private fun PhoneLogRow(log: StoredLog, onOpen: () -> Unit, onDelete: () -> Unit
     val context = LocalContext.current
     val title = rememberLogTitle(log.name)
     val size = byteCount(log.size)
+    val description = stringResource(R.string.logging_log_description, title, size)
     Column {
         Row(
             Modifier
                 .fillMaxWidth()
                 .heightIn(min = Spacing.twoLineRow)
                 .padding(start = Spacing.x2, end = Spacing.x1)
-                .semantics(mergeDescendants = true) { contentDescription = context.getString(R.string.logging_log_description, title, size) },
+                .semantics(mergeDescendants = true) { contentDescription = description },
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Column(Modifier.weight(1f)) {

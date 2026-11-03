@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tool_backups">Backups</string>
+    <string name="tool_backups_summary">Back up and restore the settings of every controller on the bus</string>
+    <string name="tool_profiles">Profiles</string>
+    <string name="tool_profiles_summary">Switch between riding limits: speed, current and power</string>
+    <string name="tool_multi">Multi settings</string>
+    <string name="tool_multi_summary">Write limits and motor settings to every controller at once</string>
+
+    <string name="configtools_attached">This controller</string>
+    <string name="configtools_can">CAN %1$d</string>
+    <string name="configtools_done">Done.</string>
+    <string name="configtools_failed">Failed: %1$s</string>
+    <string name="configtools_not_applied">The controller changed or didn\'t take: %1$s</string>
+    <string name="configtools_no_reply">The controller didn\'t answer</string>
+
+    <string name="backups_all">All controllers</string>
+    <string name="backups_all_body">Saves or restores the motor and app settings of this controller and every motor controller on its CAN bus. Before a restore each controller\'s current settings are saved as an automatic backup, so it can be undone from Settings › History.</string>
+    <string name="backups_back_up_all">Back up all</string>
+    <string name="backups_restore_all">Restore all</string>
+    <string name="backups_restore_none">no backup, left as it is</string>
+    <string name="backups_restore_body">Each controller gets its newest backup that was asked for (automatic ones are skipped):\n\n%1$s</string>
+    <string name="backups_name">Name (optional)</string>
+    <string name="backups_saved">Saved backups</string>
+    <string name="backups_none">No backups yet.</string>
+    <string name="backups_delete_all">Delete all</string>
+    <plurals name="backups_delete_all_body">
+        <item quantity="one">Deletes the %1$d backup on this phone. This can\'t be undone.</item>
+        <item quantity="other">Deletes all %1$d backups on this phone, of every controller. This can\'t be undone.</item>
+    </plurals>
+
+    <string name="profiles_title">Profiles</string>
+    <string name="profiles_add">Add</string>
+    <string name="profiles_edit">Edit</string>
+    <string name="profiles_save">Save</string>
+    <string name="profiles_add_title">New profile</string>
+    <string name="profiles_edit_title">Edit profile</string>
+    <string name="profiles_name">Name</string>
+    <string name="profiles_none">No profiles yet. Add one from the controller\'s current limits.</string>
+    <string name="profiles_body">Profiles live on this phone. Speeds are converted with the wheel and gearing set on the controller, and the controller passes the profile on to the others on its CAN bus.</string>
+    <string name="profiles_in_use">%1$s · in use</string>
+    <string name="profiles_use_until_reboot">Use until restart</string>
+    <string name="profiles_use_permanently">Use permanently</string>
+    <string name="profiles_apply">Use</string>
+    <string name="profiles_apply_body">%1$s\n\nThe controllers go back to their stored limits when they restart.</string>
+    <string name="profiles_apply_permanently_body">%1$s\n\nThese limits are stored in the motor settings of every controller on the bus.</string>
+    <string name="profiles_delete_title">Delete %1$s?</string>
+    <string name="profiles_delete_body">Only removes the profile from this phone; the controllers keep their limits.</string>
+    <string name="profiles_speed">%1$s %3$s forward, %2$s reverse</string>
+    <string name="profiles_currents">motor %1$s %%, brake %2$s %%</string>
+    <string name="profiles_power">%1$s W, regen %2$s W</string>
+    <string name="profiles_no_power_limit">no power limit</string>
+    <string name="profiles_max_speed">Max speed (%1$s)</string>
+    <string name="profiles_max_reverse">Max reverse speed (%1$s)</string>
+    <string name="profiles_motor_current">Motor current (%)</string>
+    <string name="profiles_brake_current">Brake current (%)</string>
+    <string name="profiles_max_power">Max power (W, empty: no limit)</string>
+    <string name="profiles_max_regen">Max regen power (W)</string>
+
+    <string name="multi_general">General</string>
+    <string name="multi_limits">Limits</string>
+    <string name="multi_foc">FOC</string>
+    <string name="multi_bms">BMS</string>
+    <string name="multi_write_all">Write %1$s to all</string>
+    <string name="multi_write">Write</string>
+    <plurals name="multi_write_body">
+        <item quantity="one">Writes this setting, as shown here, to:\n\n%2$s\n\nEach controller\'s settings are saved as an automatic backup first.</item>
+        <item quantity="other">Writes these %1$d settings, as shown here, to:\n\n%2$s\n\nEach controller\'s settings are saved as an automatic backup first.</item>
+    </plurals>
+    <string name="multi_body">Values start from the selected controller. Settings a controller\'s firmware doesn\'t have are skipped for it.</string>
+</resources>

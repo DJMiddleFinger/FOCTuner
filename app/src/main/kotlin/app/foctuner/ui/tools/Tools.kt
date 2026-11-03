@@ -5,6 +5,9 @@ import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import app.foctuner.R
 import app.foctuner.ui.tools.bms.BmsTool
+import app.foctuner.ui.tools.configtools.BackupsTool
+import app.foctuner.ui.tools.configtools.MultiSettingsTool
+import app.foctuner.ui.tools.configtools.ProfilesTool
 import app.foctuner.ui.tools.control.ControlTool
 import app.foctuner.ui.tools.gnss.GnssTool
 import app.foctuner.ui.tools.imu.ImuTool
@@ -41,6 +44,9 @@ enum class Tool(val section: ToolSection, @param:StringRes val title: Int, @para
     InputWizard(ToolSection.Configuration, R.string.tool_input_wizard, R.string.tool_input_wizard_summary, R.drawable.ic_tool_joystick),
     ImuCalibration(ToolSection.Configuration, R.string.tool_imu_calibration, R.string.tool_imu_calibration_summary, R.drawable.ic_tool_level),
     Direction(ToolSection.Configuration, R.string.tool_direction, R.string.tool_direction_summary, R.drawable.ic_tool_rotate),
+    Backups(ToolSection.Configuration, R.string.tool_backups, R.string.tool_backups_summary, R.drawable.ic_history),
+    Profiles(ToolSection.Configuration, R.string.tool_profiles, R.string.tool_profiles_summary, R.drawable.ic_set_star),
+    MultiSettings(ToolSection.Configuration, R.string.tool_multi, R.string.tool_multi_summary, R.drawable.ic_nav_controllers),
     FocDetection(ToolSection.Detection, R.string.tool_foc_detection, R.string.tool_foc_detection_summary, R.drawable.ic_tool_sine),
     HallDetection(ToolSection.Detection, R.string.tool_hall_detection, R.string.tool_hall_detection_summary, R.drawable.ic_tool_magnet),
     EncoderDetection(ToolSection.Detection, R.string.tool_encoder_detection, R.string.tool_encoder_detection_summary, R.drawable.ic_tool_encoder),
@@ -61,7 +67,7 @@ enum class Tool(val section: ToolSection, @param:StringRes val title: Int, @para
     ;
 
     /** Setup tools and manual control command the motor themselves (demo mode pauses its ride for them). */
-    val drivesMotor: Boolean get() = section == ToolSection.Configuration || section == ToolSection.Detection || this == Control
+    val drivesMotor: Boolean get() = section == ToolSection.Detection || this in setOf(FocWizard, InputWizard, ImuCalibration, Direction, Control)
 }
 
 @Composable
@@ -88,5 +94,8 @@ fun ToolContent(tool: Tool, context: ToolContext) {
         Tool.Firmware -> FirmwareTool(context)
         Tool.Lisp -> LispTool(context)
         Tool.Logs -> LogsTool(context)
+        Tool.Backups -> BackupsTool(context)
+        Tool.Profiles -> ProfilesTool(context)
+        Tool.MultiSettings -> MultiSettingsTool(context)
     }
 }
