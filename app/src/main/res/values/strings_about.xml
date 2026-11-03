@@ -43,4 +43,6 @@
     <string name="about_michroma_detail">The ride view\'s wide face, from VESC Dash. SIL Open Font License 1.1.</string>
     <string name="about_material_icons">Material Icons</string>
     <string name="about_material_icons_detail">The ride view\'s icons. Apache License 2.0.</string>
+    <string name="about_krona">Krona One</string>
+    <string name="about_krona_detail">The E moto display\'s digits, from VESC Dash. SIL Open Font License 1.1.</string>
 </resources>

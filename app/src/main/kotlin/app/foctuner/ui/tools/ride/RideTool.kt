@@ -1,5 +1,6 @@
 package app.foctuner.ui.tools.ride
 
+import app.foctuner.ui.ridedash.AppAppearance
 import app.foctuner.ui.ridedash.RideViewSettings
 import app.foctuner.ui.ridedash.RideViewDialog
 import app.foctuner.ui.ridedash.RideHub
@@ -66,6 +67,10 @@ fun RideTool(context: ToolContext) {
     val android = LocalContext.current
     val hub = context.model { RideHub(context, android, units == Units.Imperial) }
     var rideView by rememberSaveable { mutableStateOf(false) }
+    val ridePrefs by hub.ridePrefs.collectAsStateWithLifecycle()
+    // As in VESC Dash: the E-moto display opens the ride view by itself when you ride off above 5 km/h.
+    val ridingOff = ridePrefs.appearance == AppAppearance.EMOTO && (state.values?.speed ?: 0f) * 3.6f > 5f
+    LaunchedEffect(ridingOff) { if (ridingOff) rideView = true }
     Column(Modifier.verticalScroll(rememberScrollState())) {
         RideViewSettings(hub) { rideView = true }
         Hairline()

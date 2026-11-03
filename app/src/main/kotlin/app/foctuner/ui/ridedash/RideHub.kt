@@ -36,6 +36,7 @@ sealed interface ModeApplyStatus {
 /** The ride view's own choices, kept on the phone; everything else comes from the controller's motor config. */
 @Serializable
 data class RidePrefs(
+    val appearance: AppAppearance = AppAppearance.CLASSIC,
     val rideStyle: RideStyle = RideStyle.CLASSIC,
     val rideTheme: RideTheme = RideTheme.DARK,
     val launchAnimation: Boolean = false,
@@ -194,6 +195,7 @@ class RideHub(private val context: ToolContext, android: Context, private val im
 internal val rideJson = kotlinx.serialization.json.Json { ignoreUnknownKeys = true }
 
 internal fun VehicleSettings.with(p: RidePrefs) = copy(
+    appearance = p.appearance,
     rideStyle = p.rideStyle,
     rideTheme = p.rideTheme,
     launchAnimation = p.launchAnimation,

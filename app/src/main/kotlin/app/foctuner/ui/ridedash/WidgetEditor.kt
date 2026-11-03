@@ -61,7 +61,7 @@ fun WidgetEditorSheet(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val range = metric.defaultRange(vehicle)
 
-    val stark = Palette.stark
+    val emoto = Palette.emoto
 
     val appearanceSection: @Composable () -> Unit = {
         SectionLabel("STYLE")
@@ -158,8 +158,8 @@ fun WidgetEditorSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = Palette.Surface,
-        // Stark is always landscape: use the width for two columns.
-        sheetMaxWidth = if (stark) 900.dp else BottomSheetDefaults.SheetMaxWidth,
+        // The E-moto display is always landscape: use the width for two columns.
+        sheetMaxWidth = if (emoto) 900.dp else BottomSheetDefaults.SheetMaxWidth,
     ) {
         Column(
             Modifier
@@ -171,13 +171,13 @@ fun WidgetEditorSheet(
         ) {
             Text(
                 (if (initial == null) "Add widget" else "Edit widget").caps(),
-                fontSize = if (stark) 15.sp else 22.sp,
+                fontSize = if (emoto) 15.sp else 22.sp,
                 fontFamily = Palette.display,
                 fontWeight = FontWeight.Bold,
                 color = Palette.Fg,
             )
 
-            if (stark) {
+            if (emoto) {
                 Row(horizontalArrangement = Arrangement.spacedBy(24.dp)) {
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) { appearanceSection() }
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(10.dp)) { valuesSection() }

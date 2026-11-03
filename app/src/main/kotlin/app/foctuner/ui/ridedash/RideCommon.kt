@@ -55,22 +55,22 @@ fun Double?.toFieldText(): String = when {
 @Composable
 fun SectionLabel(text: String, modifier: Modifier = Modifier, color: Color = Palette.TextDim) {
     Text(
-        // The wide caps face draws % badly ("o/o"), so Stark borrows the heavy face for it.
-        if (Palette.stark && '%' in text) buildAnnotatedString {
+        // The wide caps face draws % badly ("o/o"), so the E-moto display borrows the heavy face for it.
+        if (Palette.emoto && '%' in text) buildAnnotatedString {
             text.forEach { if (it == '%') withStyle(SpanStyle(fontFamily = HeavyWideFont)) { append(it) } else append(it) }
         } else AnnotatedString(text),
         modifier = modifier,
         color = color,
-        fontSize = if (Palette.stark) 10.sp else 11.sp,
+        fontSize = if (Palette.emoto) 10.sp else 11.sp,
         fontWeight = FontWeight.Bold,
         fontFamily = Palette.display,
-        letterSpacing = if (Palette.stark) 1.8.sp else 1.5.sp,
+        letterSpacing = if (Palette.emoto) 1.8.sp else 1.5.sp,
     )
 }
 
-/** Upper-case in Stark, where labels and buttons are set in the wide caps face. */
+/** Upper-case in the E-moto display, where labels and buttons are set in the wide caps face. */
 @Composable
-fun String.caps(): String = if (Palette.stark) uppercase() else this
+fun String.caps(): String = if (Palette.emoto) uppercase() else this
 
 @Composable
 fun Card(
@@ -98,9 +98,9 @@ fun Banner(text: String, color: Color, modifier: Modifier = Modifier) {
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 12.dp, vertical = 4.dp)
-            .clip(if (Palette.stark) Palette.innerShape else RoundedCornerShape(12.dp))
+            .clip(if (Palette.emoto) Palette.innerShape else RoundedCornerShape(12.dp))
             .background(color.copy(alpha = 0.16f))
-            .padding(horizontal = 14.dp, vertical = if (Palette.stark) 6.dp else 10.dp),
+            .padding(horizontal = 14.dp, vertical = if (Palette.emoto) 6.dp else 10.dp),
         color = color,
         fontSize = 13.sp,
         fontWeight = FontWeight.SemiBold,
@@ -161,10 +161,10 @@ fun SettingSwitch(title: String, checked: Boolean, subtitle: String? = null, onC
     }
 }
 
-/** Stark's fields are filled dark wells with a faint border that lights up when focused. */
+/** The E-moto display's fields are filled dark wells with a faint border that lights up when focused. */
 @Composable
 fun appTextFieldColors(): TextFieldColors =
-    if (Palette.stark) {
+    if (Palette.emoto) {
         OutlinedTextFieldDefaults.colors(
             focusedContainerColor = Palette.Surface2,
             unfocusedContainerColor = Palette.Surface2,
@@ -178,10 +178,10 @@ fun appTextFieldColors(): TextFieldColors =
         OutlinedTextFieldDefaults.colors()
     }
 
-/** Stark toggles: a green track with a white thumb when on, a dark well with a gray thumb when off. */
+/** The E-moto display toggles: a green track with a white thumb when on, a dark well with a gray thumb when off. */
 @Composable
 fun appSwitchColors(on: Color = Palette.Good): SwitchColors =
-    if (Palette.stark) {
+    if (Palette.emoto) {
         SwitchDefaults.colors(
             checkedTrackColor = on,
             checkedThumbColor = Color.White,
@@ -194,10 +194,10 @@ fun appSwitchColors(on: Color = Palette.Good): SwitchColors =
         SwitchDefaults.colors()
     }
 
-/** Filter chip; Stark's are stadium pills with a caps caption and a light outline when selected. */
+/** Filter chip; the E-moto display's are stadium pills with a caps caption and a light outline when selected. */
 @Composable
 fun AppChip(selected: Boolean, label: String, onClick: () -> Unit) {
-    if (!Palette.stark) {
+    if (!Palette.emoto) {
         FilterChip(selected = selected, onClick = onClick, label = { Text(label) })
         return
     }
@@ -217,7 +217,7 @@ fun AppChip(selected: Boolean, label: String, onClick: () -> Unit) {
 }
 
 /**
- * Text button with an optional leading [icon]. [primary] is filled in Classic; Stark draws every
+ * Text button with an optional leading [icon]. [primary] is filled in Classic; the E-moto display draws every
  * button as an outlined stadium with a caps caption, so [primary] only changes its border.
  */
 @Composable
@@ -235,7 +235,7 @@ fun AppButton(
         Text(if (icon != null) " ${label.caps()}" else label.caps(), color = color)
     }
     when {
-        Palette.stark -> OutlinedButton(
+        Palette.emoto -> OutlinedButton(
             onClick = onClick,
             modifier = modifier,
             enabled = enabled,

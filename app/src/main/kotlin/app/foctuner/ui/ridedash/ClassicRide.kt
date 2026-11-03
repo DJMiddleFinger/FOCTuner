@@ -31,7 +31,7 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sin
 
-/** Stark-style arc gauge: battery band, torque bar and big speed under three panels. */
+/** E-moto-style arc gauge: battery band, torque bar and big speed under three panels. */
 @Composable
 internal fun ClassicRide(d: RideData, c: RidePalette, onCycleMode: () -> Unit, onHome: () -> Unit) {
     val intro = rememberIntroProgress()
@@ -193,7 +193,7 @@ private fun DrawScope.drawPowerMode(
 private fun DrawScope.drawBatteryValue(g: RideGeometry, m: TextMeasurer, battery: Double?, color: Color) {
     val text = buildAnnotatedString {
         append(battery?.roundToInt()?.toString() ?: "--")
-        appendUnit(" %", (0.06f * g.h).toSp(), family = if (g.c.stark) HeavyWideFont else FontFamily.Default)
+        appendUnit(" %", (0.06f * g.h).toSp(), family = if (g.c.emoto) HeavyWideFont else FontFamily.Default)
     }
     drawCentered(m, text, digits(g.c, 0.165f * g.h, color), Offset(g.panelCenterX(1), g.valueY))
 }
@@ -202,7 +202,7 @@ private fun DrawScope.drawRidingTime(g: RideGeometry, m: TextMeasurer, ms: Long)
     val text = ridingTimeText(
         ms,
         big = SpanStyle(fontSize = (0.105f * g.h).toSp(), color = g.c.text),
-        small = SpanStyle(fontSize = (0.05f * g.h).toSp(), color = g.c.textSoft, fontFamily = if (g.c.stark) HeavyWideFont else null),
+        small = SpanStyle(fontSize = (0.05f * g.h).toSp(), color = g.c.textSoft, fontFamily = if (g.c.emoto) HeavyWideFont else null),
     )
     drawCentered(m, text, digits(g.c, 0.105f * g.h, g.c.text), Offset(g.panelCenterX(2), g.valueY))
 }
@@ -222,7 +222,7 @@ private fun DrawScope.drawBatteryBand(g: RideGeometry, frac: Float, color: Color
         style = Stroke(g.bandW),
     )
     if (live && frac > 0f) {
-        if (g.c.stark) {
+        if (g.c.emoto) {
             // A halo that bleeds off both edges of the band
             arc(g, color.copy(alpha = 0.10f), g.bandStart, g.bandSweep * frac, g.bandR, g.bandW * 2.6f)
             arc(g, color.copy(alpha = 0.18f), g.bandStart, g.bandSweep * frac, g.bandR, g.bandW * 1.6f)
@@ -231,7 +231,7 @@ private fun DrawScope.drawBatteryBand(g: RideGeometry, frac: Float, color: Color
         }
         arc(g, color, g.bandStart, g.bandSweep * frac, g.bandR, g.bandW)
         // and a brighter rim along the outer edge
-        if (g.c.stark) drawArc(Color.White.copy(alpha = 0.22f), g.bandStart, g.bandSweep * frac, false, Offset(g.cx - g.bandR - g.bandW * 0.4f, g.cy - g.bandR - g.bandW * 0.4f), Size(2 * (g.bandR + g.bandW * 0.4f), 2 * (g.bandR + g.bandW * 0.4f)), style = Stroke(g.bandW * 0.2f))
+        if (g.c.emoto) drawArc(Color.White.copy(alpha = 0.22f), g.bandStart, g.bandSweep * frac, false, Offset(g.cx - g.bandR - g.bandW * 0.4f, g.cy - g.bandR - g.bandW * 0.4f), Size(2 * (g.bandR + g.bandW * 0.4f), 2 * (g.bandR + g.bandW * 0.4f)), style = Stroke(g.bandW * 0.2f))
     }
     // Fine segmentation across the band
     val inner = g.bandR - g.bandW / 2f
@@ -266,7 +266,7 @@ private fun DrawScope.drawScale(g: RideGeometry, m: TextMeasurer, reveal: Float)
             g.point(a, g.tickR + len),
             strokeWidth = if (major) 0.005f * g.k else 0.0028f * g.k,
         )
-        if (g.c.stark && i == 100) {
+        if (g.c.emoto && i == 100) {
             drawCentered(m, AnnotatedString("%"), wide(0.022f * g.k, g.c.label).copy(fontFamily = HeavyWideFont), g.point(a + 3.8f, g.labelR - 0.012f * g.k))
         }
         if (mid) {
@@ -299,7 +299,7 @@ private fun DrawScope.drawTorque(g: RideGeometry, m: TextMeasurer, bolt: VectorP
     }
     val labelStyle = wide(0.019f * g.k, g.c.label)
     val r = g.torqueR - 0.075f * g.k
-    if (g.c.stark) {
+    if (g.c.emoto) {
         drawCentered(m, AnnotatedString("Nm"), labelStyle, g.point(g.maxAngle + 5f, g.torqueR), rotation = g.maxAngle + 5f + 90f)
     }
     drawCentered(m, AnnotatedString("REG"), labelStyle, g.point(g.regAngle + 1.5f, r), rotation = g.regAngle + 1.5f + 90f)

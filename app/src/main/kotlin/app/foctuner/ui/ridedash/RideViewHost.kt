@@ -57,6 +57,7 @@ fun RideViewSettings(hub: RideHub, onOpen: () -> Unit) {
     Column {
         SectionHeader(stringResource(R.string.rideview_section))
         OutlineButton(stringResource(R.string.rideview_open), onOpen, Modifier.padding(Spacing.x2))
+        ChoiceRow(AppAppearance.entries, p.appearance, { it.label }, { a -> hub.updatePrefs { it.copy(appearance = a) } })
         ChoiceRow(RideStyle.entries, p.rideStyle, { it.label }, { s -> hub.updatePrefs { it.copy(rideStyle = s) } })
         ChoiceRow(RideTheme.entries, p.rideTheme, { it.label }, { t -> hub.updatePrefs { it.copy(rideTheme = t) } })
         Toggle(stringResource(R.string.rideview_launch), p.launchAnimation) { on -> hub.updatePrefs { it.copy(launchAnimation = on) } }

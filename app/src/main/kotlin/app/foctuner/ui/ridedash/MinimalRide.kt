@@ -65,7 +65,7 @@ internal fun MinimalRide(d: RideData, c: RidePalette, onCycleMode: () -> Unit, o
             // Battery: outlined cell with fill, then the percentage
             val pctText = buildAnnotatedString {
                 append(d.battery?.roundToInt()?.toString() ?: "--")
-                appendUnit(" %", (0.05f * h).toSp(), family = if (c.stark) HeavyWideFont else FontFamily.Default)
+                appendUnit(" %", (0.05f * h).toSp(), family = if (c.emoto) HeavyWideFont else FontFamily.Default)
             }
             val pctStyle = digits(c, 0.075f * h, if (d.battery == null) c.label else c.text)
             val pctWidth = measurer.measure(pctText, pctStyle).size.width
@@ -92,7 +92,7 @@ internal fun MinimalRide(d: RideData, c: RidePalette, onCycleMode: () -> Unit, o
             val time = ridingTimeText(
                 d.rideTimeMs,
                 big = SpanStyle(fontSize = (0.075f * h).toSp(), color = c.text),
-                small = SpanStyle(fontSize = (0.036f * h).toSp(), color = c.textSoft, fontFamily = if (c.stark) HeavyWideFont else null),
+                small = SpanStyle(fontSize = (0.036f * h).toSp(), color = c.textSoft, fontFamily = if (c.emoto) HeavyWideFont else null),
             )
             drawCentered(measurer, time, digits(c, 0.075f * h, c.text), Offset(0.965f * w, topY), alignX = 1f)
         }

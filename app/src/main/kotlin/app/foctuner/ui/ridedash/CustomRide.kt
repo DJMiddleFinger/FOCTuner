@@ -173,9 +173,9 @@ private fun RidePalette.widgetTheme() = WidgetTheme(
     outline = track,
     warn = amber,
     danger = red,
-    // Michroma has one weight, so don't let the widgets' Black weight fake a bold. Stark sets the digits heavier and glowing.
-    number = NumberStyle.copy(fontFamily = if (stark) HeavyWideFont else WideFont, fontSynthesis = FontSynthesis.None),
+    // Michroma has one weight, so don't let the widgets' Black weight fake a bold. The E-moto display sets the digits heavier and glowing.
+    number = NumberStyle.copy(fontFamily = if (emoto) HeavyWideFont else WideFont, fontSynthesis = FontSynthesis.None),
     label = TextStyle(fontFamily = WideFont, fontWeight = FontWeight.Normal, fontSynthesis = FontSynthesis.None, letterSpacing = 0.05.em),
     scaleToBox = true,
-    glow = stark,
+    glow = emoto,
 )

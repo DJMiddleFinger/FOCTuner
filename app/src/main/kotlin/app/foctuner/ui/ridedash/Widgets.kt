@@ -171,8 +171,8 @@ fun WidgetBody(
 
 @Composable
 private fun EditButton(icon: ImageVector, description: String, onClick: () -> Unit, tint: Color = Palette.Fg) {
-    // Stark's grid has narrower cards, so its buttons are a little smaller to fit all five.
-    IconButton(onClick = onClick, modifier = if (Palette.stark) Modifier.size(34.dp) else Modifier) { Icon(icon, contentDescription = description, tint = tint) }
+    // The E-moto display's grid has narrower cards, so its buttons are a little smaller to fit all five.
+    IconButton(onClick = onClick, modifier = if (Palette.emoto) Modifier.size(34.dp) else Modifier) { Icon(icon, contentDescription = description, tint = tint) }
 }
 
 @Composable

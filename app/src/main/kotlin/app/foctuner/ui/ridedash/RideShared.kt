@@ -102,12 +102,12 @@ internal class RidePalette(
     val tilePill: Color,
     /** Text/icons drawn on top of a battery-coloured pill. */
     val onAccent: Color,
-    /** The big speed digits, a softer gray than [text] in Stark. */
+    /** The big speed digits, a softer gray than [text] in the E-moto display. */
     val speed: Color = text,
     /** The unit under the speed. */
     val unit: Color = label,
-    /** Stark's ride view: heavier wide digits, a glowing segmented arc and the extra scale labels. */
-    val stark: Boolean = false,
+    /** The E-moto display's ride view: heavier wide digits, a glowing segmented arc and the extra scale labels. */
+    val emoto: Boolean = false,
 ) {
     companion object {
         val Dark = RidePalette(
@@ -123,6 +123,22 @@ internal class RidePalette(
             homeButton = Color(0xFFDADADD), homeIcon = Color(0xFF1A1A1C), watermark = Color(0xFF2A2A2E),
             tilesBgTop = Color(0xFF131416), tilesBgBottom = Color(0xFF060607),
             tile = Color(0xFF1C1D20), tilePill = Color(0xFF2D2E32), onAccent = Color(0xFF0B0B0C),
+        )
+        /** Pure neutral grays with bright battery greens, amber, red and cyan: the E-moto display. */
+        val EMoto = RidePalette(
+            bg = Color(0xFF121212), minimalBg = Color(0xFF000000),
+            panel = Color(0xFF000000), panelLine = Color(0xFF212723), label = Color(0xFF484848),
+            domeCenter = Color(0xFF191919), domeEdge = Color(0xFF212121), inner = Color(0xFF262626),
+            track = Color(0xFF474747), trackEnd = Color(0xFF474747), torqueTrack = Color(0xFF3A3A3A),
+            tick = Color(0xFF484848), tickMajor = Color(0xFFF8F8F8),
+            text = Color(0xFFF8F8F8), textSoft = Color(0xFF888888),
+            green = Color(0xFF48F8A0), amber = Color(0xFFF88018), red = Color(0xFFF81818), cyan = Color(0xFF4BF9EF),
+            heatStart = Color(0xFFFFD60A),
+            pill = Color(0xFF202020), pillBorder = Color(0xFF454545),
+            homeButton = Color(0xFFD0D0D0), homeIcon = Color(0xFF1A1A1C), watermark = Color(0xFF262626),
+            tilesBgTop = Color(0xFF131416), tilesBgBottom = Color(0xFF060607),
+            tile = Color(0xFF202020), tilePill = Color(0xFF2C2C2C), onAccent = Color(0xFF0B0B0C),
+            speed = Color(0xFFD0D0D0), unit = Color(0xFF666666), emoto = true,
         )
         val Light = RidePalette(
             bg = Color(0xFFE8E8EC), minimalBg = Color(0xFFF5F5F7),
@@ -148,10 +164,12 @@ internal fun ridePalette(theme: RideTheme): RidePalette = when (theme) {
     RideTheme.SYSTEM -> if (isSystemInDarkTheme()) RidePalette.Dark else RidePalette.Light
 }
 
+/** The E-moto display has its own dark neon palette whatever the ride theme says. */
 @Composable
-internal fun ridePalette(v: VehicleSettings): RidePalette = ridePalette(v.rideTheme)
+internal fun ridePalette(v: VehicleSettings): RidePalette =
+    if (v.appearance == AppAppearance.EMOTO) RidePalette.EMoto else ridePalette(v.rideTheme)
 
-/** Stark's battery colours: green ≥ 50 %, amber ≥ 20 %, red below. */
+/** The E-moto display's battery colours: green ≥ 50 %, amber ≥ 20 %, red below. */
 internal fun batteryColor(pct: Double?, c: RidePalette): Color = when {
     pct == null -> c.label
     pct >= 50 -> c.green
@@ -377,9 +395,9 @@ internal fun DrawScope.wide(sizePx: Float, color: Color, letterSpacing: Float = 
     letterSpacing = letterSpacing.em,
 )
 
-/** Big digits: Stark sets them in a heavier wide face than the labels around them. */
+/** Big digits: the E-moto display sets them in a heavier wide face than the labels around them. */
 internal fun DrawScope.digits(c: RidePalette, sizePx: Float, color: Color, letterSpacing: Float = 0f) =
-    if (c.stark) wide(sizePx, color, letterSpacing).copy(fontFamily = HeavyWideFont, fontSynthesis = FontSynthesis.None) else wide(sizePx, color, letterSpacing)
+    if (c.emoto) wide(sizePx, color, letterSpacing).copy(fontFamily = HeavyWideFont, fontSynthesis = FontSynthesis.None) else wide(sizePx, color, letterSpacing)
 
 /** Draws text centred on [anchor]; [alignX] 0 = left edge at anchor, 1 = right edge. */
 internal fun DrawScope.drawCentered(

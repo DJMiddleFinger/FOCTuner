@@ -31,7 +31,7 @@ import app.foctuner.R
  */
 @Immutable
 class AppStyle(
-    val stark: Boolean,
+    val emoto: Boolean,
     val bg: Color,
     val surface: Color,
     val surface2: Color,
@@ -44,7 +44,7 @@ class AppStyle(
     val defaultAccent: Color,
     /** Dialog background. */
     val dialog: Color,
-    /** Top bar and side rail (Stark). */
+    /** Top bar and side rail (the E-moto display). */
     val chrome: Color,
     /** Power/torque channel colour. */
     val cyan: Color,
@@ -57,7 +57,7 @@ class AppStyle(
 ) {
     companion object {
         val Classic = AppStyle(
-            stark = false,
+            emoto = false,
             bg = Color(0xFF08080A), surface = Color(0xFF131316), surface2 = Color(0xFF1C1C21), outline = Color(0xFF2B2B32),
             fg = Color(0xFFF2F2F5), textDim = Color(0xFF8B8B96),
             warn = Color(0xFFFFB020), danger = Color(0xFFFF3B30), good = Color(0xFF30D158), defaultAccent = Color(0xFFFF6A00),
@@ -71,7 +71,7 @@ class AppStyle(
 
 val LocalAppStyle = staticCompositionLocalOf { AppStyle.Classic }
 
-/** The active appearance's colours. Classic's values are the originals; Stark's swap in through [LocalAppStyle]. */
+/** The active appearance's colours. Classic's values are the originals; the E-moto display's swap in through [LocalAppStyle]. */
 object Palette {
     val Bg: Color @Composable @ReadOnlyComposable get() = LocalAppStyle.current.bg
     val Surface: Color @Composable @ReadOnlyComposable get() = LocalAppStyle.current.surface
@@ -87,7 +87,7 @@ object Palette {
     val Chrome: Color @Composable @ReadOnlyComposable get() = LocalAppStyle.current.chrome
     val Cyan: Color @Composable @ReadOnlyComposable get() = LocalAppStyle.current.cyan
     val Red: Color @Composable @ReadOnlyComposable get() = LocalAppStyle.current.red
-    val stark: Boolean @Composable @ReadOnlyComposable get() = LocalAppStyle.current.stark
+    val emoto: Boolean @Composable @ReadOnlyComposable get() = LocalAppStyle.current.emoto
     val cardShape: RoundedCornerShape @Composable @ReadOnlyComposable get() = RoundedCornerShape(LocalAppStyle.current.cardRadius)
     val innerShape: RoundedCornerShape @Composable @ReadOnlyComposable get() = RoundedCornerShape(LocalAppStyle.current.innerRadius)
     val display: FontFamily? @Composable @ReadOnlyComposable get() = LocalAppStyle.current.display
@@ -96,8 +96,8 @@ object Palette {
 /** Wide geometric face used by the landscape ride screen (Michroma, SIL OFL). */
 val WideFont = FontFamily(Font(R.font.michroma))
 
-/** VESC Dash used a heavier face for Stark digits; FOCTuner has only the Classic look. */
-val HeavyWideFont = WideFont
+/** Heavier wide face for the E-moto display's big digits (Krona One, SIL OFL). */
+val HeavyWideFont = FontFamily(Font(R.font.krona_one))
 
 /** Tabular figures so numbers don't jitter as they change. */
 val NumberStyle = TextStyle(fontFeatureSettings = "tnum")

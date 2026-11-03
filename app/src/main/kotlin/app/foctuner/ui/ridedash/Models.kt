@@ -29,6 +29,7 @@ data class VehicleSettings(
     val keepScreenOn: Boolean = true,
     val applyModeOnConnect: Boolean = true,
     val demoMode: Boolean = false,
+    val appearance: AppAppearance = AppAppearance.CLASSIC,
     val rideStyle: RideStyle = RideStyle.CLASSIC,
     val rideTheme: RideTheme = RideTheme.DARK,
     /** Speed streaks, an edge glow and a screen push on the ride view when accelerating hard. */
@@ -52,6 +53,13 @@ data class VehicleSettings(
 
     /** Samples kept for graph widgets: 30 s at the poll rate. */
     val historySamples: Int get() = 30 * pollHz.coerceIn(1, 30)
+}
+
+/** How the ride view looks: the classic panels, or the E-moto display with its neon palette and heavy digits. */
+@Serializable
+enum class AppAppearance(val label: String) {
+    CLASSIC("Classic"),
+    EMOTO("E moto display"),
 }
 
 @Serializable

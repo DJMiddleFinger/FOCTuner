@@ -40,6 +40,7 @@ private enum class ThirdParty(@param:StringRes val title: Int, @param:StringRes 
     AndroidX(R.string.about_androidx, R.string.about_androidx_detail, "Apache-2.0.txt"),
     Osmdroid(R.string.about_osmdroid, R.string.about_osmdroid_detail, "Apache-2.0.txt"),
     Michroma(R.string.about_michroma, R.string.about_michroma_detail, "Michroma-OFL.txt"),
+    KronaOne(R.string.about_krona, R.string.about_krona_detail, "KronaOne-OFL.txt"),
     MaterialIcons(R.string.about_material_icons, R.string.about_material_icons_detail, "Apache-2.0.txt"),
 }
 
