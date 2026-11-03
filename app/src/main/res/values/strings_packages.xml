@@ -47,4 +47,20 @@
     <string name="packages_step_erase_lisp">Erasing the old program…</string>
     <string name="packages_step_write_lisp">Writing the program…</string>
     <string name="packages_step_start">Starting the program…</string>
+
+    <string name="tool_pkgset">Package settings</string>
+    <string name="tool_pkgset_summary">Settings the installed package or the hardware adds, such as Refloat\'s tune</string>
+    <string name="pkgset_none">No package settings on this controller</string>
+    <string name="pkgset_none_body">The installed package (if any) registers no settings. Packages that do, such as Refloat, show theirs here after they start; reconnect after installing one.</string>
+    <string name="pkgset_failed">Couldn\'t read the package settings</string>
+    <string name="pkgset_retry">Read again</string>
+    <string name="pkgset_read">Read</string>
+    <string name="pkgset_defaults">Defaults</string>
+    <string name="pkgset_revert">Revert</string>
+    <string name="pkgset_write">Write</string>
+    <string name="pkgset_cancel">Cancel</string>
+    <string name="pkgset_write_title">Write %1$s?</string>
+    <string name="pkgset_write_body">The package stores these values and uses them at once. A package that rejects a value keeps its old one; the app reads the settings back and lists anything that didn\'t change.</string>
+    <string name="pkgset_written">Written and read back</string>
+    <string name="pkgset_not_applied">Some values didn\'t change</string>
 </resources>
