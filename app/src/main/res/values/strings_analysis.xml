@@ -44,4 +44,23 @@
     <string name="experiments_confirm_title">Spin the motor?</string>
     <string name="experiments_confirm_body">The motor runs for about %1$d s through the steps, then is released. Keep clear of the wheel or prop.</string>
     <string name="experiments_cancel">Cancel</string>
+
+    <string name="tool_can_analyzer">CAN analyzer</string>
+    <string name="tool_can_analyzer_summary">See raw frames on the controller\'s CAN bus and send your own</string>
+    <string name="can_bridge_needed">The controller relays raw CAN frames only in Comm Bridge mode</string>
+    <string name="can_bridge_needed_body">Starting switches the connected controller to Comm Bridge until you stop or leave this page. It isn\'t stored: a restart brings the old mode back.</string>
+    <string name="can_start">Start listening</string>
+    <string name="can_stop">Stop</string>
+    <string name="can_pause">Pause</string>
+    <string name="can_resume">Resume</string>
+    <string name="can_clear">Clear</string>
+    <string name="can_id">Id (hex)</string>
+    <string name="can_extended">Extended</string>
+    <string name="can_data">Data (hex bytes, up to 8)</string>
+    <string name="can_send">Send frame</string>
+    <string name="can_count">%1$d frames, newest first</string>
+    <string name="can_failed">The controller didn\'t answer</string>
+    <string name="can_confirm_title">Switch to Comm Bridge?</string>
+    <string name="can_confirm_body">While listening, VESC commands don\'t pass through this controller\'s CAN bus: other controllers can\'t be reached from here and controllers that follow this one over CAN lose it. The old mode returns when you stop.</string>
+    <string name="can_cancel">Cancel</string>
 </resources>
