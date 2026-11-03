@@ -149,7 +149,7 @@ import kotlin.time.TimeSource
  * COMM_CUSTOM_APP_DATA, which it echoes back like a package that answers everything (except Refloat's commands, see
  * [RefloatSim]); the nRF module and CAN bus commands
  * (COMM_SET_BLE_NAME / PIN, COMM_NRF_START_PAIRING, COMM_CAN_UPDATE_BAUD_ALL, COMM_SET_CAN_MODE, COMM_CAN_FWD_FRAME, see
- * [RadioSim]); and COMM_SAMPLE_PRINT ([SamplingSim]). Other commands are ignored like
+ * [RadioSim]); COMM_SAMPLE_PRINT ([SamplingSim]); and the SWD probe (COMM_BM_*, [SwdSim]). Other commands are ignored like
  * unknown ones in the firmware.
  *
  * Time comes from [timeSource] and is applied lazily when a request arrives, so the simulation costs nothing
@@ -229,6 +229,7 @@ class SimulatedVesc(
     private val files = FileSystemSim(this)
     private val logs = LogSim(files)
     private val refloat = RefloatSim(first)
+    private val swd = SwdSim(this)
     private val sampling = SamplingSim(this, first) { packVoltage }
     private val radio = RadioSim(this, if (dualMotor) listOf(first, second) else listOf(first), if (dualMotor) controllerId + 1 else null)
 
@@ -274,6 +275,10 @@ class SimulatedVesc(
      * written, without acknowledging it, as when the radio fails mid-upload. Once.
      */
     fun dropLinkDuringUpload(bytes: Int) = firmware.dropAfter(bytes)
+
+    /** Bytes of the simulated SWD target's flash, and whether a target is on the SWD header at all. */
+    fun swdFlash(address: Int, length: Int): ByteArray = synchronized(lock) { swd.read(address, length) }
+    fun setSwdTargetPresent(present: Boolean) = synchronized(lock) { swd.targetPresent = present }
 
     /** Sample indices of the next ADC recording that get lost on the way (once each), for tests. */
     fun dropSamples(vararg indices: Int) = synchronized(lock) { sampling.drop += indices.toList() }
@@ -403,6 +408,9 @@ class SimulatedVesc(
                 if (data.firstOrNull()?.toInt() == REFLOAT_ID) refloat.handle(data, uptime)?.let(::reply) else reply(packet)
             }
             COMM_SAMPLE_PRINT -> sampling.request(r)
+            CommPacketId.COMM_BM_CONNECT, CommPacketId.COMM_BM_ERASE_FLASH_ALL, CommPacketId.COMM_BM_WRITE_FLASH, CommPacketId.COMM_BM_MEM_READ,
+            CommPacketId.COMM_BM_REBOOT, CommPacketId.COMM_BM_DISCONNECT, CommPacketId.COMM_BM_MAP_PINS_DEFAULT, CommPacketId.COMM_BM_MAP_PINS_NRF5X,
+            -> swd.handle(id, r)
             COMM_SET_BLE_NAME -> radio.setBleName(r)
             COMM_SET_BLE_PIN -> radio.setBlePin(r)
             COMM_NRF_START_PAIRING -> radio.startPairing(r)

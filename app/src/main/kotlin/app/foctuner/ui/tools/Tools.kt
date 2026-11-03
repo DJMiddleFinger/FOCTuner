@@ -18,6 +18,7 @@ import app.foctuner.ui.tools.control.ControlTool
 import app.foctuner.ui.tools.gnss.GnssTool
 import app.foctuner.ui.tools.imu.ImuTool
 import app.foctuner.ui.tools.io.IoBoardTool
+import app.foctuner.ui.tools.programmers.SwdTool
 import app.foctuner.ui.tools.psw.PowerSwitchTool
 import app.foctuner.ui.tools.radio.RadioTool
 import app.foctuner.ui.tools.refloat.RefloatTool
@@ -74,6 +75,7 @@ enum class Tool(val section: ToolSection, @param:StringRes val title: Int, @para
     PowerSwitch(ToolSection.Hardware, R.string.tool_psw, R.string.tool_psw_summary, R.drawable.ic_tool_power),
     IoBoard(ToolSection.Hardware, R.string.tool_io, R.string.tool_io_summary, R.drawable.ic_tool_chip),
     CanBus(ToolSection.Hardware, R.string.tool_canbus, R.string.tool_canbus_summary, R.drawable.ic_tool_bus),
+    Swd(ToolSection.Hardware, R.string.tool_swd, R.string.tool_swd_summary, R.drawable.ic_tool_chip),
     CanAnalyzer(ToolSection.Hardware, R.string.tool_can_analyzer, R.string.tool_can_analyzer_summary, R.drawable.ic_tool_bus),
     Ride(ToolSection.Tab, R.string.tool_ride, R.string.tool_ride_summary, R.drawable.ic_nav_overview),
     Stats(ToolSection.Tab, R.string.tool_stats, R.string.tool_stats_summary, R.drawable.ic_curve),
@@ -125,6 +127,7 @@ fun ToolContent(tool: Tool, context: ToolContext, onOpenTool: (Tool) -> Unit = {
         Tool.Experiments -> ExperimentsTool(context)
         Tool.CanAnalyzer -> CanAnalyzerTool(context)
         Tool.MotorComparison -> MotorComparisonTool(context)
+        Tool.Swd -> SwdTool(context)
         Tool.Packages -> PackagesTool(context, onOpenRefloat = { onOpenTool(Tool.Refloat) })
         Tool.Refloat -> RefloatTool(context, onOpenSettings = { onOpenTool(Tool.PackageSettings) })
         Tool.PackageSettings -> PackageSettingsTool(context)

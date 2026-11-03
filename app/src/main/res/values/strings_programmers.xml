@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tool_swd">SWD programmer</string>
+    <string name="tool_swd_summary">Flash an nRF Bluetooth module, a remote or another chip through the controller\'s SWD header</string>
+    <string name="swd_intro">The controller acts as an SWD probe (firmware with the Black Magic probe built in). Wire the target\'s SWDIO, SWCLK, GND and 3.3 V to the controller\'s SWD header, or pick the board\'s built-in nRF module.</string>
+    <string name="swd_target">Target</string>
+    <string name="swd_pins_header">SWD header</string>
+    <string name="swd_pins_nrf">Built-in nRF module</string>
+    <string name="swd_connect">Connect</string>
+    <string name="swd_disconnect">Disconnect</string>
+    <string name="swd_chip">Chip</string>
+    <string name="swd_image">Image</string>
+    <string name="swd_no_images">No ready-made images for this chip</string>
+    <string name="swd_no_images_body">Open a .bin (written at the start of flash) or a .hex file (written at its own addresses).</string>
+    <string name="swd_open_file">Open .bin or .hex file</string>
+    <string name="swd_selected">Selected</string>
+    <string name="swd_size">Size and address</string>
+    <string name="swd_verify">Read back and compare every block</string>
+    <string name="swd_program">Erase and program</string>
+    <string name="swd_erase">Erase only</string>
+    <string name="swd_cancel">Cancel</string>
+    <string name="swd_program_title">Program the target?</string>
+    <string name="swd_program_body">Erases all of the %2$s\'s flash, writes %1$s and restarts it. Whatever it ran before is gone. Images come from VESC Tool\'s repository and are written as they are; pick the one that matches the module\'s crystal and pins.</string>
+    <string name="swd_erase_title">Erase the target?</string>
+    <string name="swd_erase_body">Erases all of the %1$s\'s flash. It runs nothing until programmed again.</string>
+    <string name="swd_erasing">Erasing the target\'s flash…</string>
+    <string name="swd_writing">Writing…</string>
+    <string name="swd_working">Working…</string>
+    <string name="swd_erased">Flash erased</string>
+    <string name="swd_programmed">%1$s written and the target restarted</string>
+    <string name="swd_failed">SWD failed</string>
+</resources>

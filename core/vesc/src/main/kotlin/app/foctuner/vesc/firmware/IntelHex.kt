@@ -9,7 +9,10 @@ import java.io.ByteArrayOutputStream
 internal object IntelHex {
     private const val MAX_IMAGE = FirmwareImage.MAX_FILE_SIZE
 
-    fun parse(text: String): ByteArray {
+    fun parse(text: String): ByteArray = flatten(segments(text))
+
+    /** The contiguous runs of data, by absolute start address. */
+    fun segments(text: String): java.util.SortedMap<Long, ByteArray> {
         val segments = sortedMapOf<Long, ByteArray>()
         var base = 0L
         var currentStart = -1L
@@ -63,7 +66,10 @@ internal object IntelHex {
         if (!endSeen) throw FirmwareFileException(FirmwareFileException.Reason.BadHex, "The file has no end-of-file record")
         closeSegment()
         if (segments.isEmpty()) throw FirmwareFileException(FirmwareFileException.Reason.Empty, "The file contains no data")
+        return segments
+    }
 
+    private fun flatten(segments: java.util.SortedMap<Long, ByteArray>): ByteArray {
         val start = segments.firstKey()
         val (lastStart, lastData) = segments.entries.last().let { it.key to it.value }
         val size = lastStart + lastData.size - start
