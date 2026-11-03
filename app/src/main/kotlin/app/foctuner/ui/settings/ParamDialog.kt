@@ -35,6 +35,7 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import app.foctuner.R
+import app.foctuner.ui.settings.help.SettingHelp
 import app.foctuner.config.Config
 import app.foctuner.config.ParamDefinition
 import app.foctuner.config.ParamType
@@ -167,6 +168,15 @@ internal fun ParamDialog(
                         R.string.curve_current_value,
                         Modifier.padding(top = Spacing.x1),
                         compact = true,
+                    )
+                }
+                SettingHelp.forParam(param.name)?.let { help ->
+                    Text(stringResource(R.string.help_in_short), Modifier.padding(top = Spacing.x1), color = colors.text, style = FocTheme.type.label)
+                    Text(stringResource(help.summary), color = colors.text, style = FocTheme.type.supporting)
+                    Text(
+                        stringResource(R.string.help_typical) + ": " + stringResource(help.typical),
+                        color = colors.textSecondary,
+                        style = FocTheme.type.supporting,
                     )
                 }
                 if (description.isNotEmpty()) {
