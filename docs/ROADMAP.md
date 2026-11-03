@@ -18,7 +18,7 @@ Started 2026-11-02, after the app was tested on real hardware. Sources: the comp
 
 Merge `config-tools`, `connection-prefs` and `packages-custom` into `main` and fit them to the VESC Tool navigation.
 
-Status 2026-11-02: `config-tools` and `packages-custom` are merged (`dd05693`, 235 tests green). `connection-prefs` is not: merging it conflicts in `app/build.gradle.kts`, `ui/FocApp.kt` (recent devices on the connect route vs the new tab navigation), `ui/session/SessionViewModel.kt` and `ui/tools/Tools.kt` (its new tools vs the Start-page sections). Resume there, then start wave 1.
+Status: done 2026-11-02 (`1232849`, 241 tests green). Preferences and About open from the header menu next to Display.
 
 ## Wave 1: safety and data
 
