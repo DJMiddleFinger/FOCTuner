@@ -94,7 +94,13 @@ fun ConnectedShell(
         header.updating?.let { stage ->
             Notice(
                 stringResource(R.string.fw_locked_title),
-                body = stringResource(if (stage == UpdateStage.Installing) R.string.fw_locked_installing else R.string.fw_locked_uploading),
+                body = stringResource(
+                    when (stage) {
+                        UpdateStage.Uploading -> R.string.fw_locked_uploading
+                        UpdateStage.Installing -> R.string.fw_locked_installing
+                        UpdateStage.Reconnecting -> R.string.fw_locked_reconnecting
+                    },
+                ),
                 tone = NoticeTone.Warning,
             )
         }

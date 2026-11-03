@@ -149,4 +149,9 @@
     <string name="fw_recovery_usb">No answer at all usually means there is no application left, for example when power was lost while the bootloader rewrote it. VESC bootloaders can\'t receive firmware themselves. Hold BOOT0 high while powering on (some boards have a boot pad or button) to start the STM32\'s own USB bootloader, then write the .bin to 0x08000000 with STM32CubeProgrammer or dfu-util. VESC Express (ESP32) modules: hold BOOT while connecting USB and flash with esptool.</string>
     <string name="fw_recovery_swd">If the board has no boot pad, or the ROM bootloader doesn\'t answer, use an SWD programmer such as an ST-Link on the board\'s SWD pads, with the same addresses. Write the bootloader to 0x080E0000 too if you can.</string>
     <string name="fw_recovery_close">Close</string>
+    <string name="fw_locked_reconnecting">The connection closed. Reconnecting to the controller; this can take a minute while it restarts. Keep it powered.</string>
+    <string name="fw_outcome_from">It ran %1$s before.</string>
+    <string name="fw_ride_log_title">A ride log is recording</string>
+    <string name="fw_ride_log_body">It polls the controller, which must be left alone while it writes flash. Stop the recording before updating firmware.</string>
+    <string name="fw_demo_drop">Demo: drop the connection at 40 % of the next upload</string>
 </resources>
