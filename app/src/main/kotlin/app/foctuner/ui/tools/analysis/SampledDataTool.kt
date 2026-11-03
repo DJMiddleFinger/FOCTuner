@@ -16,6 +16,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.foctuner.R
@@ -132,7 +133,7 @@ fun SampledDataTool(context: ToolContext) {
         }
         if (state.running) {
             Text(
-                stringResource(if (state.received == 0 && state.mode != SampleMode.Now) R.string.sampled_waiting else R.string.sampled_receiving, state.received),
+                if (state.received == 0 && state.mode != SampleMode.Now) stringResource(R.string.sampled_waiting) else pluralStringResource(R.plurals.sampled_receiving, state.received, state.received),
                 Modifier.padding(horizontal = Spacing.x2),
                 style = FocTheme.type.supporting,
                 color = FocTheme.colors.text,

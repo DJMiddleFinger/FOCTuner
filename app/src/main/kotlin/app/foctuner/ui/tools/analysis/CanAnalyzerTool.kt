@@ -20,6 +20,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -164,7 +165,7 @@ fun CanAnalyzerTool(context: ToolContext) {
         state.failed?.let { Notice(stringResource(R.string.can_failed), body = it, tone = NoticeTone.Fault) }
         Hairline()
         Text(
-            stringResource(R.string.can_count, state.rows.size),
+            pluralStringResource(R.plurals.can_count, state.rows.size, state.rows.size),
             Modifier.padding(horizontal = Spacing.x2, vertical = Spacing.half),
             style = FocTheme.type.caption,
             color = colors.textTertiary,

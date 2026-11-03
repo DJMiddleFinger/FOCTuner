@@ -16,7 +16,10 @@
     <string name="sampled_stop">Stop waiting</string>
     <string name="sampled_save">Save CSV</string>
     <string name="sampled_waiting">Waiting for the trigger…</string>
-    <string name="sampled_receiving">Received %1$d samples</string>
+    <plurals name="sampled_receiving">
+        <item quantity="one">Received %1$d sample</item>
+        <item quantity="other">Received %1$d samples</item>
+    </plurals>
     <string name="sampled_failed">No samples</string>
     <string name="sampled_nothing">The controller sent nothing. For a trigger, nothing triggered in time; otherwise its firmware may not record samples.</string>
     <string name="sampled_currents">Currents</string>
@@ -36,7 +39,10 @@
     <string name="experiments_to">To (%1$s)</string>
     <string name="experiments_step">Step (%1$s)</string>
     <string name="experiments_step_time">Seconds per step</string>
-    <string name="experiments_summary">%1$d steps, %2$d s in all</string>
+    <plurals name="experiments_summary">
+        <item quantity="one">%1$d step, %2$d s in all</item>
+        <item quantity="other">%1$d steps, %2$d s in all</item>
+    </plurals>
     <string name="experiments_run">Run</string>
     <string name="experiments_stop">Stop</string>
     <string name="experiments_save">Save CSV</string>
@@ -58,9 +64,40 @@
     <string name="can_extended">Extended</string>
     <string name="can_data">Data (hex bytes, up to 8)</string>
     <string name="can_send">Send frame</string>
-    <string name="can_count">%1$d frames, newest first</string>
+    <plurals name="can_count">
+        <item quantity="one">%1$d frame, newest first</item>
+        <item quantity="other">%1$d frames, newest first</item>
+    </plurals>
     <string name="can_failed">The controller didn\'t answer</string>
     <string name="can_confirm_title">Switch to Comm Bridge?</string>
     <string name="can_confirm_body">While listening, VESC commands don\'t pass through this controller\'s CAN bus: other controllers can\'t be reached from here and controllers that follow this one over CAN lose it. The old mode returns when you stop.</string>
     <string name="can_cancel">Cancel</string>
+
+    <string name="tool_compare">Motor comparison</string>
+    <string name="tool_compare_summary">Efficiency, losses, current and voltage of two motors or gearings from their measured constants</string>
+    <string name="compare_intro">Motor A is the connected controller\'s motor. Motor B is the motor of a saved backup, or the same motor with another gearing. The model uses the measured resistance, inductance and flux linkage, like VESC Tool\'s Motor Comparison.</string>
+    <string name="compare_failed">Couldn\'t read the motor settings</string>
+    <string name="compare_motor_b">Motor B</string>
+    <string name="compare_same_motor">Same motor</string>
+    <string name="compare_resistance">Resistance A / B</string>
+    <string name="compare_inductance">Inductance A / B</string>
+    <string name="compare_flux">Flux linkage A / B</string>
+    <string name="compare_poles">Poles A / B</string>
+    <string name="compare_setup">Gearing</string>
+    <string name="compare_gearing_a">Gearing A (motor turns per wheel turn)</string>
+    <string name="compare_gearing_b">Gearing B</string>
+    <string name="compare_sweep">Sweep</string>
+    <string name="compare_sweep_torque">Torque at a speed</string>
+    <string name="compare_sweep_rpm">Speed at a torque</string>
+    <string name="compare_sweep_vbus">Torque at a voltage</string>
+    <string name="compare_torque">Torque at the wheel (Nm)</string>
+    <string name="compare_rpm">Wheel RPM</string>
+    <string name="compare_vbus">Battery voltage (V)</string>
+    <string name="compare_q_efficiency">Efficiency</string>
+    <string name="compare_q_loss">Losses</string>
+    <string name="compare_q_current">Current</string>
+    <string name="compare_q_vbus">Voltage needed</string>
+    <string name="compare_q_power">Input power</string>
+    <string name="compare_need_values">Nothing to plot</string>
+    <string name="compare_need_values_body">Enter positive numbers, and run motor detection first if the flux linkage is zero.</string>
 </resources>

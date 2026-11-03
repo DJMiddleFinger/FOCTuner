@@ -22,6 +22,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -130,7 +131,7 @@ fun ExperimentsTool(context: ToolContext) {
         OutlinedTextField(stepTime, { stepTime = it }, field, enabled = !running, singleLine = true, label = { Text(stringResource(R.string.experiments_step_time)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal))
         plan?.let {
             Text(
-                stringResource(R.string.experiments_summary, it.steps, it.duration.inWholeSeconds),
+                pluralStringResource(R.plurals.experiments_summary, it.steps, it.steps, it.duration.inWholeSeconds),
                 Modifier.padding(horizontal = Spacing.x2, vertical = Spacing.x1),
                 style = FocTheme.type.supporting,
                 color = FocTheme.colors.textSecondary,

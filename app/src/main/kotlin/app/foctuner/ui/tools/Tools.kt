@@ -6,6 +6,7 @@ import androidx.compose.runtime.Composable
 import app.foctuner.R
 import app.foctuner.ui.tools.analysis.CanAnalyzerTool
 import app.foctuner.ui.tools.analysis.ExperimentsTool
+import app.foctuner.ui.tools.analysis.MotorComparisonTool
 import app.foctuner.ui.tools.analysis.SampledDataTool
 import app.foctuner.ui.tools.bms.BmsTool
 import app.foctuner.ui.tools.bridge.BridgeTool
@@ -67,6 +68,7 @@ enum class Tool(val section: ToolSection, @param:StringRes val title: Int, @para
     Firmware(ToolSection.Operations, R.string.tool_firmware, R.string.tool_firmware_summary, R.drawable.ic_tool_firmware),
     SampledData(ToolSection.Operations, R.string.tool_sampled, R.string.tool_sampled_summary, R.drawable.ic_tool_sine),
     Experiments(ToolSection.Operations, R.string.tool_experiments, R.string.tool_experiments_summary, R.drawable.ic_curve),
+    MotorComparison(ToolSection.Operations, R.string.tool_compare, R.string.tool_compare_summary, R.drawable.ic_tool_sine),
     Bridge(ToolSection.Operations, R.string.tool_bridge, R.string.tool_bridge_summary, R.drawable.ic_nav_terminal),
     Gnss(ToolSection.Hardware, R.string.tool_gnss, R.string.tool_gnss_summary, R.drawable.ic_tool_location),
     PowerSwitch(ToolSection.Hardware, R.string.tool_psw, R.string.tool_psw_summary, R.drawable.ic_tool_power),
@@ -122,6 +124,7 @@ fun ToolContent(tool: Tool, context: ToolContext, onOpenTool: (Tool) -> Unit = {
         Tool.SampledData -> SampledDataTool(context)
         Tool.Experiments -> ExperimentsTool(context)
         Tool.CanAnalyzer -> CanAnalyzerTool(context)
+        Tool.MotorComparison -> MotorComparisonTool(context)
         Tool.Packages -> PackagesTool(context, onOpenRefloat = { onOpenTool(Tool.Refloat) })
         Tool.Refloat -> RefloatTool(context, onOpenSettings = { onOpenTool(Tool.PackageSettings) })
         Tool.PackageSettings -> PackageSettingsTool(context)
