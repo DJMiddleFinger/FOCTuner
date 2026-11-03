@@ -25,6 +25,7 @@ import app.foctuner.ui.tools.psw.PowerSwitchTool
 import app.foctuner.ui.tools.radio.RadioTool
 import app.foctuner.ui.tools.refloat.RefloatTool
 import app.foctuner.ui.tools.ride.RideTool
+import app.foctuner.ui.tools.route.RouteTool
 import app.foctuner.ui.tools.setup.AdcMappingTool
 import app.foctuner.ui.tools.setup.BldcDetectionTool
 import app.foctuner.ui.tools.setup.DirectionTool
@@ -86,6 +87,7 @@ enum class Tool(val section: ToolSection, @param:StringRes val title: Int, @para
     Imu(ToolSection.Tab, R.string.tool_imu, R.string.tool_imu_summary, R.drawable.ic_tool_axes),
     Bms(ToolSection.Tab, R.string.tool_bms, R.string.tool_bms_summary, R.drawable.ic_tool_battery),
     Lisp(ToolSection.Tab, R.string.tool_lisp, R.string.tool_lisp_summary, R.drawable.ic_tool_lambda),
+    Route(ToolSection.Operations, R.string.tool_route, R.string.tool_route_summary, R.drawable.ic_tool_location),
     Logs(ToolSection.Operations, R.string.tool_logs, R.string.tool_logs_summary, R.drawable.ic_curve),
     Packages(ToolSection.Operations, R.string.tool_packages, R.string.tool_packages_summary, R.drawable.ic_tool_lambda),
     PackageSettings(ToolSection.Configuration, R.string.tool_pkgset, R.string.tool_pkgset_summary, R.drawable.ic_nav_settings),
@@ -121,6 +123,7 @@ fun ToolContent(tool: Tool, context: ToolContext, onOpenTool: (Tool) -> Unit = {
         Tool.Firmware -> FirmwareTool(context)
         Tool.Lisp -> LispTool(context)
         Tool.Logs -> LogsTool(context)
+        Tool.Route -> RouteTool(context)
         Tool.Backups -> BackupsTool(context)
         Tool.Profiles -> ProfilesTool(context)
         Tool.MultiSettings -> MultiSettingsTool(context)

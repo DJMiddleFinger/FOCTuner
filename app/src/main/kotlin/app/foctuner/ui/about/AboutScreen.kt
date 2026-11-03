@@ -38,6 +38,7 @@ private enum class ThirdParty(@param:StringRes val title: Int, @param:StringRes 
     LispExamples(R.string.about_lisp_examples, R.string.about_lisp_examples_detail, "VESC-Tool-LispBM.txt"),
     Plex(R.string.about_plex, R.string.about_plex_detail, "IBM-Plex-OFL.txt"),
     AndroidX(R.string.about_androidx, R.string.about_androidx_detail, "Apache-2.0.txt"),
+    Osmdroid(R.string.about_osmdroid, R.string.about_osmdroid_detail, "Apache-2.0.txt"),
 }
 
 /**

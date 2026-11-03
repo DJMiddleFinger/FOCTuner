@@ -223,4 +223,21 @@
     <string name="fault_underspeed_detail">The motor turned slower than the configured minimum ERPM.</string>
     <string name="fault_abs_overspeed_title">Above absolute speed limit</string>
     <string name="fault_abs_overspeed_detail">The motor spun past the absolute maximum ERPM and the output was cut. Check the speed limits in motor settings.</string>
+
+    <string name="tool_route">Route planner</string>
+    <string name="tool_route_summary">Map and bike directions to a destination, with the battery left on arrival from this vehicle\'s own consumption</string>
+    <string name="route_search">Destination</string>
+    <string name="route_go">Route</string>
+    <string name="route_hint">Search an address, or long-press the map to pick a point. Needs the internet.</string>
+    <string name="route_no_permission">Location permission is needed to route from where you are</string>
+    <string name="route_failed">No route</string>
+    <string name="route_distance">Distance</string>
+    <string name="route_time">Riding time</string>
+    <string name="route_arrival">On arrival</string>
+    <string name="route_no_battery">The controller doesn\'t report its battery level; check the battery cells and capacity in the motor settings.</string>
+    <string name="route_short">Not enough battery to get there</string>
+    <string name="route_low">Arrives with under 10 % left</string>
+    <string name="route_consumption">Consumption (Wh/km)</string>
+    <string name="route_from_history">Empty uses this vehicle\'s average from its trip history. Hills, speed and wind aren\'t counted.</string>
+    <string name="route_default">Empty uses 15 Wh/km until this vehicle has ridden 5 km with the app. Hills, speed and wind aren\'t counted.</string>
 </resources>
