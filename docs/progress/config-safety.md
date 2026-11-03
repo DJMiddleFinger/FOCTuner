@@ -1,6 +1,6 @@
 # Config safety (wave 1): progress
 
-Branch `claude/config-safety-bab75b`. Scope: `docs/ROADMAP.md` wave 1 `config-safety`. Second run stopped at the usage guard (75% of the 5-hour window) with scope items 1, 3, 4, 5 and most of 2 done; the three Start-page tools are left.
+Branch `claude/config-safety-bab75b`. Scope: `docs/ROADMAP.md` wave 1 `config-safety`. Second run stopped at the usage guard (75% of the 5-hour window) with scope items 1, 3, 4, 5 and most of 2 done; the three Start-page tools are left. Then main (logging and firmware-dl merged, `f509b63`) was merged in (`03dd4bb`), green; stopped again at 82% of a 90% guard before starting the tools.
 
 ## Done
 
