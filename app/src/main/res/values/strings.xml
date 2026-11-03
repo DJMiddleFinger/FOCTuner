@@ -225,10 +225,10 @@
     <string name="fault_abs_overspeed_detail">The motor spun past the absolute maximum ERPM and the output was cut. Check the speed limits in motor settings.</string>
 
     <string name="tool_route">Route planner</string>
-    <string name="tool_route_summary">Map and bike directions to a destination, with the battery left on arrival from this vehicle\'s own consumption</string>
+    <string name="tool_route_summary">Battery left on arrival at a destination from this vehicle\'s own consumption and the route\'s hills, then directions in Google Maps</string>
     <string name="route_search">Destination</string>
     <string name="route_go">Route</string>
-    <string name="route_hint">Search an address, or long-press the map to pick a point. Needs the internet.</string>
+    <string name="route_hint">Search an address or place. Needs the internet. Search and routes © OpenStreetMap contributors (Nominatim, OSRM by FOSSGIS); heights from Open-Meteo.com.</string>
     <string name="route_no_permission">Location permission is needed to route from where you are</string>
     <string name="route_failed">No route</string>
     <string name="route_distance">Distance</string>
@@ -237,7 +237,18 @@
     <string name="route_no_battery">The controller doesn\'t report its battery level; check the battery cells and capacity in the motor settings.</string>
     <string name="route_short">Not enough battery to get there</string>
     <string name="route_low">Arrives with under 10 % left</string>
+    <string name="route_climb">Climb</string>
+    <string name="route_energy">Energy</string>
+    <string name="route_no_heights">Couldn\'t get the route\'s heights; the estimate is for flat ground.</string>
+    <string name="route_google_maps">Navigate in Google Maps</string>
+    <string name="route_mass">Rider and vehicle (kg)</string>
     <string name="route_consumption">Consumption (Wh/km)</string>
-    <string name="route_from_history">Empty uses this vehicle\'s average from its trip history. Hills, speed and wind aren\'t counted.</string>
-    <string name="route_default">Empty uses 15 Wh/km until this vehicle has ridden 5 km with the app. Hills, speed and wind aren\'t counted.</string>
+    <string name="route_consumption_hint">Blank uses the measured consumption.</string>
+    <string name="route_mass_hint">Blank uses 100 kg. Only the climbs use it.</string>
+    <string name="route_override">Enter my own consumption and weight</string>
+    <string name="route_source_entered">Planning with %1$s Wh/km, entered by you.</string>
+    <string name="route_source_ride">Planning with %1$s Wh/km, this ride\'s average from RT Data (%2$s km since the controller powered on).</string>
+    <string name="route_source_history">Planning with %1$s Wh/km, this vehicle\'s average from its trip history; RT Data\'s average takes over after 1 km of riding.</string>
+    <string name="route_source_default">Planning with %1$s Wh/km, a typical value until RT Data has counted 1 km of riding.</string>
+    <string name="route_weight_used">Climbs counted for %1$s kg, rider and vehicle; speed and wind aren\'t counted.</string>
 </resources>

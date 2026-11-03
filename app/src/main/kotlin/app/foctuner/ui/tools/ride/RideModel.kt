@@ -27,13 +27,16 @@ data class RideState(
     val odometerSet: Boolean = false,
 ) {
     /** Energy used per km over the trip since boot (VESC Tool's average efficiency). */
-    val whPerKmTrip: Float? get() = values?.let { v ->
-        val km = v.distanceAbs / 1000f
-        if (km < MIN_TRIP_KM) null else (v.wattHours - v.wattHoursCharged) / km
-    }
+    val whPerKmTrip: Float? get() = values?.tripWhPerKm()
 
     /** Range in km at the trip's average consumption. */
     val rangeKm: Float? get() = whPerKmTrip?.takeIf { it > 0f }?.let { (values?.batteryWattHours ?: 0f) / it }
+}
+
+/** Net energy per km since the controllers powered on (RT Data's trip average), null below [minKm] ridden. */
+fun SetupValues.tripWhPerKm(minKm: Float = MIN_TRIP_KM): Float? {
+    val km = distanceAbs / 1000f
+    return if (km < minKm) null else (wattHours - wattHoursCharged) / km
 }
 
 /**

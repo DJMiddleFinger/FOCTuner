@@ -38,6 +38,12 @@ data class AppPreferences(
     val reconnectLastCan: Boolean = true,
     /** [INTRO_VERSION] of the first-run notice the user last accepted, 0 if never. */
     val introAccepted: Int = 0,
+    /** Route planner: use [routeWhPerKm] and [routeMassKg] instead of the measured consumption and the default weight. */
+    val routeOverride: Boolean = false,
+    /** Null (left blank) keeps the measured consumption even with [routeOverride] on. */
+    val routeWhPerKm: Float? = null,
+    /** Rider and vehicle; null (left blank) keeps the default even with [routeOverride] on. */
+    val routeMassKg: Float? = null,
 ) {
     val stopDuration: Duration get() = stopSeconds.seconds
 

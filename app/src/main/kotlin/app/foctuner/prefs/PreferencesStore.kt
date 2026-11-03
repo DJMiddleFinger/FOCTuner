@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -68,6 +69,9 @@ class PreferencesStore(context: Context) {
             scanCanOnConnect = p[SCAN_CAN] ?: defaults.scanCanOnConnect,
             reconnectLastCan = p[RECONNECT_CAN] ?: defaults.reconnectLastCan,
             introAccepted = p[INTRO_ACCEPTED] ?: defaults.introAccepted,
+            routeOverride = p[ROUTE_OVERRIDE] ?: defaults.routeOverride,
+            routeWhPerKm = p[ROUTE_WH_PER_KM],
+            routeMassKg = p[ROUTE_MASS_KG],
         )
     }
 
@@ -80,6 +84,9 @@ class PreferencesStore(context: Context) {
         p[SCAN_CAN] = prefs.scanCanOnConnect
         p[RECONNECT_CAN] = prefs.reconnectLastCan
         p[INTRO_ACCEPTED] = prefs.introAccepted
+        p[ROUTE_OVERRIDE] = prefs.routeOverride
+        prefs.routeWhPerKm?.let { p[ROUTE_WH_PER_KM] = it } ?: p.remove(ROUTE_WH_PER_KM)
+        prefs.routeMassKg?.let { p[ROUTE_MASS_KG] = it } ?: p.remove(ROUTE_MASS_KG)
     }
 
     private companion object {
@@ -91,6 +98,9 @@ class PreferencesStore(context: Context) {
         val SCAN_CAN = booleanPreferencesKey("scan_can_on_connect")
         val RECONNECT_CAN = booleanPreferencesKey("reconnect_last_can")
         val INTRO_ACCEPTED = intPreferencesKey("intro_accepted")
+        val ROUTE_OVERRIDE = booleanPreferencesKey("route_override")
+        val ROUTE_WH_PER_KM = floatPreferencesKey("route_wh_per_km")
+        val ROUTE_MASS_KG = floatPreferencesKey("route_mass_kg")
         val RECENT = stringPreferencesKey("recent_devices")
         val LAST_CAN = stringPreferencesKey("last_can")
     }
