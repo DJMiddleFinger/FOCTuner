@@ -40,9 +40,12 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
 import app.foctuner.R
 import app.foctuner.ui.components.Hairline
+import app.foctuner.ui.components.Notice
+import app.foctuner.ui.components.NoticeTone
 import app.foctuner.ui.components.PageHeader
 import app.foctuner.ui.components.PlainButton
 import app.foctuner.ui.components.TabStrip
+import app.foctuner.ui.session.UpdateStage
 import app.foctuner.ui.theme.FocAnimatedContent
 import app.foctuner.ui.theme.FocTheme
 import app.foctuner.ui.theme.Spacing
@@ -81,12 +84,19 @@ fun ConnectedShell(
             TabStrip(
                 labels = tabs.map { stringResource(it.label) },
                 selected = tabs.indexOf(current),
-                onSelect = { onNavigate(tabs[it]) },
+                onSelect = { if (header.updating == null) onNavigate(tabs[it]) },
                 scrollable = true,
             )
         } else {
             PageHeader(stringResource(current.label), onBack)
             Hairline()
+        }
+        header.updating?.let { stage ->
+            Notice(
+                stringResource(R.string.fw_locked_title),
+                body = stringResource(if (stage == UpdateStage.Installing) R.string.fw_locked_installing else R.string.fw_locked_uploading),
+                tone = NoticeTone.Warning,
+            )
         }
         Box(
             Modifier
@@ -158,6 +168,7 @@ private fun Header(state: SessionHeaderState, onCan: () -> Unit, onMenu: (Destin
         PlainButton(
             state.targetCanId?.let { stringResource(R.string.session_can_target, it) } ?: stringResource(R.string.session_can),
             onCan,
+            enabled = state.updating == null,
         )
         Box {
             IconButton(onClick = { menu = true }) {
@@ -174,7 +185,8 @@ private fun Header(state: SessionHeaderState, onCan: () -> Unit, onMenu: (Destin
                     )
                 }
                 DropdownMenuItem(
-                    text = { Text(stringResource(R.string.session_disconnect), color = colors.text, style = FocTheme.type.body) },
+                    text = { Text(stringResource(R.string.session_disconnect), color = if (state.updating == null) colors.text else colors.textTertiary, style = FocTheme.type.body) },
+                    enabled = state.updating == null,
                     onClick = {
                         menu = false
                         onDisconnect()

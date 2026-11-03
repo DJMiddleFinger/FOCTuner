@@ -23,6 +23,9 @@ class FirmwareImage(
     val hardware: List<String>,
     val generic: Boolean = false,
 ) {
+    /** Identifies the image, e.g. to tell whether an interrupted upload was of this one. */
+    val sha256: String by lazy { sha256(bytes) }
+
     /** The hardware name the firmware reports, read from the image itself. */
     val embeddedHardware: String? by lazy { embeddedHardware(bytes) }
 

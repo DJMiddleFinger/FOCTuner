@@ -4,6 +4,7 @@ import android.content.ContentResolver
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.compose.runtime.Immutable
+import app.foctuner.ui.session.UpdateStage
 import app.foctuner.ui.tools.ToolContext
 import app.foctuner.vesc.VescException
 import app.foctuner.vesc.FirmwareInfo
@@ -16,6 +17,15 @@ import app.foctuner.vesc.firmware.FirmwareUpdateException
 import app.foctuner.vesc.firmware.FlashRegion
 import app.foctuner.vesc.firmware.HardwareCheck
 import app.foctuner.vesc.firmware.firmwareBuild
+import app.foctuner.vesc.firmware.UploadCheckpoint
+import app.foctuner.vesc.firmware.UploadTracker
+import app.foctuner.vesc.firmware.archive.ArchiveDownload
+import app.foctuner.vesc.firmware.archive.ArchiveEntry
+import app.foctuner.vesc.firmware.archive.ArchiveException
+import app.foctuner.vesc.firmware.archive.ArchiveListing
+import app.foctuner.vesc.firmware.archive.ArchiveTarget
+import app.foctuner.vesc.firmware.archive.Changelog
+import app.foctuner.vesc.firmware.archive.ChangelogSection
 import app.foctuner.vesc.firmware.updateFirmware
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -31,8 +41,32 @@ import java.io.IOException
 /** What gets uploaded: a firmware file (optionally with the bootloader first), or only the bootloader. */
 enum class UploadKind { Firmware, BootloaderOnly }
 
+/** The firmware archive for this controller: what is offered, and the download in progress. */
+@Immutable
+data class ArchiveState(
+    val loading: Boolean = true,
+    val listing: ArchiveListing? = null,
+    val downloading: ArchiveEntry? = null,
+    /** Bytes received and the size of the file, once known. */
+    val received: Long = 0,
+    val total: Long? = null,
+    val error: ArchiveException.Reason? = null,
+    val savedKeys: Set<String> = emptySet(),
+)
+
+/** What the changelog dialog shows: the sections between the installed version and the chosen one. */
+@Immutable
+data class ChangelogView(val installed: String, val target: String, val sections: List<ChangelogSection>, val available: Boolean)
+
 @Immutable
 data class FirmwareState(
+    val archive: ArchiveState = ArchiveState(),
+    /** Where [file] came from, when it was downloaded. */
+    val source: ArchiveEntry? = null,
+    val changelog: ChangelogView? = null,
+    /** An upload that stopped after the erase, which can be continued with the same image. */
+    val checkpoint: UploadCheckpoint? = null,
+    val resuming: Boolean = false,
     val build: FirmwareBuild? = null,
     val file: FirmwareImage? = null,
     val fileError: FirmwareFileException.Reason? = null,
@@ -59,7 +93,11 @@ data class FirmwareState(
 }
 
 /** VESC Tool's firmware page: install a firmware file or a bootloader on the selected controller or the whole bus. */
-class FirmwareModel(private val context: ToolContext) {
+class FirmwareModel(private val context: ToolContext, private val storage: FirmwareStorage) {
+    private val archiveTarget = ArchiveTarget(context.firmware.hardwareName, context.firmware.hardwareType)
+    private var downloadJob: Job? = null
+    private var tracker: UploadTracker? = null
+
     private val _state = MutableStateFlow(FirmwareState(bootloader = Bootloaders.forController(context.firmware).firstOrNull()))
     val state: StateFlow<FirmwareState> = _state.asStateFlow()
     private var job: Job? = null
@@ -74,6 +112,8 @@ class FirmwareModel(private val context: ToolContext) {
     val canEraseBootloader: Boolean get() = firmware.atLeast(3, 59)
 
     init {
+        _state.update { it.copy(checkpoint = storage.checkpoint()?.takeIf(::belongsToController)) }
+        context.scope.launch { loadArchive() }
         context.scope.launch {
             try {
                 val build = context.controller.firmwareBuild()
@@ -104,7 +144,7 @@ class FirmwareModel(private val context: ToolContext) {
             }
             _state.update { s ->
                 result.fold(
-                    { s.copy(file = it, fileError = null, loadingFile = false, allowMismatch = false) },
+                    { s.copy(file = it, source = null, fileError = null, loadingFile = false, allowMismatch = false) },
                     { s.copy(file = null, fileError = (it as FirmwareFileException).reason, loadingFile = false) },
                 )
             }
@@ -128,13 +168,43 @@ class FirmwareModel(private val context: ToolContext) {
         val firmwareImage = if (kind == UploadKind.Firmware) s.file ?: return else null
         val bootloaderImage = if (kind == UploadKind.BootloaderOnly || s.includeBootloader) s.bootloader else null
         if (firmwareImage == null && bootloaderImage == null) return
+        upload(kind, firmwareImage, bootloaderImage, s, resume = null)
+    }
+
+    /** Continues the interrupted upload with the same image: no erase, from the last confirmed chunk. */
+    fun resume() {
+        val s = _state.value
+        val checkpoint = s.checkpoint ?: return
+        val image = s.file?.takeIf { it.sha256 == checkpoint.imageSha256 } ?: return
+        if (s.running != null) return
+        upload(UploadKind.Firmware, image, null, s.copy(allCan = false), resume = checkpoint)
+    }
+
+    /** Forgets the interrupted upload; the next install erases and writes everything again. */
+    fun startOver() {
+        storage.saveCheckpoint(null)
+        _state.update { it.copy(checkpoint = null) }
+    }
+
+    private fun upload(kind: UploadKind, firmwareImage: FirmwareImage?, bootloaderImage: FirmwareImage?, s: FirmwareState, resume: UploadCheckpoint?) {
         val target = if (s.allCan) context.client else context.controller
+        val tracking = firmwareImage?.let { UploadTracker(it, firmware) }
+        resume?.let { tracking?.resumed(it) }
+        tracker = tracking
+        context.updateLock.hold(UpdateStage.Uploading)
         _state.update {
-            it.copy(confirming = null, running = kind, progress = null, failure = null, cancelled = false, previousVersion = firmware.version)
+            it.copy(
+                confirming = null, running = kind, progress = null, failure = null, cancelled = false,
+                previousVersion = firmware.version, resuming = resume != null,
+            )
         }
         job = context.scope.launch {
+            var finished = false
             try {
-                target.updateFirmware(firmwareImage, bootloaderImage, s.allCan, s.allowMismatch).collect { p ->
+                target.updateFirmware(firmwareImage, bootloaderImage, s.allCan, s.allowMismatch, resume = resume).collect { p ->
+                    tracking?.observe(p)
+                    if (p is FirmwareProgress.Installing) context.updateLock.hold(UpdateStage.Installing)
+                    if (p is FirmwareProgress.Restarted || p is FirmwareProgress.LinkClosed || p is FirmwareProgress.NoReply) finished = true
                     _state.update { it.copy(progress = p) }
                 }
             } catch (e: FirmwareUpdateException) {
@@ -143,10 +213,68 @@ class FirmwareModel(private val context: ToolContext) {
                 _state.update { it.copy(cancelled = true) }
                 throw e
             } finally {
-                _state.update { it.copy(running = null) }
+                val interrupted = tracking?.checkpoint?.takeIf { !finished && !s.allCan }
+                storage.saveCheckpoint(interrupted)
+                context.updateLock.release()
+                _state.update { it.copy(running = null, checkpoint = interrupted) }
             }
         }
     }
+
+    private fun belongsToController(checkpoint: UploadCheckpoint): Boolean =
+        checkpoint.hardwareName.equals(firmware.hardwareName, ignoreCase = true) &&
+            (checkpoint.uuid.isEmpty() || firmware.uuid.isEmpty() || checkpoint.uuid == firmware.uuid)
+
+    private suspend fun loadArchive() {
+        val listing = withContext(Dispatchers.IO) { storage.archive.listing(archiveTarget) }
+        _state.update {
+            it.copy(archive = it.archive.copy(loading = false, listing = listing, savedKeys = listing.entries.filter(storage.archive::isSaved).map(ArchiveEntry::key).toSet()))
+        }
+        val checkpoint = _state.value.checkpoint ?: return
+        val saved = storage.cache.saved(firmware.hardwareName).firstOrNull { it.sha256 == checkpoint.imageSha256 } ?: return
+        if (_state.value.file == null) download(saved.entry)
+    }
+
+    /** Fetches [entry] (or takes the saved copy) and makes it the image to install; the pre-flash checks run on the way. */
+    fun download(entry: ArchiveEntry) {
+        if (_state.value.running != null || _state.value.archive.downloading != null) return
+        _state.update { it.copy(archive = it.archive.copy(downloading = entry, received = 0, total = null, error = null), fileError = null) }
+        downloadJob = context.scope.launch {
+            try {
+                storage.archive.download(entry, archiveTarget).collect { event ->
+                    when (event) {
+                        is ArchiveDownload.Progress -> _state.update { it.copy(archive = it.archive.copy(received = event.received, total = event.total)) }
+                        is ArchiveDownload.Done -> _state.update {
+                            it.copy(
+                                file = event.image.image, source = event.image.entry, allowMismatch = false,
+                                archive = it.archive.copy(savedKeys = it.archive.savedKeys + event.image.entry.key),
+                            )
+                        }
+                    }
+                }
+            } catch (e: ArchiveException) {
+                _state.update { it.copy(archive = it.archive.copy(error = e.reason)) }
+            } finally {
+                _state.update { it.copy(archive = it.archive.copy(downloading = null)) }
+            }
+        }
+    }
+
+    fun cancelDownload() {
+        downloadJob?.cancel()
+    }
+
+    /** Shows what changed between the installed version and [entry]'s. */
+    fun showChangelog(entry: ArchiveEntry) {
+        val target = entry.version ?: return
+        context.scope.launch {
+            val text = storage.archive.changelog()
+            val sections = text?.let { Changelog.between(Changelog.parse(it), firmware.version, target) }.orEmpty()
+            _state.update { it.copy(changelog = ChangelogView(firmware.version, target, sections, available = text != null)) }
+        }
+    }
+
+    fun dismissChangelog() = _state.update { it.copy(changelog = null) }
 
     fun cancel() {
         if (_state.value.cancellable) job?.cancel()
