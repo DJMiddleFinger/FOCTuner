@@ -64,6 +64,11 @@ import app.foctuner.protocol.CommPacketId.COMM_LISP_REPL_CMD
 import app.foctuner.protocol.CommPacketId.COMM_LISP_SET_RUNNING
 import app.foctuner.protocol.CommPacketId.COMM_LISP_STREAM_CODE
 import app.foctuner.protocol.CommPacketId.COMM_LISP_WRITE_CODE
+import app.foctuner.protocol.CommPacketId.COMM_LOG_CONFIG_FIELD
+import app.foctuner.protocol.CommPacketId.COMM_LOG_DATA_F32
+import app.foctuner.protocol.CommPacketId.COMM_LOG_DATA_F64
+import app.foctuner.protocol.CommPacketId.COMM_LOG_START
+import app.foctuner.protocol.CommPacketId.COMM_LOG_STOP
 import app.foctuner.protocol.CommPacketId.COMM_MOTOR_ESTOP
 import app.foctuner.protocol.CommPacketId.COMM_IO_BOARD_GET_ALL
 import app.foctuner.protocol.CommPacketId.COMM_IO_BOARD_SET_DIGITAL
@@ -132,7 +137,8 @@ import kotlin.time.TimeSource
  * REPL_CMD / STREAM_CODE, printing with COMM_LISP_PRINT, see [LispSim]); hardware limits on COMM_SET_MCCONF,
  * COMM_SET_MCCONF_TEMP(_SETUP) and COMM_SET_APPCONF_NO_STORE ([ConfigWriteSim]); one custom config
  * (COMM_GET_CUSTOM_CONFIG_XML / GET / DEFAULT / SET, see [CustomConfigSim]); the package QML area (COMM_QMLUI_ERASE /
- * WRITE, COMM_GET_QML_UI_APP, see [QmlUiSim]); a VESC Express style file system (COMM_FILE_*, see [FileSystemSim]); and
+ * WRITE, COMM_GET_QML_UI_APP, see [QmlUiSim]); a VESC Express style file system (COMM_FILE_*, see [FileSystemSim]) with
+ * three stored rides and the Express logger (COMM_LOG_START / STOP / CONFIG_FIELD / DATA_F32 / DATA_F64, see [LogSim]); and
  * COMM_CUSTOM_APP_DATA, which it echoes back like a package that answers everything. Other commands are ignored like
  * unknown ones in the firmware.
  *
@@ -210,6 +216,7 @@ class SimulatedVesc(
     private val customConfig = CustomConfigSim(this)
     private val qmlUi = QmlUiSim(this)
     private val files = FileSystemSim(this)
+    private val logs = LogSim(files)
 
     override suspend fun write(bytes: ByteArray) {
         synchronized(lock) {
@@ -246,6 +253,7 @@ class SimulatedVesc(
         val id = CommPacketId.fromId(packet[0].toInt() and 0xFF) ?: return
         val r = ByteReader(packet, 1)
         advance()
+        logs.step(uptime)
         if (!firmware.answering) return
         when (id) {
             COMM_FW_VERSION -> reply(firmwareVersion(motor))
@@ -330,6 +338,11 @@ class SimulatedVesc(
             COMM_FILE_WRITE -> files.write(r)
             COMM_FILE_MKDIR -> files.makeDirectory(r)
             COMM_FILE_REMOVE -> files.remove(r)
+            COMM_LOG_START -> logs.start(r, uptime)
+            COMM_LOG_STOP -> logs.stop()
+            COMM_LOG_CONFIG_FIELD -> logs.configure(r)
+            COMM_LOG_DATA_F32 -> logs.data(r, wide = false)
+            COMM_LOG_DATA_F64 -> logs.data(r, wide = true)
             COMM_CUSTOM_APP_DATA -> reply(packet)
             else -> Unit
         }

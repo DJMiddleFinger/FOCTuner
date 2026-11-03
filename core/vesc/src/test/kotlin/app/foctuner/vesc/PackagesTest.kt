@@ -120,9 +120,9 @@ class PackagesTest {
         assertTrue(client.hasFileSystem())
 
         val root = client.listFiles("")
-        assertEquals(listOf("logs", "notes.txt"), root.map { it.name })
+        assertEquals(listOf("log_can", "notes.txt"), root.map { it.name })
         assertTrue(root.first().isDirectory)
-        assertEquals(2L, root.first().size)
+        assertEquals(3L, root.first().size)
 
         assertTrue(client.makeDirectory("/test"))
         assertFalse(client.makeDirectory("/test"))
@@ -138,7 +138,7 @@ class PackagesTest {
         assertFailsWith<VescException> { client.writeFile("/missing/x.txt", data) }
 
         assertTrue(client.removeFile("/test"))
-        assertEquals(listOf("logs", "notes.txt"), client.listFiles("").map { it.name })
+        assertEquals(listOf("log_can", "notes.txt"), client.listFiles("").map { it.name })
         assertEquals(0, client.readFile("/test/data.bin").size)
     }
 

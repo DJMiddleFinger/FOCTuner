@@ -23,4 +23,5 @@ include(
     ":core:config",
     ":core:vesc",
     ":core:sim",
+    ":core:logs",
 )

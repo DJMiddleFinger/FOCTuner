@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.foctuner.R
+import app.foctuner.logging.RideLogHub
 import app.foctuner.prefs.CanTarget
 import app.foctuner.prefs.PreferencesStore
 import app.foctuner.transport.Transport
@@ -152,6 +153,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     fun disconnect() {
         val active = session.value ?: return
         session.value = null
+        RideLogHub.attach(null)
         settings.reset()
         _tools.value = null
         viewModelScope.launch {
@@ -234,12 +236,14 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         _terminal.value = TerminalState()
         _controllers.value = ControllersState()
         session.value = active
+        RideLogHub.attach(RideLogHub.Source(active.client, demo))
         _tools.value = ToolContext(active.client, active.client, active.info, active.scope)
         active.scope.launch { poll(active) }
         active.scope.launch {
             active.client.connected.first { !it }
             if (session.value === active) {
                 session.value = null
+                RideLogHub.attach(null)
                 _attempt.value = ConnectAttempt(failure = string(R.string.connect_link_dropped, active.name))
             }
         }
