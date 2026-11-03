@@ -10,6 +10,7 @@ import app.foctuner.config.SignatureMismatchException
 import app.foctuner.config.diff
 import app.foctuner.config.sections
 import app.foctuner.config.validate
+import app.foctuner.config.writeWarnings
 import app.foctuner.vesc.VescController
 import app.foctuner.vesc.VescTimeoutException
 import kotlinx.coroutines.CoroutineScope
@@ -135,7 +136,10 @@ class SettingsModel(
             val pane = transform(state.pane(kind)).let { pane ->
                 val stored = pane.stored
                 val edited = pane.edited
-                pane.copy(changed = if (stored != null && edited != null) stored.diff(edited).map { it.name }.toSet() else emptySet())
+                pane.copy(
+                    changed = if (stored != null && edited != null) stored.diff(edited).map { it.name }.toSet() else emptySet(),
+                    warnings = edited?.writeWarnings().orEmpty(),
+                )
             }
             if (kind == ConfigKind.MCCONF) state.copy(motor = pane) else state.copy(app = pane)
         }

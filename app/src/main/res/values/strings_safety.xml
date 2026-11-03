@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="safety_abs_current_close">Motor or brake current is within 30 % of the absolute maximum current, so current peaks can trip overcurrent faults.</string>
+    <string name="safety_slow_abs_current">The slow absolute current limit makes damage to the controller much more likely.</string>
+    <string name="safety_overmodulation">Overmodulation above 1.15 adds a lot of distortion for little gain.</string>
+    <string name="safety_battery_cutoff_order">Battery cutoff start is not above cutoff end, so current is never reduced as the battery empties.</string>
+    <string name="safety_battery_cutoff_below_empty">Battery cutoff end is below %1$s V, the empty voltage of %2$d cells, so the cells can be discharged too far.</string>
+    <string name="safety_battery_cutoff_above_full">Battery cutoff start is above %1$s V, the full voltage of %2$d cells, so current is reduced even on a full battery.</string>
+    <string name="safety_battery_above_max_vin">%1$d cells are %2$s V when full, above Maximum Input Voltage. The controller stops with an overvoltage fault on a full battery or when braking.</string>
+    <string name="safety_battery_cutoff_below_min_vin">Battery cutoff end is below Minimum Input Voltage, so the controller cuts out at once before the cutoff has reduced the current.</string>
+    <string name="safety_fet_temp_order">MOSFET temperature cutback start is not below its end, so current is cut at once instead of gradually.</string>
+    <string name="safety_motor_temp_order">Motor temperature cutback start is not below its end, so current is cut at once instead of gradually.</string>
+    <string name="safety_duty_order">Maximum duty cycle is not above the minimum duty cycle, so the motor can\'t run.</string>
+    <string name="safety_erpm_unreachable">The motor reaches about %1$s ERPM at maximum duty on a full battery, so this limit never acts.</string>
+    <string name="safety_current_above_hardware">A current limit is above what this hardware allows; the controller will lower it.</string>
+    <string name="safety_voltage_above_hardware">Maximum Input Voltage is above what this hardware allows, so a full battery can damage the controller.</string>
+    <string name="safety_erpm_above_hardware">An ERPM limit is above what this hardware allows; the controller will lower it.</string>
+    <string name="safety_duty_above_hardware">Maximum duty cycle is above what this hardware allows.</string>
+    <string name="safety_review_heading">Check before writing</string>
+</resources>

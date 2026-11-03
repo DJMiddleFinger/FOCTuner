@@ -3,6 +3,7 @@ package app.foctuner.ui.settings
 import androidx.compose.runtime.Immutable
 import app.foctuner.config.Config
 import app.foctuner.config.ConfigKind
+import app.foctuner.config.ConfigWarning
 import app.foctuner.config.ParamGroup
 import app.foctuner.config.ParamValue
 
@@ -18,6 +19,8 @@ data class ConfigPaneState(
     val edited: Config? = null,
     /** Settings whose edited value differs from the stored one. */
     val changed: Set<String> = emptySet(),
+    /** What the edited values raise ([app.foctuner.config.writeWarnings]), shown on their rows and before a write. */
+    val warnings: List<ConfigWarning> = emptyList(),
     val work: SettingsWork? = null,
     val error: String? = null,
 )

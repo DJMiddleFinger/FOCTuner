@@ -44,12 +44,14 @@ import app.foctuner.R
 import app.foctuner.config.Config
 import app.foctuner.config.ConfigDefinition
 import app.foctuner.config.ConfigKind
+import app.foctuner.config.ConfigWarning
 import app.foctuner.config.GroupEntry
 import app.foctuner.config.ParamDefinition
 import app.foctuner.config.ParamGroup
 import app.foctuner.config.ParamSubgroup
 import app.foctuner.config.ParamType
 import app.foctuner.config.ParamValue
+import app.foctuner.config.byParam
 import app.foctuner.config.diff
 import app.foctuner.ui.components.Hairline
 import app.foctuner.ui.components.Notice
@@ -158,6 +160,7 @@ fun SettingsScreen(kind: ConfigKind, state: SettingsState, actions: SettingsActi
                             config = config,
                             stored = pane.stored,
                             changed = pane.changed,
+                            warnings = pane.warnings,
                             onOpen = { editing = it },
                             onSet = { name, value -> actions.edit(kind, name, value) },
                         )
@@ -189,6 +192,7 @@ fun SettingsScreen(kind: ConfigKind, state: SettingsState, actions: SettingsActi
             ReviewDialog(
                 changes = changes,
                 definition = config.definition,
+                warnings = pane.warnings.map { warningText(it, config) },
                 onWrite = {
                     reviewing = false
                     actions.write(kind)
@@ -324,11 +328,13 @@ private fun SubgroupPage(
     config: Config,
     stored: Config?,
     changed: Set<String>,
+    warnings: List<ConfigWarning>,
     onOpen: (String) -> Unit,
     onSet: (String, ParamValue) -> Unit,
 ) {
     val colors = FocTheme.colors
     val charts = remember(subgroup, config.definition) { SettingCharts.on(subgroup, config.definition) }
+    val rowWarnings = remember(warnings) { warnings.byParam() }
     val anchored = remember(charts) { charts.filterNot { it.atTop }.associateBy { it.anchor } }
     // A handle snaps to the slider grid its setting had when it was taken, until it's let go.
     val heldTracks = remember { HashMap<String, NumberTrack>() }
@@ -374,6 +380,7 @@ private fun SubgroupPage(
                                 value = config[param.name],
                                 stored = stored?.get(param.name),
                                 changed = param.name in changed,
+                                warnings = rowWarnings[param.name].orEmpty().map { warningText(it, config) },
                                 onOpen = { onOpen(param.name) },
                             ) { onSet(param.name, it) }
                             Hairline(Modifier.padding(start = Spacing.x2))

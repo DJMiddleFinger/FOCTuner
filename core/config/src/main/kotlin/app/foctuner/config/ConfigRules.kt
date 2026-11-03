@@ -18,9 +18,14 @@ data class HardwareLimits(
 
 /**
  * Motor config values that are dangerous or pointless together, checked before a write. Each lists the settings it
- * involves (so their rows can be marked) and the condition; a rule is skipped for definitions that lack one of them.
+ * reads and the condition; a rule is skipped for definitions that lack one of them. [rows] are the settings whose
+ * rows show it: all of [params] unless [marks] narrows them to the ones worth changing.
  */
-enum class ConfigWarning(val params: List<String>, private val broken: Config.(HardwareLimits?) -> Boolean) {
+enum class ConfigWarning(
+    val params: List<String>,
+    private val broken: Config.(HardwareLimits?) -> Boolean,
+    marks: List<String>? = null,
+) {
     /**
      * Motor or brake current is more than 1/1.3 of the absolute maximum, so current peaks trip overcurrent faults.
      * VESC Tool 6.05 `VescInterface::updateMcconfFromCurrent` ("Potential Configuration Issues").
@@ -51,12 +56,12 @@ enum class ConfigWarning(val params: List<String>, private val broken: Config.(H
      */
     BATTERY_CUTOFF_BELOW_EMPTY(listOf("l_battery_cut_end", "si_battery_cells", "si_battery_type"), {
         batteryVoltage()?.let { number("l_battery_cut_end") < it.start } ?: false
-    }),
+    }, listOf("l_battery_cut_end", "si_battery_cells")),
 
     /** Cutoff start above the full voltage of the configured cells, so current is reduced even on a full battery. */
     BATTERY_CUTOFF_ABOVE_FULL(listOf("l_battery_cut_start", "si_battery_cells", "si_battery_type"), {
         batteryVoltage()?.let { number("l_battery_cut_start") > it.endInclusive } ?: false
-    }),
+    }, listOf("l_battery_cut_start", "si_battery_cells")),
 
     /**
      * The configured cells, fully charged, are above Maximum Input Voltage: the firmware stops the motor with an
@@ -64,7 +69,7 @@ enum class ConfigWarning(val params: List<String>, private val broken: Config.(H
      */
     BATTERY_ABOVE_MAX_VIN(listOf("l_max_vin", "si_battery_cells", "si_battery_type"), {
         batteryVoltage()?.let { it.endInclusive > number("l_max_vin") } ?: false
-    }),
+    }, listOf("l_max_vin", "si_battery_cells")),
 
     /**
      * Cutoff end below Minimum Input Voltage: the undervoltage fault (`FAULT_CODE_UNDER_VOLTAGE`) releases the motor
@@ -83,22 +88,8 @@ enum class ConfigWarning(val params: List<String>, private val broken: Config.(H
     /** Maximum duty cycle at or below the minimum the firmware runs the motor at (`l_min_duty`), so it can't turn. */
     DUTY_ORDER(listOf("l_max_duty", "l_min_duty"), { number("l_max_duty") <= number("l_min_duty") }),
 
-    /**
-     * Maximum ERPM above what the motor reaches at maximum duty on a full battery, so the limit never acts and top speed
-     * is set by the voltage. FOC's largest voltage vector is `V_bus × duty / √3` (bldc `foc_math.c` saturates the
-     * modulation to √3/2 × max duty × overmodulation of 2/3 V_bus), and the no-load speed is that over the flux linkage.
-     */
-    ERPM_UNREACHABLE(listOf("l_max_erpm", "l_max_duty", "foc_motor_flux_linkage", "motor_type", "si_battery_cells", "si_battery_type"), {
-        val lambda = number("foc_motor_flux_linkage")
-        val full = batteryVoltage()?.endInclusive
-        if (!isFoc() || lambda <= 0 || full == null) {
-            false
-        } else {
-            val overmod = if ("foc_overmod_factor" in definition.params) number("foc_overmod_factor") else 1.0
-            val reachable = full * number("l_max_duty") * overmod / sqrt(3.0) / lambda * 60 / (2 * PI)
-            number("l_max_erpm") > reachable
-        }
-    }),
+    /** Maximum ERPM above [reachableErpm], so the limit never acts and top speed is set by the voltage. */
+    ERPM_UNREACHABLE(ERPM_INPUTS, { reachableErpm()?.let { number("l_max_erpm") > it } ?: false }, listOf("l_max_erpm")),
 
     /** Current limits above what the hardware allows; the firmware lowers them on write (`HW_LIM_CURRENT`, `HW_LIM_CURRENT_ABS`). */
     CURRENT_ABOVE_HARDWARE(listOf("l_current_max", "l_current_min", "l_abs_current_max"), { limits ->
@@ -124,6 +115,8 @@ enum class ConfigWarning(val params: List<String>, private val broken: Config.(H
     }),
     ;
 
+    val rows: List<String> = marks ?: params
+
     internal fun appliesTo(config: Config, limits: HardwareLimits?): Boolean =
         params.all(config.definition.params::containsKey) && config.broken(limits)
 }
@@ -134,7 +127,7 @@ fun Config.writeWarnings(limits: HardwareLimits? = null): List<ConfigWarning> =
 
 /** The warnings that involve each setting, for marking rows. */
 fun List<ConfigWarning>.byParam(): Map<String, List<ConfigWarning>> =
-    flatMap { warning -> warning.params.map { it to warning } }.groupBy({ it.first }, { it.second })
+    flatMap { warning -> warning.rows.map { it to warning } }.groupBy({ it.first }, { it.second })
 
 /**
  * The battery's voltage range from empty to full, from the cell count and the per-cell range in `si_battery_type`'s
@@ -147,6 +140,22 @@ fun Config.batteryVoltage(): ClosedFloatingPointRange<Double>? {
     val (a, b, c, d) = CELL_RANGE.find(name)?.destructured ?: return null
     return "$a.$b".toDouble() * cells.."$c.$d".toDouble() * cells
 }
+
+/**
+ * The ERPM the motor reaches at maximum duty on a full battery without load, or null when it can't be told (not FOC,
+ * no flux linkage, no cell range). FOC's largest voltage vector is `V_bus × duty / √3` (bldc `foc_math.c` saturates
+ * the modulation to √3/2 × max duty × overmodulation, of 2/3 V_bus); the no-load speed is that over the flux linkage.
+ */
+fun Config.reachableErpm(): Double? {
+    if (!ERPM_INPUTS.all(definition.params::containsKey) || !isFoc()) return null
+    val lambda = number("foc_motor_flux_linkage")
+    val full = batteryVoltage()?.endInclusive ?: return null
+    if (lambda <= 0) return null
+    val overmod = if ("foc_overmod_factor" in definition.params) number("foc_overmod_factor") else 1.0
+    return full * number("l_max_duty") * overmod / sqrt(3.0) / lambda * 60 / (2 * PI)
+}
+
+private val ERPM_INPUTS = listOf("l_max_erpm", "l_max_duty", "foc_motor_flux_linkage", "motor_type", "si_battery_cells", "si_battery_type")
 
 private fun Config.isFoc(): Boolean =
     definition.param("motor_type").enumNames.getOrNull(int("motor_type").toInt())?.endsWith("FOC") == true
