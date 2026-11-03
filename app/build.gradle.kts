@@ -46,4 +46,5 @@ dependencies {
     implementation(libs.datastore.preferences)
     debugImplementation(libs.compose.ui.tooling)
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit:${libs.versions.kotlin.get()}")
+    testImplementation(libs.coroutines.test)
 }

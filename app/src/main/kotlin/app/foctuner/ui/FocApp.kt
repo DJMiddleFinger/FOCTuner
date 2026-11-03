@@ -128,7 +128,10 @@ private fun ConnectRoute(connect: ConnectViewModel, session: SessionViewModel) {
                 }
             }
         },
-        onConnectDemo = { session.connect(DEMO_KEY, demoName, demoLabel, demo = true) { SimulatedVesc() } },
+        onConnectDemo = {
+            val simulator = SimulatedVesc()
+            session.connect(DEMO_KEY, demoName, demoLabel, demo = true) { simulator.reattach() }
+        },
         onConnectAddress = { address ->
             connect.deviceForAddress(address)?.let { device ->
                 session.connect(device.key, device.name, linkLabels.getValue(device.kind.toLinkKind()), onConnected = { connect.remember(device) }) {

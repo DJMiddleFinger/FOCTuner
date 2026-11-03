@@ -39,6 +39,7 @@ import app.foctuner.ui.components.NoticeTone
 import app.foctuner.ui.components.OutlineButton
 import app.foctuner.ui.components.PlainButton
 import app.foctuner.ui.components.SectionHeader
+import app.foctuner.ui.session.UpdateOutcome
 import app.foctuner.ui.theme.FocTheme
 import app.foctuner.ui.theme.Spacing
 import app.foctuner.ui.tools.ToolContext
@@ -61,7 +62,10 @@ fun FirmwareTool(context: ToolContext) {
     BackHandler(enabled = state.running != null) {}
     var recovery by rememberSaveable { mutableStateOf(false) }
 
+    val outcome by context.updateLock.outcome.collectAsStateWithLifecycle()
     Column(Modifier.verticalScroll(rememberScrollState())) {
+        outcome?.let { Outcome(it) { context.updateLock.report(null) } }
+        if (state.rideLogRecording) Notice(stringResource(R.string.fw_ride_log_title), tone = NoticeTone.Warning, body = stringResource(R.string.fw_ride_log_body))
         if (state.running != null) {
             Notice(stringResource(R.string.fw_keep_powered), tone = NoticeTone.Warning, body = stringResource(R.string.fw_keep_powered_body))
         }
@@ -71,12 +75,23 @@ fun FirmwareTool(context: ToolContext) {
         FileSection(model, state) { picker.launch(arrayOf("application/octet-stream", "text/plain", "*/*")) }
         BootloaderSection(model, state)
         TargetSection(model, state)
+        if (context.demo) CheckRow(stringResource(R.string.fw_demo_drop), state.demoDrop, state.running == null, model::setDemoDrop)
         ProgressSection(model, state)
         PlainButton(stringResource(R.string.fw_recovery_help), { recovery = true }, Modifier.padding(horizontal = Spacing.x1, vertical = Spacing.x1))
     }
     state.confirming?.let { Confirmation(model, state, it) }
     state.changelog?.let { ChangelogDialog(it, model::dismissChangelog) }
     if (recovery) RecoveryDialog { recovery = false }
+}
+
+@Composable
+private fun Outcome(outcome: UpdateOutcome, onDismiss: () -> Unit) {
+    val now = outcome.after
+    if (now.version == outcome.before) {
+        Notice(stringResource(R.string.fw_same_version, now.version), tone = NoticeTone.Warning, body = stringResource(R.string.fw_same_version_body), action = stringResource(R.string.fw_changelog_close), onAction = onDismiss)
+    } else {
+        Notice(stringResource(R.string.fw_done, now.version, now.hardwareName), body = stringResource(R.string.fw_outcome_from, outcome.before), action = stringResource(R.string.fw_changelog_close), onAction = onDismiss)
+    }
 }
 
 @Composable
@@ -125,7 +140,7 @@ private fun FileSection(model: FirmwareModel, state: FirmwareState, onChoose: ()
     }
     Row(Modifier.padding(horizontal = Spacing.x2, vertical = Spacing.x1)) {
         OutlineButton(stringResource(R.string.fw_choose_file), onChoose, enabled = state.running == null)
-        val ready = file != null && (model.hardwareCheck(file) == HardwareCheck.Match || state.allowMismatch)
+        val ready = file != null && !state.rideLogRecording && (model.hardwareCheck(file) == HardwareCheck.Match || state.allowMismatch)
         PlainButton(stringResource(R.string.fw_install), { model.ask(UploadKind.Firmware) }, Modifier.padding(start = Spacing.x1), enabled = ready && state.running == null)
         state.source?.takeIf { it.version != null }?.let { PlainButton(stringResource(R.string.fw_changelog), { model.showChangelog(it) }) }
     }

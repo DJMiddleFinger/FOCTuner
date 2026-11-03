@@ -4,6 +4,7 @@ import android.content.ContentResolver
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.compose.runtime.Immutable
+import app.foctuner.logging.RideLogHub
 import app.foctuner.ui.session.UpdateStage
 import app.foctuner.ui.tools.ToolContext
 import app.foctuner.vesc.VescException
@@ -67,6 +68,10 @@ data class FirmwareState(
     /** An upload that stopped after the erase, which can be continued with the same image. */
     val checkpoint: UploadCheckpoint? = null,
     val resuming: Boolean = false,
+    /** Demo mode only: drop the simulated link part way through the next upload. */
+    val demoDrop: Boolean = false,
+    /** A ride log is recording; it polls the controller, which must be left alone while it writes flash. */
+    val rideLogRecording: Boolean = false,
     val build: FirmwareBuild? = null,
     val file: FirmwareImage? = null,
     val fileError: FirmwareFileException.Reason? = null,
@@ -114,6 +119,7 @@ class FirmwareModel(private val context: ToolContext, private val storage: Firmw
     init {
         _state.update { it.copy(checkpoint = storage.checkpoint()?.takeIf(::belongsToController)) }
         context.scope.launch { loadArchive() }
+        context.scope.launch { RideLogHub.state.collect { log -> _state.update { it.copy(rideLogRecording = log.recording) } } }
         context.scope.launch {
             try {
                 val build = context.controller.firmwareBuild()
@@ -157,6 +163,8 @@ class FirmwareModel(private val context: ToolContext, private val storage: Firmw
 
     fun setAllowMismatch(allow: Boolean) = _state.update { it.copy(allowMismatch = allow) }
 
+    fun setDemoDrop(drop: Boolean) = _state.update { it.copy(demoDrop = drop && context.simulator != null) }
+
     fun ask(kind: UploadKind) = _state.update { if (it.running == null) it.copy(confirming = kind) else it }
 
     fun dismissConfirmation() = _state.update { it.copy(confirming = null) }
@@ -191,11 +199,13 @@ class FirmwareModel(private val context: ToolContext, private val storage: Firmw
         val tracking = firmwareImage?.let { UploadTracker(it, firmware) }
         resume?.let { tracking?.resumed(it) }
         tracker = tracking
+        context.updateLock.report(null)
         context.updateLock.hold(UpdateStage.Uploading)
+        if (s.demoDrop && resume == null && firmwareImage != null) context.simulator?.dropLinkDuringUpload(firmwareImage.bytes.size * 2 / 5)
         _state.update {
             it.copy(
                 confirming = null, running = kind, progress = null, failure = null, cancelled = false,
-                previousVersion = firmware.version, resuming = resume != null,
+                previousVersion = firmware.version, resuming = resume != null, demoDrop = false,
             )
         }
         job = context.scope.launch {
@@ -215,7 +225,8 @@ class FirmwareModel(private val context: ToolContext, private val storage: Firmw
             } finally {
                 val interrupted = tracking?.checkpoint?.takeIf { !finished && !s.allCan }
                 storage.saveCheckpoint(interrupted)
-                context.updateLock.release()
+                // A closed link leaves the lock to the session, which is already reconnecting.
+                if (context.client.connected.value) context.updateLock.release()
                 _state.update { it.copy(running = null, checkpoint = interrupted) }
             }
         }

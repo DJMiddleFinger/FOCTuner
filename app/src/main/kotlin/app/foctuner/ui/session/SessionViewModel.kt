@@ -9,6 +9,7 @@ import app.foctuner.logging.TripRecorder
 import app.foctuner.logging.TripStore
 import app.foctuner.prefs.CanTarget
 import app.foctuner.prefs.PreferencesStore
+import app.foctuner.sim.SimulatedVesc
 import app.foctuner.transport.Transport
 import app.foctuner.ui.controllers.CanDevice
 import app.foctuner.ui.controllers.ControllersState
@@ -29,6 +30,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -45,6 +47,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.io.IOException
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
 
 /** Attempt in progress or the reason the last one failed, merged into the connect screen's state. */
@@ -61,6 +64,9 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         val info: FirmwareInfo,
         val name: String,
         val linkLabel: String,
+        /** Opens the link again, for a session that has to survive a controller restart. */
+        val open: suspend () -> Transport,
+        val simulator: SimulatedVesc? = null,
     )
 
     private val store = PreferencesStore(application)
@@ -81,8 +87,6 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
 
     /** Held while firmware is uploaded; see [UpdateLock]. */
     val updateLock = UpdateLock()
-
-    private var demoSession = false
 
     val header: StateFlow<SessionHeaderState?> = combine(session, _overview, selectedCanId, updateLock.stage) { active, overview, target, updating ->
         active?.let {
@@ -136,11 +140,12 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         if (_attempt.value.key != null) return
         _attempt.value = ConnectAttempt(key)
         viewModelScope.launch {
-            val scope = CoroutineScope(viewModelScope.coroutineContext + SupervisorJob(viewModelScope.coroutineContext[Job]))
+            val scope = newScope()
             try {
-                val client = VescClient(open(), scope)
+                val transport = open()
+                val client = VescClient(transport, scope)
                 val info = client.firmwareInfo()
-                begin(Active(client, scope, info, name, linkLabel), demo)
+                begin(Active(client, scope, info, name, linkLabel, open, transport as? SimulatedVesc), demo)
                 _attempt.value = ConnectAttempt()
                 onConnected()
             } catch (e: VescTimeoutException) {
@@ -229,7 +234,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
             settings.reset()
             session.value?.let { active ->
                 val firmware = canId?.let { canFirmware[it] } ?: active.info
-                _tools.value = ToolContext(canId?.let(active.client::can) ?: active.client, active.client, firmware, active.scope, updateLock, demoSession)
+                _tools.value = ToolContext(canId?.let(active.client::can) ?: active.client, active.client, firmware, active.scope, updateLock, active.simulator)
             }
         }
         selectedCanId.value = canId
@@ -248,32 +253,103 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         _terminal.value = TerminalState()
         _controllers.value = ControllersState()
         session.value = active
-        RideLogHub.attach(RideLogHub.Source(active.client, demo))
-        demoSession = demo
-        _tools.value = ToolContext(active.client, active.client, active.info, active.scope, updateLock, demo)
-        active.scope.launch { poll(active) }
-        if (active.info.uuid.isNotEmpty()) {
-            active.scope.launch { TripRecorder(active.client, active.info.uuid, TripStore(getApplication()), updateLock.stage.map { it != null }).run() }
-        }
-        active.scope.launch {
-            active.client.connected.first { !it }
-            if (session.value === active) {
-                val installing = updateLock.stage.value == UpdateStage.Installing
-                updateLock.release()
-                session.value = null
-                RideLogHub.attach(null)
-                _attempt.value = ConnectAttempt(
-                    failure = string(if (installing) R.string.connect_link_dropped_installing else R.string.connect_link_dropped, active.name),
-                )
-            }
-        }
-        if (demo) active.scope.launch { demoRide(active.client.motor, demoHeld) }
+        launchLink(active, demo)
         active.scope.launch {
             val prefs = store.current()
             if (prefs.reconnectLastCan) reselectLastCan(active)
             if (prefs.scanCanOnConnect) scanCan()
         }
     }
+
+    /** Everything that works for one link: the tools' context, polling, and the watch that ends or recovers the session when it drops. */
+    private fun launchLink(active: Active, demo: Boolean) {
+        RideLogHub.attach(RideLogHub.Source(active.client, demo))
+        _tools.value = toolContext(active)
+        active.scope.launch { poll(active) }
+        if (active.info.uuid.isNotEmpty()) {
+            active.scope.launch { TripRecorder(active.client, active.info.uuid, TripStore(getApplication()), updateLock.stage.map { it != null }).run() }
+        }
+        active.scope.launch {
+            active.client.connected.first { !it }
+            if (session.value !== active) return@launch
+            if (updateLock.held) {
+                viewModelScope.launch { relink(active) }
+            } else {
+                session.value = null
+                RideLogHub.attach(null)
+                _attempt.value = ConnectAttempt(failure = string(R.string.connect_link_dropped, active.name))
+            }
+        }
+        if (demo) active.scope.launch { demoRide(active.client.motor, demoHeld) }
+    }
+
+    private fun toolContext(active: Active): ToolContext {
+        val canId = selectedCanId.value
+        val firmware = canId?.let { canFirmware[it] } ?: active.info
+        return ToolContext(canId?.let(active.client::can) ?: active.client, active.client, firmware, active.scope, updateLock, active.simulator)
+    }
+
+    /**
+     * The link closed during a firmware update: before the install it is a radio or cable failure, after it the
+     * controller restarts, which closes USB for good. Open the link again with the same settings (the CAN
+     * selection, terminal and charts stay), for as long as an installing controller can take, and report what
+     * it runs now. If it never answers the session ends; an interrupted upload can still be resumed from the
+     * Firmware tool after connecting by hand.
+     */
+    private suspend fun relink(old: Active) {
+        val installing = updateLock.stage.value == UpdateStage.Installing
+        updateLock.hold(UpdateStage.Reconnecting)
+        val before = (selectedCanId.value?.let { canFirmware[it] } ?: old.info).version
+        old.scope.coroutineContext[Job]?.cancelAndJoin()
+        try {
+            old.client.close()
+        } catch (e: IOException) {
+            // The link is gone already.
+        }
+        val next = reopen(RELINK_TIMEOUT, RELINK_PAUSE, retryOn = { it is IOException || it is VescException }) { reconnectOnce(old) }
+        if (next == null || session.value !== old) {
+            next?.client?.close()
+            next?.scope?.cancel()
+            updateLock.release()
+            if (session.value === old) {
+                session.value = null
+                RideLogHub.attach(null)
+                settings.reset()
+                _tools.value = null
+                _attempt.value = ConnectAttempt(
+                    failure = string(if (installing) R.string.connect_link_dropped_installing else R.string.connect_link_dropped, old.name),
+                )
+            }
+            return
+        }
+        selectedCanId.value?.let { id -> answerOrNull { next.client.can(id).firmwareInfo() }?.let { canFirmware[id] = it } }
+        settings.reset()
+        session.value = next
+        launchLink(next, next.simulator != null)
+        if (_controllers.value.scanned) scanCan()
+        updateLock.report(if (installing) UpdateOutcome(before, canFirmware[selectedCanId.value] ?: next.info) else null)
+        updateLock.release()
+    }
+
+    private suspend fun reconnectOnce(old: Active): Active {
+        val scope = newScope()
+        var client: VescClient? = null
+        try {
+            val transport = old.open()
+            client = VescClient(transport, scope)
+            return Active(client, scope, client.firmwareInfo(), old.name, old.linkLabel, old.open, transport as? SimulatedVesc)
+        } catch (e: Exception) {
+            try {
+                client?.close()
+            } catch (closing: IOException) {
+                // Nothing to release.
+            }
+            scope.cancel()
+            throw e
+        }
+    }
+
+    private fun newScope() = CoroutineScope(viewModelScope.coroutineContext + SupervisorJob(viewModelScope.coroutineContext[Job]))
 
     /**
      * VESC Tool's reconnectLastCan (6.05): if a CAN controller was selected behind this one last time and it still
@@ -356,5 +432,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         const val TREND_SECONDS = 60
         const val HISTORY_SIZE = 20
         const val MAX_LINES = 2_000
+        val RELINK_TIMEOUT = 150.seconds
+        val RELINK_PAUSE = 2.seconds
     }
 }
