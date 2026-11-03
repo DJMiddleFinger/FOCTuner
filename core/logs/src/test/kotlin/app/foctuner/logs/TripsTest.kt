@@ -118,6 +118,18 @@ class TripsTest {
     }
 
     @Test
+    fun adoptingTheControllersOdometerReplacesTheLifetimeDistanceAndKeepsTheTrips() {
+        val tracker = TripTracker()
+        tracker.accept(idle)
+        ride(tracker, ride(tracker, idle, 4f, 60), 0f, 130)
+
+        tracker.adoptOdometer(15_000_000)
+
+        assertEquals(15_000_000.0, tracker.ledger.lifetime.distance)
+        assertEquals(1, tracker.ledger.trips.size)
+    }
+
+    @Test
     fun theLedgerSurvivesBeingWrittenAndRead() {
         val tracker = TripTracker()
         tracker.accept(idle)

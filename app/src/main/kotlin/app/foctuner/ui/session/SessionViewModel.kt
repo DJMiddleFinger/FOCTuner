@@ -5,6 +5,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.foctuner.R
 import app.foctuner.logging.RideLogHub
+import app.foctuner.logging.TripRecorder
+import app.foctuner.logging.TripStore
 import app.foctuner.prefs.CanTarget
 import app.foctuner.prefs.PreferencesStore
 import app.foctuner.transport.Transport
@@ -248,6 +250,9 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         demoSession = demo
         _tools.value = ToolContext(active.client, active.client, active.info, active.scope, updateLock, demo)
         active.scope.launch { poll(active) }
+        if (active.info.uuid.isNotEmpty()) {
+            active.scope.launch { TripRecorder(active.client, active.info.uuid, TripStore(getApplication()), updateLock.stage.map { it != null }).run() }
+        }
         active.scope.launch {
             active.client.connected.first { !it }
             if (session.value === active) {

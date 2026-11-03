@@ -18,8 +18,9 @@ import app.foctuner.ui.tools.Tool
 import app.foctuner.ui.tools.ToolContent
 import app.foctuner.ui.tools.ToolContext
 import app.foctuner.ui.tools.logs.RideLogBar
+import app.foctuner.ui.tools.logs.TripsScreen
 
-private val pages = listOf(null to R.string.rt_realtime, Tool.Ride to R.string.rt_ride, Tool.Imu to R.string.tool_imu, Tool.Stats to R.string.tool_stats)
+private val pages = listOf(null to R.string.rt_realtime, Tool.Ride to R.string.rt_ride, Tool.Imu to R.string.tool_imu, Tool.Stats to R.string.tool_stats, null to R.string.rt_trips)
 
 /** VESC Tool's RT Data tab: live values, then the ride, IMU and statistics pages, each behind a sub-tab. */
 @Composable
@@ -37,6 +38,7 @@ fun RtDataScreen(overview: OverviewState?, tools: ToolContext?, modifier: Modifi
             Box(Modifier.fillMaxSize()) {
                 val tool = pages[index].first
                 when {
+                    pages[index].second == R.string.rt_trips -> TripsScreen(tools)
                     tool == null -> overview?.let { OverviewScreen(it) }
                     tools != null -> ToolContent(tool, tools)
                 }

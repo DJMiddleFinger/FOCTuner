@@ -131,6 +131,11 @@ class TripTracker(private val rules: TripRules = TripRules(), ledger: TripLedger
         return ledger
     }
 
+    /** Takes the controller's odometer as the lifetime distance, for when the user says it is the right one. */
+    fun adoptOdometer(meters: Long) {
+        ledger = ledger.copy(lifetime = ledger.lifetime.copy(distance = meters.toDouble()), seeded = true)
+    }
+
     /** Ends the trip in progress, for when the link or the app goes away. */
     fun finish(): TripLedger {
         close()
