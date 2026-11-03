@@ -301,4 +301,5 @@ private fun failureText(failure: FirmwareFailure): Int = when (failure) {
     FirmwareFailure.WriteFailed -> R.string.fw_fail_write
     FirmwareFailure.NoReply -> R.string.fw_fail_no_reply
     FirmwareFailure.LinkLost -> R.string.fw_fail_link
+    FirmwareFailure.CannotResume -> R.string.fw_fail_cannot_resume
 }

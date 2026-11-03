@@ -157,7 +157,7 @@ class SimulatedVesc(
 
     override val maxWriteSize = chunkSize
 
-    private val outbound = Channel<ByteArray>(Channel.UNLIMITED)
+    private var outbound = Channel<ByteArray>(Channel.UNLIMITED)
     private val wakeUp = Channel<Unit>(Channel.CONFLATED)
 
     /** Replies, plus the ones [later] scheduled, delivered once their time has come (waiting on the collector's clock). */
@@ -166,6 +166,7 @@ class SimulatedVesc(
             // No timeout when nothing is scheduled: an infinite one would let a test clock jump to the end of time.
             val wait = synchronized(lock) { runDue() }
             val next = (if (wait == null) nextReply() else withTimeoutOrNull(wait) { nextReply() }) ?: continue
+            if (next.isClosed) next.exceptionOrNull()?.let { throw it }
             emit(next.getOrNull() ?: break)
         }
     }
@@ -177,7 +178,7 @@ class SimulatedVesc(
     }
 
     private val lock = Any()
-    private val decoder = PacketDecoder()
+    private var decoder = PacketDecoder()
     private val started = timeSource.markNow()
 
     /** Time since the simulated controller booted. */
@@ -225,6 +226,40 @@ class SimulatedVesc(
             outbound.close()
         }
     }
+
+    /**
+     * The link fails the way a radio link does: the collector of [received] gets an [IOException] and writes
+     * fail. The controller keeps running and keeps what it holds (an upload's partial image included); [reattach]
+     * opens the link again.
+     */
+    fun dropLink() {
+        synchronized(lock) {
+            closed = true
+            outbound.close(IOException("Simulated link dropped"))
+        }
+    }
+
+    /** Opens the link again after [dropLink] or [close], for the next client; replies that were in flight are gone. */
+    fun reattach(): SimulatedVesc {
+        synchronized(lock) {
+            closed = false
+            outbound = Channel(Channel.UNLIMITED)
+            decoder = PacketDecoder()
+        }
+        return this
+    }
+
+    /**
+     * Drops the link right after the controller has stored the chunk that brings the update buffer to [bytes]
+     * written, without acknowledging it, as when the radio fails mid-upload. Once.
+     */
+    fun dropLinkDuringUpload(bytes: Int) = firmware.dropAfter(bytes)
+
+    /** How often the update area was erased (COMM_ERASE_NEW_APP) since the simulator was created. */
+    val firmwareErases: Int get() = firmware.erases
+
+    /** Offsets of the writes the update area received, in order. */
+    val firmwareWriteOffsets: List<Long> get() = firmware.writeOffsets.toList()
 
     /** Whether the motor of controller [id] is being driven right now (a command is in effect and has not timed out). */
     fun isDriven(id: Int): Boolean = synchronized(lock) {

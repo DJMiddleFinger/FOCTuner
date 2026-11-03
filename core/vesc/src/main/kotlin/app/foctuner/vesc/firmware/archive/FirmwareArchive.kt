@@ -4,6 +4,7 @@ import app.foctuner.protocol.Crc16
 import app.foctuner.vesc.HardwareType
 import app.foctuner.vesc.firmware.FirmwareFileException
 import app.foctuner.vesc.firmware.FirmwareImage
+import app.foctuner.vesc.firmware.sha256
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.supervisorScope

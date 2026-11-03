@@ -1,9 +1,9 @@
 package app.foctuner.vesc.firmware.archive
 
 import app.foctuner.protocol.Crc16
+import app.foctuner.vesc.firmware.sha256
 import java.io.File
 import java.io.IOException
-import java.security.MessageDigest
 import java.util.Properties
 
 /** An image saved on the phone, so a re-flash works without a connection. */
@@ -143,6 +143,3 @@ class FirmwareCache(private val root: File) {
         const val META = ".meta"
     }
 }
-
-internal fun sha256(bytes: ByteArray): String =
-    MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }

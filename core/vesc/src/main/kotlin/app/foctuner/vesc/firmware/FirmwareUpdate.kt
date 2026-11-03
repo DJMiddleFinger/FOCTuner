@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
+import java.util.Properties
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -92,6 +93,9 @@ enum class FirmwareFailure {
 
     /** The link dropped before the controller was told to install anything. */
     LinkLost,
+
+    /** The controller or the image isn't the one an interrupted upload was of. */
+    CannotResume,
 }
 
 /**
@@ -105,6 +109,62 @@ class FirmwareUpdateException(
     val region: FlashRegion? = null,
     cause: Throwable? = null,
 ) : VescException(message, cause)
+
+/**
+ * Where an interrupted firmware upload stopped, enough to continue it later. [offset] is the end of the last
+ * chunk the controller acknowledged (chunks of erased bytes count as done), in the update buffer of [bufferSize]
+ * bytes; the area was erased before the first byte was written, so nothing before [offset] needs sending again.
+ */
+data class UploadCheckpoint(
+    val imageSha256: String,
+    val hardwareName: String,
+    val uuid: String,
+    val bufferSize: Int,
+    val offset: Int,
+) {
+    val fraction: Float get() = if (bufferSize == 0) 0f else offset.toFloat() / bufferSize
+
+    fun toProperties(): Properties = Properties().apply {
+        setProperty("image", imageSha256)
+        setProperty("hardware", hardwareName)
+        setProperty("uuid", uuid)
+        setProperty("bufferSize", bufferSize.toString())
+        setProperty("offset", offset.toString())
+    }
+
+    companion object {
+        fun fromProperties(p: Properties): UploadCheckpoint? = try {
+            UploadCheckpoint(
+                p.getProperty("image"), p.getProperty("hardware"), p.getProperty("uuid").orEmpty(),
+                p.getProperty("bufferSize").toInt(), p.getProperty("offset").toInt(),
+            )
+        } catch (e: RuntimeException) {
+            null
+        }
+    }
+}
+
+/**
+ * Follows the progress of an upload of [image] to [target] and keeps the [checkpoint] to resume from. There is
+ * none until the controller has confirmed the erase, because before that nothing says what the update area
+ * holds; after a failure, resume only if it is not null.
+ */
+class UploadTracker(private val image: FirmwareImage, private val target: FirmwareInfo) {
+    var checkpoint: UploadCheckpoint? = null
+        private set
+
+    fun observe(progress: FirmwareProgress) {
+        if (progress is FirmwareProgress.Writing && progress.region == FlashRegion.Firmware) {
+            checkpoint = UploadCheckpoint(image.sha256, target.hardwareName, target.uuid, progress.total, progress.written)
+        }
+        if (progress is FirmwareProgress.Installing) checkpoint = null
+    }
+
+    /** Continue the upload this tracker saw; the starting point carries over so a second interruption doesn't lose it. */
+    fun resumed(from: UploadCheckpoint) {
+        checkpoint = from
+    }
+}
 
 /** Timeouts from VESC Tool's fwUpload unless noted. */
 data class FirmwareUpdateOptions(
@@ -138,6 +198,12 @@ data class FirmwareUpdateOptions(
  *   place. The bootloader is written to the end once started, and the jump can't be taken back.
  * - With [allCan] the attached controller relays everything to every CAN device; all controllers on the
  *   bus must report the same hardware, as VESC Tool requires. Only the attached controller acknowledges.
+ *
+ * With [resume] (from [UploadTracker.checkpoint] after the link dropped) the upload continues where the
+ * controller stopped acknowledging: no bootloader, no erase, the same buffer from the checkpoint's offset. The
+ * controller must be the same one (hardware name and UUID) and the image the same bytes, and an all-CAN update
+ * can't be resumed because the other devices never acknowledge their chunks. Whatever is wrong with the partial
+ * upload, the bootloader's CRC check keeps the old firmware: it only replaces it with a complete image.
  */
 fun VescController.updateFirmware(
     firmware: FirmwareImage?,
@@ -145,9 +211,11 @@ fun VescController.updateFirmware(
     allCan: Boolean = false,
     allowHardwareMismatch: Boolean = false,
     options: FirmwareUpdateOptions = FirmwareUpdateOptions(),
+    resume: UploadCheckpoint? = null,
 ): Flow<FirmwareProgress> {
     require(firmware != null || bootloader != null) { "Nothing to upload" }
     require(!allCan || canId == null) { "An all-CAN update goes through the attached controller" }
+    require(resume == null || (firmware != null && bootloader == null && !allCan)) { "Only a single controller's firmware upload can be resumed" }
     val controller = this
     return channelFlow {
         trySend(FirmwareProgress.Preparing)
@@ -163,6 +231,18 @@ fun VescController.updateFirmware(
         if (allCan) checkCanBus(target)
         val buffer = firmware?.let { withContext(Dispatchers.Default) { UpdateBuffer.firmware(it.bytes) } }
         val flash = FlashWriter(controller, target, allCan, options) { trySend(it) }
+        if (resume != null && firmware != null && buffer != null) {
+            checkResumable(resume, firmware, buffer, target)
+            flash.writeFirmware(buffer, eraseSize = 0, resumeAt = resume.offset)
+            currentCoroutineContext().ensureActive()
+            withContext(NonCancellable) {
+                flash.jump()
+                trySend(FirmwareProgress.Installing)
+            }
+            delay(options.jumpSettle)
+            trySend(awaitRestart(allCan, options))
+            return@channelFlow
+        }
 
         if (bootloader != null) {
             withContext(NonCancellable) { flash.writeBootloader(bootloader.bytes, eraseSupported = target.atLeast(3, 59)) }
@@ -180,6 +260,17 @@ fun VescController.updateFirmware(
         delay(options.jumpSettle)
         trySend(awaitRestart(allCan, options))
     }.buffer(Channel.UNLIMITED)
+}
+
+private fun checkResumable(resume: UploadCheckpoint, image: FirmwareImage, buffer: ByteArray, target: FirmwareInfo) {
+    val problem = when {
+        resume.imageSha256 != image.sha256 || resume.bufferSize != buffer.size -> "This is not the firmware that was being uploaded"
+        !resume.hardwareName.equals(target.hardwareName, ignoreCase = true) -> "The controller is ${target.hardwareName}, the upload was to ${resume.hardwareName}"
+        resume.uuid.isNotEmpty() && target.uuid.isNotEmpty() && resume.uuid != target.uuid -> "This is not the controller that was being updated"
+        resume.offset !in 0..buffer.size -> "The saved position is outside the image"
+        else -> return
+    }
+    throw FirmwareUpdateException(FirmwareFailure.CannotResume, problem)
 }
 
 private const val CHUNK_SIZE = 384
@@ -282,12 +373,15 @@ private class FlashWriter(
         write(FlashRegion.Bootloader, image, UpdateBuffer.bootloaderOffset(target.hardwareType, target.hardwareName), cancellable = false)
     }
 
-    suspend fun writeFirmware(buffer: ByteArray, eraseSize: Int) {
+    /** With [resumeAt] the area is already erased and holds the first [resumeAt] bytes of [buffer]. */
+    suspend fun writeFirmware(buffer: ByteArray, eraseSize: Int, resumeAt: Int? = null) {
         // VESC Tool sends heatshrink data as it is.
         if (buffer[0] == UpdateBuffer.COMPRESSED_FLAG.toByte()) lzo = false
-        val erase = command(COMM_ERASE_NEW_APP, COMM_ERASE_NEW_APP_ALL_CAN, COMM_ERASE_NEW_APP_ALL_CAN_HW).u32(eraseSize.toLong())
-        erase(FlashRegion.Firmware, erase, COMM_ERASE_NEW_APP)
-        write(FlashRegion.Firmware, buffer, 0, cancellable = true)
+        if (resumeAt == null) {
+            val erase = command(COMM_ERASE_NEW_APP, COMM_ERASE_NEW_APP_ALL_CAN, COMM_ERASE_NEW_APP_ALL_CAN_HW).u32(eraseSize.toLong())
+            erase(FlashRegion.Firmware, erase, COMM_ERASE_NEW_APP)
+        }
+        write(FlashRegion.Firmware, buffer, 0, cancellable = true, from = resumeAt ?: 0)
     }
 
     suspend fun jump() = guarded(null) {
@@ -313,9 +407,9 @@ private class FlashWriter(
         if (!ok) throw FirmwareUpdateException(FirmwareFailure.EraseFailed, "The controller could not erase the ${region.name.lowercase()} area", region)
     }
 
-    private suspend fun write(region: FlashRegion, data: ByteArray, base: Int, cancellable: Boolean) {
-        report(FirmwareProgress.Writing(region, 0, data.size))
-        var pos = 0
+    private suspend fun write(region: FlashRegion, data: ByteArray, base: Int, cancellable: Boolean, from: Int = 0) {
+        report(FirmwareProgress.Writing(region, from, data.size))
+        var pos = from
         while (pos < data.size) {
             if (cancellable) currentCoroutineContext().ensureActive()
             val end = minOf(pos + CHUNK_SIZE, data.size)

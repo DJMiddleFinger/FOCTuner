@@ -40,8 +40,20 @@ internal class FirmwareSim(private val vesc: SimulatedVesc, hardwareName: String
 
     val answering: Boolean get() = !bricked && vesc.uptime >= silentUntil
 
+    var erases = 0
+        private set
+    val writeOffsets = mutableListOf<Long>()
+    private var dropAfter: Int? = null
+    private var uploaded = 0
+
+    fun dropAfter(bytes: Int) {
+        dropAfter = bytes
+        uploaded = 0
+    }
+
     fun eraseNewApp(r: ByteReader) {
         val size = r.u32()
+        erases++
         for (sector in 0 until BUFFER_SIZE / SECTOR) {
             if (size > sector.toLong() * SECTOR) erase(sector) else break
         }
@@ -67,12 +79,20 @@ internal class FirmwareSim(private val vesc: SimulatedVesc, hardwareName: String
             r.restBytes()
         }
         val ok = offset + data.size <= flash.size
+        if (ok) writeOffsets += offset
         if (ok) {
             for (i in data.indices) {
                 val at = (offset + i).toInt()
                 flash[at] = (flash[at].toInt() and data[i].toInt()).toByte()
             }
         }
+        val limit = dropAfter
+        if (limit != null && offset < BUFFER_SIZE && (uploaded + data.size) >= limit) {
+            dropAfter = null
+            vesc.dropLink()
+            return
+        }
+        if (limit != null && offset < BUFFER_SIZE) uploaded += data.size
         vesc.reply(ByteWriter().u8(COMM_WRITE_NEW_APP_DATA.id).u8(if (ok) 1 else 0).u32(offset).toByteArray())
     }
 

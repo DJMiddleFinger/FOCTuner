@@ -75,6 +75,7 @@
     <string name="fw_fail_write">The controller couldn\'t write its flash.</string>
     <string name="fw_fail_no_reply">The controller stopped answering.</string>
     <string name="fw_fail_link">The connection dropped.</string>
+    <string name="fw_fail_cannot_resume">The saved upload doesn\'t belong to this firmware or this controller, so it can\'t be continued. Start the update again.</string>
 
     <string name="fw_confirm_title">Install firmware?</string>
     <string name="fw_confirm_go">Install</string>
