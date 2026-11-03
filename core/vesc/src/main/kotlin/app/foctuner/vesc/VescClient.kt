@@ -50,5 +50,13 @@ class VescClient private constructor(session: VescSession) : VescController(sess
      */
     suspend fun emergencyStop(duration: Duration = 5.seconds) = session.emergencyStop(duration)
 
+    /**
+     * The RELEASE button: every motor this client drives, and the attached controller's, stops being driven
+     * (zero current, so it coasts). Unlike [emergencyStop] nothing is locked out afterwards.
+     *
+     * @throws VescLinkException if the link is down or a send failed; every send is still attempted.
+     */
+    suspend fun releaseAll() = session.releaseAll()
+
     suspend fun close() = session.close()
 }

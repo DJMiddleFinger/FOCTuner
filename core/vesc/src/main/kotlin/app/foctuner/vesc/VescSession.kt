@@ -177,6 +177,28 @@ internal class VescSession(
     }
 
     /**
+     * Releases every motor this session drives and the attached controller's, without the lockout of
+     * [emergencyStop]: remotes, scripts and later commands from this app work again at once. Every send is
+     * attempted before a failure is reported.
+     */
+    suspend fun releaseAll() = motorLock.withLock {
+        if (!_connected.value) throw VescLinkException("Link closed")
+        leases.values.forEach { it.cancel() }
+        leases.clear()
+        val targets = activeMotors.value + null
+        activeMotors.value = emptySet()
+        var failure: IOException? = null
+        for (canId in targets) {
+            try {
+                send(Requests.forwarded(canId, Requests.release))
+            } catch (e: IOException) {
+                failure = failure ?: e
+            }
+        }
+        if (failure != null) throw VescLinkException("Release may not have reached every controller", failure)
+    }
+
+    /**
      * Releases every motor this session drives and the attached controller's, then sends COMM_MOTOR_ESTOP to
      * each of them. Our own motor commands are refused for [duration] too, which also covers firmware that
      * doesn't know COMM_MOTOR_ESTOP. Every send is attempted before a failure is reported.

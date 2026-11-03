@@ -10,6 +10,12 @@ import app.foctuner.protocol.ByteWriter
 import app.foctuner.protocol.CommPacketId
 import app.foctuner.protocol.CommPacketId.COMM_ALIVE
 import app.foctuner.protocol.CommPacketId.COMM_BMS_FORCE_BALANCE
+import app.foctuner.protocol.CommPacketId.COMM_CAN_FWD_FRAME
+import app.foctuner.protocol.CommPacketId.COMM_CAN_UPDATE_BAUD_ALL
+import app.foctuner.protocol.CommPacketId.COMM_NRF_START_PAIRING
+import app.foctuner.protocol.CommPacketId.COMM_SET_BLE_NAME
+import app.foctuner.protocol.CommPacketId.COMM_SET_BLE_PIN
+import app.foctuner.protocol.CommPacketId.COMM_SET_CAN_MODE
 import app.foctuner.protocol.CommPacketId.COMM_CUSTOM_APP_DATA
 import app.foctuner.protocol.CommPacketId.COMM_BMS_GET_VALUES
 import app.foctuner.protocol.CommPacketId.COMM_BMS_RESET_COUNTERS
@@ -139,7 +145,9 @@ import kotlin.time.TimeSource
  * (COMM_GET_CUSTOM_CONFIG_XML / GET / DEFAULT / SET, see [CustomConfigSim]); the package QML area (COMM_QMLUI_ERASE /
  * WRITE, COMM_GET_QML_UI_APP, see [QmlUiSim]); a VESC Express style file system (COMM_FILE_*, see [FileSystemSim]) with
  * three stored rides and the Express logger (COMM_LOG_START / STOP / CONFIG_FIELD / DATA_F32 / DATA_F64, see [LogSim]); and
- * COMM_CUSTOM_APP_DATA, which it echoes back like a package that answers everything. Other commands are ignored like
+ * COMM_CUSTOM_APP_DATA, which it echoes back like a package that answers everything; the nRF module and CAN bus commands
+ * (COMM_SET_BLE_NAME / PIN, COMM_NRF_START_PAIRING, COMM_CAN_UPDATE_BAUD_ALL, COMM_SET_CAN_MODE, COMM_CAN_FWD_FRAME, see
+ * [RadioSim]). Other commands are ignored like
  * unknown ones in the firmware.
  *
  * Time comes from [timeSource] and is applied lazily when a request arrives, so the simulation costs nothing
@@ -218,6 +226,7 @@ class SimulatedVesc(
     private val qmlUi = QmlUiSim(this)
     private val files = FileSystemSim(this)
     private val logs = LogSim(files)
+    private val radio = RadioSim(this, if (dualMotor) listOf(first, second) else listOf(first), if (dualMotor) controllerId + 1 else null)
 
     override suspend fun write(bytes: ByteArray) {
         synchronized(lock) {
@@ -261,6 +270,10 @@ class SimulatedVesc(
      * written, without acknowledging it, as when the radio fails mid-upload. Once.
      */
     fun dropLinkDuringUpload(bytes: Int) = firmware.dropAfter(bytes)
+
+    /** The Bluetooth name and PIN last sent with COMM_SET_BLE_NAME / PIN, null if none was. */
+    val bleName: String? get() = synchronized(lock) { radio.bleName }
+    val blePin: String? get() = synchronized(lock) { radio.blePin }
 
     /** How often the update area was erased (COMM_ERASE_NEW_APP) since the simulator was created. */
     val firmwareErases: Int get() = firmware.erases
@@ -379,6 +392,12 @@ class SimulatedVesc(
             COMM_LOG_DATA_F32 -> logs.data(r, wide = false)
             COMM_LOG_DATA_F64 -> logs.data(r, wide = true)
             COMM_CUSTOM_APP_DATA -> reply(packet)
+            COMM_SET_BLE_NAME -> radio.setBleName(r)
+            COMM_SET_BLE_PIN -> radio.setBlePin(r)
+            COMM_NRF_START_PAIRING -> radio.startPairing(r)
+            COMM_CAN_UPDATE_BAUD_ALL -> radio.updateBaudAll(r)
+            COMM_SET_CAN_MODE -> radio.setCanMode(r, motor)
+            COMM_CAN_FWD_FRAME -> radio.forwardFrame(r)
             else -> Unit
         }
     }
@@ -405,6 +424,10 @@ class SimulatedVesc(
     /** Stores [config] the way the firmware does after a detection: without a reply. */
     internal fun replaceConfig(motor: MotorModel, kind: ConfigKind, config: Config) {
         configs[motor to kind] = ConfigCodec.serialize(config)
+    }
+
+    internal fun updateConfig(motor: MotorModel, kind: ConfigKind, change: (Config) -> Config) {
+        replaceConfig(motor, kind, change(config(motor, kind)))
     }
 
     /** Runs [action] (under the simulator's lock) [delay] from now, for replies the firmware sends when a long job ends. */
@@ -510,7 +533,7 @@ class SimulatedVesc(
             .u8(1) // phase filters
             .u8(0) // QML hardware
             .u8(qmlUi.flags) // QML app
-            .u8(0) // NRF flags
+            .u8(NRF_FLAGS) // NRF flags: name and PIN can be set
             .cString("")
             .u32(HARDWARE_CRC)
             .toByteArray()
@@ -571,6 +594,7 @@ class SimulatedVesc(
         const val FIRMWARE_MINOR = 1
         const val CONFIG_VERSION = "7.01"
         const val HARDWARE_CRC = 0x5E7A11C2L
+        const val NRF_FLAGS = 3
         val UUID = "SIMULATEDVSC".toByteArray(Charsets.US_ASCII)
         const val MIN_CURRENT = 0.05f
         const val STEP_SECONDS = 0.01f
