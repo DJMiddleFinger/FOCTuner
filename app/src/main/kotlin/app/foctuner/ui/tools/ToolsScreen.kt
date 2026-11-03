@@ -67,7 +67,7 @@ fun ToolsScreen(context: ToolContext?, modifier: Modifier = Modifier, onOpen: (T
                         breadcrumb = stringResource(R.string.breadcrumb, stringResource(R.string.nav_start), stringResource(tool.section.title)),
                     )
                     Hairline()
-                    Box(Modifier.weight(1f)) { ToolContent(tool, context) }
+                    Box(Modifier.weight(1f)) { ToolContent(tool, context) { open = it } }
                 }
             } else {
                 Column(

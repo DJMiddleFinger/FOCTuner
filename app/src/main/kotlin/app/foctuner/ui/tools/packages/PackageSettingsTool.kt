@@ -11,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -156,7 +157,7 @@ fun PackageSettingsTool(context: ToolContext) {
     LaunchedEffect(model) { if (state.count == null) model.load() }
     var dialog by rememberSaveable { mutableStateOf<String?>(null) }
     var confirmWrite by rememberSaveable { mutableStateOf(false) }
-    var subgroupIndex by rememberSaveable { mutableStateOf(0) }
+    var subgroupIndex by rememberSaveable { mutableIntStateOf(0) }
     val pane = state.panes.getOrNull(state.selected)
     val subgroups = remember(pane?.edited?.definition) {
         pane?.edited?.definition?.sections()?.flatMap { g -> g.subgroups.map { sub -> (if (g.subgroups.size > 1) "${g.name} · ${sub.name}" else g.name) to sub } }.orEmpty()

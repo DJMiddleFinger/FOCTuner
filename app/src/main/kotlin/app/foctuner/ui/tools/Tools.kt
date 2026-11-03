@@ -16,6 +16,7 @@ import app.foctuner.ui.tools.imu.ImuTool
 import app.foctuner.ui.tools.io.IoBoardTool
 import app.foctuner.ui.tools.psw.PowerSwitchTool
 import app.foctuner.ui.tools.radio.RadioTool
+import app.foctuner.ui.tools.refloat.RefloatTool
 import app.foctuner.ui.tools.ride.RideTool
 import app.foctuner.ui.tools.setup.AdcMappingTool
 import app.foctuner.ui.tools.setup.BldcDetectionTool
@@ -74,14 +75,16 @@ enum class Tool(val section: ToolSection, @param:StringRes val title: Int, @para
     Logs(ToolSection.Operations, R.string.tool_logs, R.string.tool_logs_summary, R.drawable.ic_curve),
     Packages(ToolSection.Operations, R.string.tool_packages, R.string.tool_packages_summary, R.drawable.ic_tool_lambda),
     PackageSettings(ToolSection.Configuration, R.string.tool_pkgset, R.string.tool_pkgset_summary, R.drawable.ic_nav_settings),
+    Refloat(ToolSection.Operations, R.string.tool_refloat, R.string.tool_refloat_summary, R.drawable.ic_tool_level),
     ;
 
     /** Setup tools and manual control command the motor themselves (demo mode pauses its ride for them). */
     val drivesMotor: Boolean get() = section == ToolSection.Detection || this in setOf(FocWizard, InputWizard, ImuCalibration, Direction, Control)
 }
 
+/** [onOpenTool] switches to another tool, for tools that link to one. */
 @Composable
-fun ToolContent(tool: Tool, context: ToolContext) {
+fun ToolContent(tool: Tool, context: ToolContext, onOpenTool: (Tool) -> Unit = {}) {
     when (tool) {
         Tool.Stats -> StatsTool(context)
         Tool.Control -> ControlTool(context)
@@ -110,7 +113,8 @@ fun ToolContent(tool: Tool, context: ToolContext) {
         Tool.Radio -> RadioTool(context)
         Tool.CanBus -> CanBusTool(context)
         Tool.Bridge -> BridgeTool(context)
-        Tool.Packages -> PackagesTool(context)
+        Tool.Packages -> PackagesTool(context, onOpenRefloat = { onOpenTool(Tool.Refloat) })
+        Tool.Refloat -> RefloatTool(context, onOpenSettings = { onOpenTool(Tool.PackageSettings) })
         Tool.PackageSettings -> PackageSettingsTool(context)
     }
 }

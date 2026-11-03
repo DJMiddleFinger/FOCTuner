@@ -145,7 +145,8 @@ import kotlin.time.TimeSource
  * (COMM_GET_CUSTOM_CONFIG_XML / GET / DEFAULT / SET, see [CustomConfigSim]); the package QML area (COMM_QMLUI_ERASE /
  * WRITE, COMM_GET_QML_UI_APP, see [QmlUiSim]); a VESC Express style file system (COMM_FILE_*, see [FileSystemSim]) with
  * three stored rides and the Express logger (COMM_LOG_START / STOP / CONFIG_FIELD / DATA_F32 / DATA_F64, see [LogSim]); and
- * COMM_CUSTOM_APP_DATA, which it echoes back like a package that answers everything; the nRF module and CAN bus commands
+ * COMM_CUSTOM_APP_DATA, which it echoes back like a package that answers everything (except Refloat's commands, see
+ * [RefloatSim]); the nRF module and CAN bus commands
  * (COMM_SET_BLE_NAME / PIN, COMM_NRF_START_PAIRING, COMM_CAN_UPDATE_BAUD_ALL, COMM_SET_CAN_MODE, COMM_CAN_FWD_FRAME, see
  * [RadioSim]). Other commands are ignored like
  * unknown ones in the firmware.
@@ -226,6 +227,7 @@ class SimulatedVesc(
     private val qmlUi = QmlUiSim(this)
     private val files = FileSystemSim(this)
     private val logs = LogSim(files)
+    private val refloat = RefloatSim(first)
     private val radio = RadioSim(this, if (dualMotor) listOf(first, second) else listOf(first), if (dualMotor) controllerId + 1 else null)
 
     override suspend fun write(bytes: ByteArray) {
@@ -391,7 +393,10 @@ class SimulatedVesc(
             COMM_LOG_CONFIG_FIELD -> logs.configure(r)
             COMM_LOG_DATA_F32 -> logs.data(r, wide = false)
             COMM_LOG_DATA_F64 -> logs.data(r, wide = true)
-            COMM_CUSTOM_APP_DATA -> reply(packet)
+            COMM_CUSTOM_APP_DATA -> {
+                val data = packet.copyOfRange(1, packet.size)
+                if (data.firstOrNull()?.toInt() == REFLOAT_ID) refloat.handle(data, uptime)?.let(::reply) else reply(packet)
+            }
             COMM_SET_BLE_NAME -> radio.setBleName(r)
             COMM_SET_BLE_PIN -> radio.setBlePin(r)
             COMM_NRF_START_PAIRING -> radio.startPairing(r)
@@ -595,6 +600,7 @@ class SimulatedVesc(
         const val CONFIG_VERSION = "7.01"
         const val HARDWARE_CRC = 0x5E7A11C2L
         const val NRF_FLAGS = 3
+        const val REFLOAT_ID = 101
         val UUID = "SIMULATEDVSC".toByteArray(Charsets.US_ASCII)
         const val MIN_CURRENT = 0.05f
         const val STEP_SECONDS = 0.01f
