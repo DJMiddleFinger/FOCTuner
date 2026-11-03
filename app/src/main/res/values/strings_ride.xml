@@ -29,4 +29,13 @@
     <string name="ride_controllers">Controllers</string>
     <string name="ride_used">Used</string>
     <string name="ride_regenerated">Regenerated</string>
+    <string name="rideview_section">Ride view</string>
+    <string name="rideview_open">Open ride view</string>
+    <string name="rideview_launch">Launch animation on hard acceleration</string>
+    <string name="rideview_stabilize">Steady battery % (adds back voltage sag)</string>
+    <string name="rideview_dual">Dual controller over CAN</string>
+    <string name="rideview_heat_controller">Controller heat icon from (°C)</string>
+    <string name="rideview_heat_motor">Motor heat icon from (°C)</string>
+    <string name="rideview_can_id">Second controller\'s CAN id</string>
+    <string name="rideview_modes_hint">Drive modes are your profiles (Tools, Profiles). Tap the mode pill in the ride view to step through them; each is applied until the controller restarts, nothing is written to flash. The custom style\'s layout is edited from the pencil next to the home button while stopped.</string>
 </resources>

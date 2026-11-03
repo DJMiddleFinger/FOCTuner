@@ -1,5 +1,9 @@
 package app.foctuner.ui.tools.ride
 
+import app.foctuner.ui.ridedash.RideViewSettings
+import app.foctuner.ui.ridedash.RideViewDialog
+import app.foctuner.ui.ridedash.RideHub
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -58,14 +62,23 @@ fun RideTool(context: ToolContext) {
         }
     }
     val preferences: PreferencesViewModel = viewModel()
-    RideContent(state, appPreferences().units, { units -> preferences.update { it.copy(units = units) } }, model::setOdometer)
+    val units = appPreferences().units
+    val android = LocalContext.current
+    val hub = context.model { RideHub(context, android, units == Units.Imperial) }
+    var rideView by rememberSaveable { mutableStateOf(false) }
+    Column(Modifier.verticalScroll(rememberScrollState())) {
+        RideViewSettings(hub) { rideView = true }
+        Hairline()
+        RideContent(state, units, { u -> preferences.update { it.copy(units = u) } }, model::setOdometer)
+    }
+    if (rideView) RideViewDialog(hub) { rideView = false }
 }
 
 @Composable
 private fun RideContent(state: RideState, u: Units, onUnits: (Units) -> Unit, onOdometer: (Float) -> Unit) {
     val v = state.values
     var editOdometer by rememberSaveable { mutableStateOf(false) }
-    Column(Modifier.verticalScroll(rememberScrollState())) {
+    Column {
         if (state.failed) Notice(stringResource(R.string.ride_no_reply), tone = NoticeTone.Warning)
         ChoiceRow(Units.entries, u, { it.distance }, onUnits)
         Hairline()

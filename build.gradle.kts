@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.kotlin.jvm) apply false
     alias(libs.plugins.kotlin.compose) apply false
+    alias(libs.plugins.kotlin.serialization) apply false
 }
 
 // The build JDK is newer than anything Android runs; pin the pure-JVM modules to Java 17 bytecode.

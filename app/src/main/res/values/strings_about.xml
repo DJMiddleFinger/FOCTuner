@@ -39,4 +39,8 @@
     <string name="intro_quit">Quit</string>
     <string name="about_osmdroid">osmdroid</string>
     <string name="about_osmdroid_detail">Map view of the route planner. Apache License 2.0. Map data © OpenStreetMap contributors (ODbL); routes from OSRM on routing.openstreetmap.de (FOSSGIS); search from Nominatim.</string>
+    <string name="about_michroma">Michroma</string>
+    <string name="about_michroma_detail">The ride view\'s wide face, from VESC Dash. SIL Open Font License 1.1.</string>
+    <string name="about_material_icons">Material Icons</string>
+    <string name="about_material_icons_detail">The ride view\'s icons. Apache License 2.0.</string>
 </resources>
