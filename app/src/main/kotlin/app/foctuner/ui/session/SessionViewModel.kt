@@ -16,6 +16,7 @@ import app.foctuner.ui.terminal.LineKind
 import app.foctuner.ui.terminal.TerminalLine
 import app.foctuner.ui.terminal.TerminalState
 import app.foctuner.ui.tools.ToolContext
+import app.foctuner.ui.tools.configtools.ConfigStorage
 import app.foctuner.vesc.FirmwareInfo
 import app.foctuner.vesc.VescClient
 import app.foctuner.vesc.VescController
@@ -97,7 +98,8 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     val settings = SettingsModel(
         viewModelScope,
         controller = { session.value?.let(::target) },
-        firmware = { session.value?.info?.version },
+        firmware = { session.value?.let(::targetFirmware) },
+        storage = ConfigStorage.of(application),
         string = { id, args -> string(id, *args) },
     )
 
@@ -302,6 +304,8 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     }
 
     private fun target(active: Active): VescController = selectedCanId.value?.let(active.client::can) ?: active.client
+
+    private fun targetFirmware(active: Active): FirmwareInfo = selectedCanId.value?.let(canFirmware::get) ?: active.info
 
     private suspend fun <T> answerOrNull(request: suspend () -> T): T? = try {
         request()

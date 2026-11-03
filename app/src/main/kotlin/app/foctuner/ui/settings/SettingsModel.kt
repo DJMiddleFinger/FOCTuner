@@ -3,16 +3,26 @@ package app.foctuner.ui.settings
 import app.foctuner.R
 import app.foctuner.config.BundledDefinitions
 import app.foctuner.config.Config
+import app.foctuner.config.ConfigBackup
+import app.foctuner.config.ConfigDefinition
 import app.foctuner.config.ConfigKind
+import app.foctuner.config.ConfigXmlException
 import app.foctuner.config.ParamValue
 import app.foctuner.config.PayloadException
 import app.foctuner.config.SignatureMismatchException
 import app.foctuner.config.diff
+import app.foctuner.config.restoredFrom
 import app.foctuner.config.sections
 import app.foctuner.config.validate
 import app.foctuner.config.writeWarnings
+import app.foctuner.ui.tools.configtools.ConfigStorage
+import app.foctuner.vesc.ConfigEdit
+import app.foctuner.vesc.FirmwareInfo
 import app.foctuner.vesc.VescController
 import app.foctuner.vesc.VescTimeoutException
+import app.foctuner.vesc.readMatchingConfig
+import app.foctuner.vesc.writeConfigChecked
+import app.foctuner.vesc.writeWithBackup
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -26,14 +36,17 @@ import java.io.IOException
 
 /**
  * Reads, edits and writes the motor and app config of the controller [controller] returns (null while
- * disconnected). Definitions come from the bundled series matching [firmware], falling back to the newest.
- * If the controller's config signature says it uses another bundled layout, that one is used instead; only a
- * layout we don't bundle is refused. Called on the main thread.
+ * disconnected), whose firmware [firmware] describes. Definitions come from the bundled series matching its version,
+ * falling back to the newest. If the controller's config signature says it uses another bundled layout, that one is
+ * used instead; only a layout we don't bundle is refused. The last config read from each controller ([storage]'s
+ * cache) supplies the settings it doesn't store. Every write first saves both configs as an automatic backup, which
+ * Undo and the History page restore. Called on the main thread.
  */
 class SettingsModel(
     private val scope: CoroutineScope,
     private val controller: () -> VescController?,
-    private val firmware: () -> String?,
+    private val firmware: () -> FirmwareInfo?,
+    private val storage: ConfigStorage,
     private val string: (Int, Array<out Any>) -> String,
 ) : SettingsActions {
     private val _state = MutableStateFlow(SettingsState())
@@ -59,7 +72,8 @@ class SettingsModel(
 
     override fun read(kind: ConfigKind) = run(kind, SettingsWork.Reading) { target, base ->
         val config = target.readConfig(kind, base)
-        update(kind) { it.copy(stored = config, edited = config) }
+        cache(kind, config)
+        update(kind) { it.copy(stored = config, edited = config, notice = null) }
     }
 
     override fun loadDefaults(kind: ConfigKind) = run(kind, SettingsWork.LoadingDefaults) { target, base ->
@@ -67,32 +81,178 @@ class SettingsModel(
         update(kind) { it.copy(edited = defaults) }
     }
 
-    override fun write(kind: ConfigKind) = run(kind, SettingsWork.Writing) { target, edited ->
+    override fun write(kind: ConfigKind) = run(kind, SettingsWork.Writing) { target, _ ->
+        val pane = _state.value.pane(kind)
+        val stored = pane.stored ?: return@run
+        val edited = pane.edited ?: return@run
         val issue = edited.validate().firstOrNull()
         if (issue != null) {
             val name = edited.definition.param(issue.param).longName
             update(kind) { it.copy(error = text(R.string.settings_error_invalid, name)) }
             return@run
         }
-        target.writeConfig(kind, edited)
-        val applied = target.readConfig(kind, edited)
-        update(kind) { it.copy(stored = applied, edited = applied) }
+        writeEdits(target, mapOf(kind to ConfigEdit(stored, edited)))
     }
 
     override fun edit(kind: ConfigKind, name: String, value: ParamValue) {
-        update(kind) { pane -> pane.copy(edited = pane.edited?.with(name, value)) }
+        update(kind) { pane -> pane.copy(edited = pane.edited?.with(name, value), notice = pane.notice?.takeUnless { it.afterWrite }) }
     }
 
     override fun revert(kind: ConfigKind) {
-        update(kind) { it.copy(edited = it.stored) }
+        update(kind) { it.copy(edited = it.stored, notice = null) }
+    }
+
+    override fun loadFile(kind: ConfigKind, config: Config, notes: List<String>) {
+        update(kind) { pane ->
+            val stored = pane.stored ?: return@update pane
+            pane.copy(
+                edited = stored.restoredFrom(config),
+                notice = PaneNotice(text(R.string.settings_file_loaded), notes, warning = notes.isNotEmpty()),
+            )
+        }
+    }
+
+    override fun notify(kind: ConfigKind, notice: PaneNotice) {
+        update(kind) { it.copy(notice = notice) }
+    }
+
+    override fun dismissNotice(kind: ConfigKind) {
+        update(kind) { it.copy(notice = null) }
+    }
+
+    override fun undo(kind: ConfigKind) {
+        val undo = _state.value.pane(kind).undo ?: return
+        prepareRestore(undo.backup, undo.kinds, undo = true)
+    }
+
+    override fun restore(backup: ConfigBackup) = prepareRestore(backup, backup.kinds, undo = false)
+
+    override fun confirmRestore() {
+        val review = _state.value.restore ?: return
+        val target = controller() ?: return
+        val edits = review.configs.filterKeys { review.changes[it].orEmpty().isNotEmpty() }.mapValues { (_, c) -> ConfigEdit(c.first, c.second) }
+        _state.update { it.copy(restore = null, restoring = true) }
+        edits.keys.forEach { kind -> update(kind) { it.copy(work = SettingsWork.Writing, error = null) } }
+        scope.launch {
+            val failure = failureOf { writeEdits(target, edits) }
+            edits.keys.forEach { kind -> update(kind) { it.copy(work = null, error = failure ?: it.error) } }
+            _state.update { it.copy(restoring = false) }
+            if (_state.value.history != null) loadHistory()
+        }
+    }
+
+    override fun dismissRestore() {
+        _state.update { it.copy(restore = null) }
+    }
+
+    override fun loadHistory() {
+        val uuid = firmware()?.uuid?.uppercase().orEmpty()
+        val target = controller()
+        scope.launch {
+            val backups = withContext(Dispatchers.IO) { storage.backups.list().filter { it.uuid == uuid && uuid.isNotEmpty() } }
+            _state.update { state -> state.copy(history = backups.map { b -> state.history?.firstOrNull { it.backup == b } ?: BackupEntry(b) }) }
+            if (target != null) failureOf { ConfigKind.entries.forEach { storedOrRead(target, it) } }
+            val entries = withContext(Dispatchers.IO) { backups.map(::entry) }
+            _state.update { it.copy(history = entries) }
+        }
+    }
+
+    override fun deleteBackup(backup: ConfigBackup) {
+        scope.launch {
+            withContext(Dispatchers.IO) { storage.backups.delete(backup) }
+            _state.update { state -> state.copy(history = state.history?.filterNot { it.backup == backup }) }
+        }
+    }
+
+    private fun prepareRestore(backup: ConfigBackup, kinds: Set<ConfigKind>, undo: Boolean) {
+        val target = controller() ?: return
+        if (_state.value.restoring) return
+        _state.update { it.copy(restoring = true) }
+        scope.launch {
+            var review: RestoreReview? = null
+            val failure = failureOf {
+                val configs = ConfigKind.entries.filter { it in kinds && it in backup.kinds }.associateWith { kind ->
+                    val stored = storedOrRead(target, kind)
+                    val saved = withContext(Dispatchers.IO) { storage.backups.load(backup, kind, stored) }?.config ?: stored
+                    stored to stored.restoredFrom(saved)
+                }
+                review = RestoreReview(backup, configs, undo)
+            }
+            _state.update { it.copy(restoring = false, restore = review) }
+            if (failure != null) update(kinds.first()) { it.copy(error = failure) }
+        }
+    }
+
+    /**
+     * Writes [edits] after an automatic backup of both configs and shows what the controller stored. A controller
+     * without a UUID (firmware before 3.x) has nothing to keep backups under, so it gets a plain checked write.
+     */
+    private suspend fun writeEdits(target: VescController, edits: Map<ConfigKind, ConfigEdit>) {
+        val info = firmware()
+        val (results, undo) = if (info != null && info.uuid.isNotEmpty()) {
+            val done = withContext(Dispatchers.IO) { target.writeWithBackup(edits, storage.backups, info, base = ::baseFor) }
+            done.results to UndoState(done.backup, edits.keys)
+        } else {
+            edits.mapValues { (kind, edit) -> target.writeConfigChecked(kind, edit.edited) } to null
+        }
+        for ((kind, result) in results) {
+            cache(kind, result.applied)
+            val names = result.notApplied.map { result.applied.definition.param(it).longName }
+            val notice = if (names.isEmpty()) {
+                PaneNotice(text(R.string.settings_written), afterWrite = true)
+            } else {
+                PaneNotice(text(R.string.settings_not_applied), names, warning = true, afterWrite = true)
+            }
+            update(kind) { it.copy(stored = result.applied, edited = result.applied, undo = undo, notice = notice) }
+        }
+    }
+
+    private suspend fun storedOrRead(target: VescController, kind: ConfigKind): Config {
+        _state.value.pane(kind).stored?.let { return it }
+        val config = target.readMatchingConfig(kind, layout(kind)) { baseFor(kind, it) }
+        cache(kind, config)
+        update(kind) { it.copy(sections = it.sections.ifEmpty { config.definition.sections() }, stored = config, edited = config) }
+        return config
+    }
+
+    private fun entry(backup: ConfigBackup): BackupEntry = try {
+        val changes = backup.kinds.mapNotNull { kind ->
+            val stored = _state.value.pane(kind).stored ?: return@mapNotNull null
+            val saved = storage.backups.load(backup, kind, stored)?.config ?: return@mapNotNull null
+            kind to stored.diff(stored.restoredFrom(saved))
+        }.toMap()
+        BackupEntry(backup, changes)
+    } catch (e: ConfigXmlException) {
+        BackupEntry(backup, damaged = true)
+    } catch (e: IOException) {
+        BackupEntry(backup, damaged = true)
+    }
+
+    /** The settings the controller doesn't store: from what was read this session, else the cache, else defaults. */
+    private fun baseFor(kind: ConfigKind, definition: ConfigDefinition): Config {
+        _state.value.pane(kind).stored?.takeIf { it.definition.signature == definition.signature }?.let { return it }
+        val defaults = Config.defaults(definition)
+        val uuid = firmware()?.uuid?.takeIf { it.isNotEmpty() } ?: return defaults
+        return storage.cache.load(uuid, kind, defaults) ?: defaults
+    }
+
+    private suspend fun cache(kind: ConfigKind, config: Config) {
+        val uuid = firmware()?.uuid?.takeIf { it.isNotEmpty() } ?: return
+        withContext(Dispatchers.IO) {
+            try {
+                storage.cache.save(uuid, kind, config)
+            } catch (e: IOException) {
+                // The cache only saves a read later; the controller has the config.
+            }
+        }
     }
 
     private fun run(kind: ConfigKind, work: SettingsWork, block: suspend (VescController, Config) -> Unit) {
         val target = controller() ?: return
-        if (jobs[kind]?.isActive == true) return
+        if (jobs[kind]?.isActive == true || _state.value.restoring) return
         update(kind) { it.copy(work = work, error = null) }
         jobs[kind] = scope.launch {
-            val failure = try {
+            val failure = failureOf {
                 try {
                     attempt(kind, target, block)
                 } catch (e: SignatureMismatchException) {
@@ -102,18 +262,25 @@ class SettingsModel(
                     update(kind) { it.copy(sections = emptyList(), stored = null, edited = null) }
                     attempt(kind, target, block)
                 }
-                null
-            } catch (e: SignatureMismatchException) {
-                text(R.string.settings_error_layout, firmware() ?: "?", BundledDefinitions.versions.joinToString())
-            } catch (e: PayloadException) {
-                e.message
-            } catch (e: VescTimeoutException) {
-                text(R.string.settings_error_no_reply)
-            } catch (e: IOException) {
-                e.message ?: text(R.string.settings_error_no_reply)
             }
             update(kind) { it.copy(work = null, error = failure ?: it.error) }
         }
+    }
+
+    /** Runs [block] and says in plain words why it failed, or null if it didn't. */
+    private suspend fun failureOf(block: suspend () -> Unit): String? = try {
+        block()
+        null
+    } catch (e: SignatureMismatchException) {
+        text(R.string.settings_error_layout, firmware()?.version ?: "?", BundledDefinitions.versions.joinToString())
+    } catch (e: PayloadException) {
+        e.message
+    } catch (e: VescTimeoutException) {
+        text(R.string.settings_error_no_reply)
+    } catch (e: ConfigXmlException) {
+        text(R.string.settings_error_backup_damaged)
+    } catch (e: IOException) {
+        e.message ?: text(R.string.settings_error_no_reply)
     }
 
     private suspend fun attempt(kind: ConfigKind, target: VescController, block: suspend (VescController, Config) -> Unit) {
@@ -123,12 +290,12 @@ class SettingsModel(
             update(kind) { it.copy(sections = sections) }
         }
         val base = _state.value.pane(kind).edited
-            ?: withContext(Dispatchers.Default) { Config.defaults(BundledDefinitions.load(version, kind)) }
+            ?: withContext(Dispatchers.IO) { baseFor(kind, BundledDefinitions.load(version, kind)) }
         block(target, base)
     }
 
     private fun layout(kind: ConfigKind): String = layouts[kind]
-        ?: firmware()?.takeIf { it in BundledDefinitions.versions }
+        ?: firmware()?.version?.takeIf { it in BundledDefinitions.versions }
         ?: BundledDefinitions.versions.last()
 
     private fun update(kind: ConfigKind, transform: (ConfigPaneState) -> ConfigPaneState) {
