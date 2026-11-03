@@ -43,6 +43,7 @@ class ConfigBackupStore(private val dir: File) {
         automatic: Boolean = false,
         created: Long = System.currentTimeMillis(),
     ): ConfigBackup {
+        require(uuid.isNotEmpty()) { "backups are kept per controller UUID" }
         var id = "$created"
         while (File(dir, "${uuid.uppercase()}/$id").exists()) id += "+"
         val backup = ConfigBackup(uuid.uppercase(), id, name, automatic, created, firmware, hardware, configs.keys)

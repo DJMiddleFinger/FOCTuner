@@ -1,5 +1,6 @@
 package app.foctuner.ui.settings
 
+import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -15,10 +16,17 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.ui.graphics.Color
+import app.foctuner.ui.theme.Motion
+import app.foctuner.ui.theme.motionSpec
+import kotlinx.coroutines.delay
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -42,14 +50,17 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import app.foctuner.R
 import app.foctuner.config.Config
+import app.foctuner.config.ConfigBackup
 import app.foctuner.config.ConfigDefinition
 import app.foctuner.config.ConfigKind
+import app.foctuner.config.ConfigWarning
 import app.foctuner.config.GroupEntry
 import app.foctuner.config.ParamDefinition
 import app.foctuner.config.ParamGroup
 import app.foctuner.config.ParamSubgroup
 import app.foctuner.config.ParamType
 import app.foctuner.config.ParamValue
+import app.foctuner.config.byParam
 import app.foctuner.config.diff
 import app.foctuner.ui.components.Hairline
 import app.foctuner.ui.components.Notice
@@ -66,6 +77,7 @@ import app.foctuner.ui.theme.FocTheme
 import app.foctuner.ui.theme.Spacing
 import app.foctuner.ui.theme.ThemePreviews
 import app.foctuner.ui.theme.lateral
+import app.foctuner.ui.theme.push
 import kotlin.math.sign
 
 /**
@@ -75,19 +87,112 @@ import kotlin.math.sign
  * review before storing them on the controller.
  */
 @Composable
-fun SettingsScreen(kind: ConfigKind, state: SettingsState, actions: SettingsActions, modifier: Modifier = Modifier) {
+fun SettingsScreen(
+    kind: ConfigKind,
+    state: SettingsState,
+    actions: SettingsActions,
+    modifier: Modifier = Modifier,
+    onShow: (ConfigKind) -> Unit = {},
+) {
     val colors = FocTheme.colors
     var group by rememberSaveable(kind) { mutableIntStateOf(0) }
     var subgroup by rememberSaveable(kind) { mutableIntStateOf(0) }
     var editing by remember { mutableStateOf<String?>(null) }
     var reviewing by remember { mutableStateOf(false) }
+    var history by rememberSaveable(kind) { mutableStateOf(false) }
     val pane = state.pane(kind)
     val config = pane.edited
+    val files = rememberConfigFiles(kind, pane, actions)
 
     LaunchedEffect(kind) { actions.open(kind) }
+    LaunchedEffect(history) { if (history) actions.loadHistory() }
+    BackHandler(enabled = history) { history = false }
 
+    FocAnimatedContent(target = history, label = "settings-history", modifier = modifier, transition = { push(forward = targetState) }) { showHistory ->
+        if (showHistory) {
+            HistoryPage(state, actions, stringResource(if (kind == ConfigKind.MCCONF) R.string.nav_motor_cfg else R.string.nav_app_cfg)) { history = false }
+        } else {
+            ConfigPage(kind, state, actions, files, onEdit = { editing = it }, onWrite = { reviewing = true }, onHistory = { history = true }, onShow = onShow)
+        }
+    }
+
+    val param = editing?.let { config?.definition?.params?.get(it) }
+    if (param != null && config != null) {
+        ParamDialog(
+            param = param,
+            config = config,
+            stored = pane.stored?.get(param.name),
+            onSet = {
+                actions.edit(kind, param.name, it)
+                editing = null
+            },
+            onDismiss = { editing = null },
+        )
+    }
+
+    val stored = pane.stored
+    if (reviewing && stored != null && config != null) {
+        val changes = remember(stored, config) { stored.diff(config) }
+        if (changes.isNotEmpty()) {
+            ReviewDialog(
+                groups = listOf(ReviewGroup(null, config.definition, changes)),
+                warnings = pane.warnings.map { warningText(it, config) },
+                onWrite = {
+                    reviewing = false
+                    actions.write(kind)
+                },
+                onDismiss = { reviewing = false },
+            )
+        }
+    }
+    state.restore?.let { RestoreDialog(it, actions) }
+}
+
+@Composable
+private fun ConfigPage(
+    kind: ConfigKind,
+    state: SettingsState,
+    actions: SettingsActions,
+    files: ConfigFiles,
+    onEdit: (String) -> Unit,
+    onWrite: () -> Unit,
+    onHistory: () -> Unit,
+    onShow: (ConfigKind) -> Unit,
+) {
+    val colors = FocTheme.colors
+    val pane = state.pane(kind)
+    var group by rememberSaveable(kind) { mutableIntStateOf(0) }
+    var subgroup by rememberSaveable(kind) { mutableIntStateOf(0) }
+    var searching by rememberSaveable(kind) { mutableStateOf(false) }
+    var query by rememberSaveable(kind) { mutableStateOf("") }
+    var highlight by remember { mutableStateOf<String?>(null) }
+    val config = pane.edited
+    LaunchedEffect(state.jump) {
+        val hit = state.jump ?: return@LaunchedEffect
+        if (hit.kind != kind) return@LaunchedEffect
+        group = hit.group
+        subgroup = hit.subgroup
+        highlight = hit.name
+        searching = false
+        actions.jumpTo(null)
+    }
+    BackHandler(enabled = searching) { searching = false }
+    if (searching) {
+        SettingsSearch(
+            query = query,
+            onQuery = { query = it },
+            state = state,
+            onPick = { hit ->
+                searching = false
+                actions.jumpTo(hit)
+                if (hit.kind != kind) onShow(hit.kind)
+            },
+            onClose = { searching = false },
+        )
+        return
+    }
     Column(
-        modifier
+        Modifier
             .fillMaxSize()
             .background(colors.background),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -97,6 +202,16 @@ fun SettingsScreen(kind: ConfigKind, state: SettingsState, actions: SettingsActi
                 .weight(1f)
                 .widthIn(max = 640.dp),
         ) {
+            pane.notice?.let { notice ->
+                val undo = notice.afterWrite && pane.undo != null
+                Notice(
+                    title = notice.title,
+                    tone = if (notice.warning) NoticeTone.Warning else NoticeTone.Neutral,
+                    checks = notice.checks,
+                    action = stringResource(if (undo) R.string.settings_undo else R.string.settings_dismiss),
+                    onAction = { if (undo) actions.undo(kind) else actions.dismissNotice(kind) },
+                )
+            }
             pane.error?.let { error ->
                 Notice(
                     title = error,
@@ -122,9 +237,18 @@ fun SettingsScreen(kind: ConfigKind, state: SettingsState, actions: SettingsActi
                 val shownGroup = group.coerceIn(0, sections.lastIndex)
                 val subgroups = sections[shownGroup].subgroups
                 val shownSubgroup = subgroup.coerceIn(0, maxOf(subgroups.lastIndex, 0))
-                GroupPicker(kind, sections, shownGroup, config.definition, pane.changed) {
-                    group = it
-                    subgroup = 0
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f)) {
+                        GroupPicker(kind, sections, shownGroup, config.definition, pane.changed) {
+                            group = it
+                            subgroup = 0
+                        }
+                    }
+                    SearchButton {
+                        highlight = null
+                        searching = true
+                        ConfigKind.entries.forEach(actions::open)
+                    }
                 }
                 if (subgroups.size > 1) {
                     val labels = subgroups.map { sub ->
@@ -158,44 +282,16 @@ fun SettingsScreen(kind: ConfigKind, state: SettingsState, actions: SettingsActi
                             config = config,
                             stored = pane.stored,
                             changed = pane.changed,
-                            onOpen = { editing = it },
+                            warnings = pane.warnings,
+                            highlight = highlight,
+                            onOpen = onEdit,
                             onSet = { name, value -> actions.edit(kind, name, value) },
                         )
                     }
                 }
             }
         }
-        ActionBar(pane, kind, actions, onWrite = { reviewing = true })
-    }
-
-    val param = editing?.let { config?.definition?.params?.get(it) }
-    if (param != null && config != null) {
-        ParamDialog(
-            param = param,
-            config = config,
-            stored = pane.stored?.get(param.name),
-            onSet = {
-                actions.edit(kind, param.name, it)
-                editing = null
-            },
-            onDismiss = { editing = null },
-        )
-    }
-
-    val stored = pane.stored
-    if (reviewing && stored != null && config != null) {
-        val changes = remember(stored, config) { stored.diff(config) }
-        if (changes.isNotEmpty()) {
-            ReviewDialog(
-                changes = changes,
-                definition = config.definition,
-                onWrite = {
-                    reviewing = false
-                    actions.write(kind)
-                },
-                onDismiss = { reviewing = false },
-            )
-        }
+        ActionBar(pane, kind, actions, files, onWrite = onWrite, onHistory = onHistory)
     }
 }
 
@@ -324,18 +420,49 @@ private fun SubgroupPage(
     config: Config,
     stored: Config?,
     changed: Set<String>,
+    warnings: List<ConfigWarning>,
+    highlight: String?,
     onOpen: (String) -> Unit,
     onSet: (String, ParamValue) -> Unit,
 ) {
     val colors = FocTheme.colors
     val charts = remember(subgroup, config.definition) { SettingCharts.on(subgroup, config.definition) }
+    val rowWarnings = remember(warnings) { warnings.byParam() }
     val anchored = remember(charts) { charts.filterNot { it.atTop }.associateBy { it.anchor } }
+    val list = rememberLazyListState()
+    // The same item order as below: charts at the top, then each entry with the chart anchored above it.
+    LaunchedEffect(highlight, subgroup) {
+        val target = highlight ?: return@LaunchedEffect
+        var index = charts.count { it.atTop }
+        for (entry in subgroup.entries) {
+            when (entry) {
+                is GroupEntry.Separator -> index++
+                is GroupEntry.Param -> {
+                    if (entry.name in anchored) index++
+                    if (entry.name == target) {
+                        list.scrollToItem(index)
+                        return@LaunchedEffect
+                    }
+                    if (entry.name in config.definition.params) index++
+                }
+            }
+        }
+    }
+    val flash = remember { Animatable(0f) }
+    val fade = motionSpec<Float>(Motion.LONG)
+    LaunchedEffect(highlight, subgroup) {
+        if (highlight == null || subgroup.paramNames.none { it == highlight }) return@LaunchedEffect
+        flash.snapTo(1f)
+        delay(900)
+        flash.animateTo(0f, fade)
+    }
     // A handle snaps to the slider grid its setting had when it was taken, until it's let go.
     val heldTracks = remember { HashMap<String, NumberTrack>() }
     LazyColumn(
         Modifier
             .fillMaxSize()
             .background(colors.background),
+        state = list,
     ) {
         // The controller's values are drawn under a chart only while one of its settings has a pending edit.
         fun storedFor(chart: SettingChart) = stored?.takeIf { chart.params.any { it in changed } }
@@ -368,12 +495,14 @@ private fun SubgroupPage(
                     }
                     val param = config.definition.params[entry.name] ?: return@forEachIndexed
                     item(key = "param$index") {
-                        Column {
+                        val marked = param.name == highlight
+                        Column(Modifier.background(if (marked) colors.accent.copy(alpha = 0.18f * flash.value) else Color.Transparent)) {
                             ParamRow(
                                 param = param,
                                 value = config[param.name],
                                 stored = stored?.get(param.name),
                                 changed = param.name in changed,
+                                warnings = rowWarnings[param.name].orEmpty().map { warningText(it, config) },
                                 onOpen = { onOpen(param.name) },
                             ) { onSet(param.name, it) }
                             Hairline(Modifier.padding(start = Spacing.x2))
@@ -386,12 +515,21 @@ private fun SubgroupPage(
     }
 }
 
+/** Read, Revert and Write, with the rest (defaults, files, history) in a menu. */
 @Composable
-private fun ActionBar(pane: ConfigPaneState, kind: ConfigKind, actions: SettingsActions, onWrite: () -> Unit) {
+private fun ActionBar(
+    pane: ConfigPaneState,
+    kind: ConfigKind,
+    actions: SettingsActions,
+    files: ConfigFiles,
+    onWrite: () -> Unit,
+    onHistory: () -> Unit,
+) {
     val colors = FocTheme.colors
     val idle = pane.work == null
     val loaded = pane.stored != null
     val pending = pane.changed.size
+    var menu by remember { mutableStateOf(false) }
     Column(
         Modifier
             .fillMaxWidth()
@@ -407,7 +545,6 @@ private fun ActionBar(pane: ConfigPaneState, kind: ConfigKind, actions: Settings
             horizontalArrangement = Arrangement.spacedBy(Spacing.half),
         ) {
             PlainButton(stringResource(R.string.settings_read), { actions.read(kind) }, enabled = idle)
-            PlainButton(stringResource(R.string.settings_defaults), { actions.loadDefaults(kind) }, enabled = idle && loaded)
             Spacer(Modifier.weight(1f))
             PlainButton(stringResource(R.string.settings_revert), { actions.revert(kind) }, enabled = idle && pending > 0)
             OutlineButton(
@@ -415,6 +552,26 @@ private fun ActionBar(pane: ConfigPaneState, kind: ConfigKind, actions: Settings
                 onWrite,
                 enabled = idle && pending > 0,
             )
+            Box {
+                IconButton(onClick = { menu = true }) {
+                    Icon(painterResource(R.drawable.ic_more), stringResource(R.string.settings_more), tint = colors.textSecondary)
+                }
+                DropdownMenu(menu, { menu = false }, containerColor = colors.surface) {
+                    @Composable
+                    fun item(label: Int, enabled: Boolean, onClick: () -> Unit) = DropdownMenuItem(
+                        text = { Text(stringResource(label), color = if (enabled) colors.text else colors.textTertiary, style = FocTheme.type.body) },
+                        onClick = {
+                            menu = false
+                            onClick()
+                        },
+                        enabled = enabled,
+                    )
+                    item(R.string.settings_defaults, idle && loaded) { actions.loadDefaults(kind) }
+                    item(R.string.settings_save_xml, pane.edited != null) { files.save() }
+                    item(R.string.settings_load_xml, idle && loaded) { files.load() }
+                    item(R.string.settings_history, true, onHistory)
+                }
+            }
         }
     }
 }
@@ -448,6 +605,16 @@ private object NoActions : SettingsActions {
     override fun edit(kind: ConfigKind, name: String, value: ParamValue) = Unit
     override fun revert(kind: ConfigKind) = Unit
     override fun write(kind: ConfigKind) = Unit
+    override fun loadFile(kind: ConfigKind, config: Config, notes: List<String>) = Unit
+    override fun notify(kind: ConfigKind, notice: PaneNotice) = Unit
+    override fun dismissNotice(kind: ConfigKind) = Unit
+    override fun undo(kind: ConfigKind) = Unit
+    override fun loadHistory() = Unit
+    override fun restore(backup: ConfigBackup) = Unit
+    override fun confirmRestore() = Unit
+    override fun dismissRestore() = Unit
+    override fun deleteBackup(backup: ConfigBackup) = Unit
+    override fun jumpTo(hit: SettingHit?) = Unit
 }
 
 @ThemePreviews

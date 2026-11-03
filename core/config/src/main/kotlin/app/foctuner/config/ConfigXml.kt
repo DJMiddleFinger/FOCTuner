@@ -59,10 +59,11 @@ object ConfigXml {
      */
     fun read(input: InputStream, root: String, base: Config): XmlConfig {
         val handler = Handler(root, base.definition)
+        val bytes = input.readBytes()
+        // Android's parser doesn't know the feature that refuses a DOCTYPE, so it is refused here on every platform.
+        if (DOCTYPE.containsMatchIn(String(bytes, Charsets.UTF_8))) throw ConfigXmlException("A DOCTYPE is not allowed in a config file")
         try {
-            val factory = SAXParserFactory.newInstance()
-            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true)
-            factory.newSAXParser().parse(InputSource(input), handler)
+            SAXParserFactory.newInstance().newSAXParser().parse(InputSource(bytes.inputStream()), handler)
         } catch (e: SAXException) {
             throw ConfigXmlException("Not a config file: ${e.message}", e)
         }
@@ -72,6 +73,8 @@ object ConfigXml {
             .map { it.name }
         return XmlConfig(base.withDecoded(handler.values), handler.version, handler.unknown, missing)
     }
+
+    private val DOCTYPE = Regex("<!DOCTYPE", RegexOption.IGNORE_CASE)
 
     private fun StringBuilder.element(name: String, text: String) {
         append("\n    <").append(name).append('>')

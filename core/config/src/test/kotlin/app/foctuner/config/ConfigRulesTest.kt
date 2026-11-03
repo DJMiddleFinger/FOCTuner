@@ -55,6 +55,7 @@ class ConfigRulesTest {
     fun erpmLimitBeyondWhatTheVoltageReaches() {
         // 42 V × 0.95 / √3 / 0.01 Wb = 2304 rad/s, 22 000 ERPM.
         assertEquals(listOf(ConfigWarning.ERPM_UNREACHABLE), board.with("l_max_erpm", 40_000.0).writeWarnings())
+        assertEquals(21_998.0, board.reachableErpm() ?: 0.0, 1.0)
         assertEquals(emptyList(), board.with("l_max_erpm", 21_000.0).writeWarnings())
         assertEquals(emptyList(), board.with("l_max_erpm", 40_000.0).with("foc_motor_flux_linkage", 0.0).writeWarnings())
         assertEquals(emptyList(), board.with("l_max_erpm", 40_000.0).with("motor_type", 0L).writeWarnings())
@@ -80,5 +81,8 @@ class ConfigRulesTest {
         val rows = board.with("l_battery_cut_start", 30.0).writeWarnings().byParam()
         assertEquals(listOf(ConfigWarning.BATTERY_CUTOFF_ORDER), rows["l_battery_cut_end"])
         assertNull(rows["l_current_max"])
+        // Only the settings worth changing show a warning, not every input of its rule.
+        val erpm = board.with("l_max_erpm", 40_000.0).writeWarnings().byParam()
+        assertEquals(listOf("l_max_erpm"), erpm.keys.toList())
     }
 }

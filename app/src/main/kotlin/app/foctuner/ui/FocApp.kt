@@ -188,8 +188,8 @@ private fun ConnectedRoute(session: SessionViewModel) {
             Destination.Bms -> tools?.let { ToolContent(Tool.Bms, it) }
             Destination.Terminal -> TerminalScreen(terminal, session::onTerminalInput, session::sendCommand, session::clearTerminal)
             Destination.Lisp -> tools?.let { ToolContent(Tool.Lisp, it) }
-            Destination.MotorCfg -> SettingsScreen(ConfigKind.MCCONF, settings, session.settings)
-            Destination.AppCfg -> SettingsScreen(ConfigKind.APPCONF, settings, session.settings)
+            Destination.MotorCfg -> SettingsScreen(ConfigKind.MCCONF, settings, session.settings, onShow = { navigate(Destination.AppCfg) })
+            Destination.AppCfg -> SettingsScreen(ConfigKind.APPCONF, settings, session.settings, onShow = { navigate(Destination.MotorCfg) })
             Destination.Controllers -> ControllersScreen(controllers, session::select, session::scanCan)
             Destination.Display -> DisplayScreen()
             Destination.Preferences -> PreferencesRoute()

@@ -91,7 +91,7 @@ private val TrackHeight = 32.dp
  * One setting with the editor its type needs right on the row: a slider with nudges for numbers, segments or a
  * picker for options, chips for bitfields, a switch, a text field. Tapping the name (or a number's value) opens
  * [ParamDialog] for an exact value and VESC Tool's description. A pending edit is marked with a bar and the value
- * on the controller.
+ * on the controller; [warnings] (values dangerous together with others) are listed under the name.
  */
 @Composable
 internal fun ParamRow(
@@ -100,6 +100,7 @@ internal fun ParamRow(
     stored: ParamValue?,
     changed: Boolean,
     onOpen: () -> Unit,
+    warnings: List<String> = emptyList(),
     onSet: (ParamValue) -> Unit,
 ) {
     val colors = FocTheme.colors
@@ -127,6 +128,7 @@ internal fun ParamRow(
                 if (!param.transmittable) {
                     Text(stringResource(R.string.settings_not_on_controller), color = colors.textTertiary, style = FocTheme.type.caption)
                 }
+                warnings.forEach { Text(it, color = colors.warning, style = FocTheme.type.caption) }
             }
             when (param.type) {
                 ParamType.BOOL -> Switch(
