@@ -1,6 +1,5 @@
 package app.foctuner.ui.tools.logs
 
-import android.content.Intent
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -27,7 +26,6 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.core.content.FileProvider
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.foctuner.R
 import app.foctuner.logging.StoredLog
@@ -61,8 +59,14 @@ fun LogsTool(context: ToolContext) {
     val ride by rideLogState()
     val toggle = rememberRideLogToggle()
     var deleting by remember { mutableStateOf<StoredLog?>(null) }
+    var opened by remember { mutableStateOf<StoredLog?>(null) }
     LaunchedEffect(model) { model.refresh() }
     LaunchedEffect(ride.recording) { model.refreshPhone() }
+
+    opened?.let { log ->
+        LogAnalysisScreen(log, onBack = { opened = null })
+        return
+    }
 
     LazyColumn(Modifier.fillMaxWidth()) {
         item { SectionHeader(stringResource(R.string.logging_section_record)) }
@@ -71,7 +75,11 @@ fun LogsTool(context: ToolContext) {
         if (state.phone.isEmpty()) {
             item { Text(stringResource(R.string.logging_phone_empty), Modifier.padding(horizontal = Spacing.x2, vertical = Spacing.x1), color = FocTheme.colors.textSecondary, style = FocTheme.type.supporting) }
         }
-        items(state.phone, key = { it.name }) { log -> PhoneLogRow(log, onDelete = { deleting = log }) }
+        items(state.phone, key = { it.name }) { log -> PhoneLogRow(log, onOpen = { opened = log }, onDelete = { deleting = log }) }
+        if (state.downloads.isNotEmpty()) {
+            item { SectionHeader(stringResource(R.string.logging_section_downloads)) }
+            items(state.downloads, key = { "download-${it.name}" }) { log -> PhoneLogRow(log, onOpen = { opened = log }, onDelete = { deleting = log }) }
+        }
         item { SectionHeader(stringResource(R.string.logging_section_controller)) }
         controllerSection(state, model)
     }
@@ -127,7 +135,7 @@ private fun RecordSection(ride: app.foctuner.logging.RideLogState, toggle: () ->
 }
 
 @Composable
-private fun PhoneLogRow(log: StoredLog, onDelete: () -> Unit) {
+private fun PhoneLogRow(log: StoredLog, onOpen: () -> Unit, onDelete: () -> Unit) {
     val context = LocalContext.current
     val title = rememberLogTitle(log.name)
     val size = byteCount(log.size)
@@ -144,6 +152,7 @@ private fun PhoneLogRow(log: StoredLog, onDelete: () -> Unit) {
                 Text(title, color = FocTheme.colors.text, style = FocTheme.type.body)
                 Text("${log.name}  $size", color = FocTheme.colors.textTertiary, style = FocTheme.type.supporting)
             }
+            PlainButton(stringResource(R.string.logging_open), onOpen)
             PlainButton(stringResource(R.string.logging_share), { share(context, log) })
             PlainButton(stringResource(R.string.logging_delete), onDelete)
         }
@@ -284,7 +293,7 @@ private fun Hint(text: String) {
 }
 
 @Composable
-private fun rememberLogTitle(name: String): String = remember(name) {
+internal fun rememberLogTitle(name: String): String = remember(name) {
     LogNames.start(name)?.let { start ->
         val zone = if (start.utc) ZoneId.of("UTC") else ZoneId.systemDefault()
         DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT).format(start.dateTime.atZone(zone).withZoneSameInstant(ZoneId.systemDefault()))
@@ -304,8 +313,4 @@ private fun duration(seconds: Double): String {
     return if (s < 60) stringResource(R.string.logging_seconds, s) else stringResource(R.string.logging_minutes, s / 60, s % 60)
 }
 
-private fun share(context: android.content.Context, log: StoredLog) {
-    val uri = FileProvider.getUriForFile(context, "${context.packageName}.logs", log.file)
-    val send = Intent(Intent.ACTION_SEND).setType("text/csv").putExtra(Intent.EXTRA_STREAM, uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-    context.startActivity(Intent.createChooser(send, context.getString(R.string.logging_share_chooser)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-}
+private fun share(context: android.content.Context, log: StoredLog) = LogExport.share(context, log.file, "text/csv")

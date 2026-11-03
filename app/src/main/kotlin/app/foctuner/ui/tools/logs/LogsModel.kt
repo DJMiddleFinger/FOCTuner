@@ -24,6 +24,8 @@ import java.io.File
 
 data class LogsState(
     val phone: List<StoredLog> = emptyList(),
+    /** Logs downloaded from this controller. */
+    val downloads: List<StoredLog> = emptyList(),
     /** Null until the controller has said whether it has storage. */
     val hasStorage: Boolean? = null,
     val folder: String = "",
@@ -43,13 +45,13 @@ data class LogsState(
 
 /** The Logs tool's state: the phone's log files, and the controller's storage with downloads that carry on after a drop. */
 class LogsModel(private val context: ToolContext, private val app: Context) {
-    private val _state = MutableStateFlow(LogsState(phone = LogStorage.logs(LogStorage.phoneDir(app))))
+    private val _state = MutableStateFlow(LogsState(phone = LogStorage.logs(LogStorage.phoneDir(app)), downloads = LogStorage.logs(LogStorage.controllerDir(app, context.firmware.uuid))))
     val state: StateFlow<LogsState> = _state.asStateFlow()
     private var download: Job? = null
 
     private val dir: File get() = LogStorage.controllerDir(app, context.firmware.uuid)
 
-    fun refreshPhone() = _state.update { it.copy(phone = LogStorage.logs(LogStorage.phoneDir(app))) }
+    fun refreshPhone() = _state.update { it.copy(phone = LogStorage.logs(LogStorage.phoneDir(app)), downloads = LogStorage.logs(dir)) }
 
     fun delete(log: StoredLog) {
         log.file.delete()
