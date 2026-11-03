@@ -166,7 +166,7 @@ private fun androidx.compose.foundation.lazy.LazyListScope.controllerSection(sta
             if (entries.isEmpty()) item { Hint(stringResource(R.string.logging_controller_empty, state.folder.ifEmpty { "/" })) }
             items(entries, key = { it.name }) { entry ->
                 if (entry.isDirectory) {
-                    FolderRow(entry.name, onClick = { model.open(entry.name) })
+                    FolderRow("${entry.name}/", onClick = { model.open(entry.name) })
                 } else {
                     FileRow(entry.name, entry.size, entry.name in state.selected, state.queue?.items?.firstOrNull { it.name == entry.name }, state.partial[entry.name], entry.name in state.downloaded, !state.downloading) {
                         model.toggle(entry.name)
@@ -230,7 +230,7 @@ private fun FolderRow(name: String, onClick: () -> Unit) {
                 .padding(horizontal = Spacing.x2),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text("$name/", color = FocTheme.colors.text, style = FocTheme.type.body)
+            Text(name, color = FocTheme.colors.text, style = FocTheme.type.body)
         }
         Hairline(Modifier.padding(start = Spacing.x2))
     }
