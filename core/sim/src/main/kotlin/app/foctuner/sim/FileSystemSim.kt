@@ -7,20 +7,19 @@ import app.foctuner.protocol.CommPacketId.COMM_FILE_MKDIR
 import app.foctuner.protocol.CommPacketId.COMM_FILE_READ
 import app.foctuner.protocol.CommPacketId.COMM_FILE_REMOVE
 import app.foctuner.protocol.CommPacketId.COMM_FILE_WRITE
-import java.util.Locale
-import kotlin.math.sin
 
 /**
  * A VESC Express SD card as its commands.c serves it (COMM_FILE_*): listings in pages of under 400 bytes that
  * continue after a given name, 400-byte reads, writes that open the file at offset 0 and accept a repeated chunk,
  * mkdir and recursive remove. Real STM32 firmware has no file system; the simulator answers like an Express on the
- * same link so the file browser can be tried. Starts with a log folder and a note.
+ * same link so the file browser can be tried. Starts with the logger's folder holding three rides, and a note.
  */
 internal class FileSystemSim(private val vesc: SimulatedVesc) {
-    private val folders = linkedSetOf("", "/logs")
+    private val folders = linkedSetOf("", LogSim.FOLDER)
     private val files = linkedMapOf(
-        "/logs/2026-10-01_ride.csv" to sampleLog(120),
-        "/logs/2026-10-03_ride.csv" to sampleLog(2400),
+        "${LogSim.FOLDER}/log_000_26-10-14_17-02-11.csv" to StoredRides.csv(90, 61_331.0, 0.3, 0.92),
+        "${LogSim.FOLDER}/log_001_26-10-15_08-31-40.csv" to StoredRides.csv(150, 30_700.0, 1.7, 0.85),
+        "${LogSim.FOLDER}/log_002_26-10-15_18-47-05.csv" to StoredRides.csv(240, 67_625.0, 4.1, 0.78),
         "/notes.txt" to "Simulated VESC Express storage.\n".encodeToByteArray(),
     )
     private var writing: String? = null
@@ -119,16 +118,21 @@ internal class FileSystemSim(private val vesc: SimulatedVesc) {
         return if (trimmed.isEmpty() || trimmed.startsWith("/")) trimmed else "/$trimmed"
     }
 
-    private fun sampleLog(rows: Int): ByteArray = buildString {
-        append("ms_today;input_voltage;current_motor;erpm;duty_cycle\n")
-        for (i in 0 until rows) {
-            append(36_000_000 + i * 100).append(';')
-            append("%.2f".format(Locale.ROOT, 50.4 - i * 0.001)).append(';')
-            append("%.2f".format(Locale.ROOT, 12 + 8 * sin(i / 20.0))).append(';')
-            append(8000 + i % 500).append(';')
-            append("%.3f".format(Locale.ROOT, 0.3 + 0.1 * sin(i / 30.0))).append('\n')
-        }
-    }.encodeToByteArray()
+    fun ensureFolder(path: String) {
+        folders += path
+    }
+
+    fun create(path: String) {
+        files[path] = ByteArray(0)
+    }
+
+    fun append(path: String, text: String) {
+        if (text.isNotEmpty()) files[path] = (files[path] ?: ByteArray(0)) + text.encodeToByteArray()
+    }
+
+    /** The highest NNN of the log_NNN_* files in [folder], -1 when there are none. */
+    fun highestLogIndex(folder: String): Int =
+        files.keys.filter { parentOf(it) == folder }.mapNotNull { Regex("""log_(\d+)""").find(it.substringAfterLast('/'))?.groupValues?.get(1)?.toInt() }.maxOrNull() ?: -1
 
     private companion object {
         const val PAGE = 400
