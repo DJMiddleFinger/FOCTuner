@@ -12,6 +12,10 @@ class ConfigWriteCheckTest {
     private val appconf = BundledDefinitions.load("7.01", ConfigKind.APPCONF)
     private val defaults = Config.defaults(mcconf)
 
+    /** The firmware defaults' 3-cell battery doesn't match their cutoff; [ConfigRulesTest] covers those rules. */
+    private fun Config.vescToolWarnings() =
+        writeWarnings().filter { it in setOf(ConfigWarning.ABS_CURRENT_CLOSE, ConfigWarning.SLOW_ABS_CURRENT, ConfigWarning.OVERMODULATION) }
+
     @Test
     fun listsWhatTheControllerChangedWithVescToolsTolerance() {
         val written = defaults.with("l_current_max", 200.0).with("foc_motor_r", 0.0123).with("motor_type", 2L)
@@ -31,14 +35,14 @@ class ConfigWriteCheckTest {
 
     @Test
     fun warnsLikeVescToolOnWrite() {
-        assertEquals(emptyList(), defaults.with("l_current_max", 60.0).with("l_abs_current_max", 150.0).writeWarnings())
-        assertEquals(listOf(ConfigWarning.ABS_CURRENT_CLOSE), defaults.with("l_current_max", 120.0).with("l_abs_current_max", 150.0).writeWarnings())
-        assertEquals(listOf(ConfigWarning.ABS_CURRENT_CLOSE), defaults.with("l_current_min", -120.0).with("l_abs_current_max", 150.0).writeWarnings())
+        assertEquals(emptyList(), defaults.with("l_current_max", 60.0).with("l_abs_current_max", 150.0).vescToolWarnings())
+        assertEquals(listOf(ConfigWarning.ABS_CURRENT_CLOSE), defaults.with("l_current_max", 120.0).with("l_abs_current_max", 150.0).vescToolWarnings())
+        assertEquals(listOf(ConfigWarning.ABS_CURRENT_CLOSE), defaults.with("l_current_min", -120.0).with("l_abs_current_max", 150.0).vescToolWarnings())
         assertEquals(
             listOf(ConfigWarning.SLOW_ABS_CURRENT, ConfigWarning.OVERMODULATION),
-            defaults.with("l_slow_abs_current", true).with("foc_overmod_factor", 1.2).writeWarnings(),
+            defaults.with("l_slow_abs_current", true).with("foc_overmod_factor", 1.2).vescToolWarnings(),
         )
-        assertEquals(emptyList(), Config.defaults(appconf).writeWarnings())
+        assertEquals(emptyList(), Config.defaults(appconf).vescToolWarnings())
     }
 
     @Test

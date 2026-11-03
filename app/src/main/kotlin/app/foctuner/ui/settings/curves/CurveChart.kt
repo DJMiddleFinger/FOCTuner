@@ -130,6 +130,7 @@ internal fun CurveChart(
     fill: Color = FocTheme.colors.surface,
     handles: List<HandlePoint> = emptyList(),
     onHandle: ((index: Int, position: Double) -> Unit)? = null,
+    onRelease: () -> Unit = {},
     actions: List<CustomAccessibilityAction> = emptyList(),
 ) {
     val colors = FocTheme.colors
@@ -138,6 +139,7 @@ internal fun CurveChart(
     var held by remember { mutableStateOf<Int?>(null) }
     var frozen by remember { mutableStateOf<Pair<PlotAxis, PlotAxis>?>(null) }
     val handleUpdate by rememberUpdatedState(onHandle)
+    val release by rememberUpdatedState(onRelease)
     val handlePoints by rememberUpdatedState(handles)
     val motion = LocalMotion.current
     val resources = LocalResources.current
@@ -214,6 +216,7 @@ internal fun CurveChart(
                         handleUpdate?.invoke(hit, position)
                     }
                     held = null
+                    release()
                     // Let the axes move from where they were held to where the new values put them.
                     from = to.withAxes(axes.first, axes.second)
                     frozen = null

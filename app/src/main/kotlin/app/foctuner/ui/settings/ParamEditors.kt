@@ -193,18 +193,24 @@ private fun ValueBox(text: String, changed: Boolean, onOpen: () -> Unit) {
 
 /**
  * −/+ nudges either side of a track to drag along. The track covers [NumberTrack]'s practical window, which stays put
- * while the finger is down; dragging moves the value by how far the finger moves, so it never jumps on touch.
+ * while a finger is on the track or a nudge and widens after release; dragging moves the value by how far the finger
+ * moves, so it never jumps on touch.
  */
 @Composable
 private fun NumberSlider(param: ParamDefinition, value: ParamValue, stored: ParamValue?, onSet: (ParamValue) -> Unit) {
-    var frozen by remember { mutableStateOf<NumberTrack?>(null) }
-    val live = remember(param, value, stored) { param.track(value, stored) }
-    val track = frozen ?: live
+    var held by remember { mutableStateOf<NumberTrack?>(null) }
+    val track = remember(param, value, stored, held) { param.track(value, stored, held) }
     val shown = param.shown(value)
     val set = { v: Double -> if (v != shown) onSet(param.fromShown(v)) }
+    val hold = { down: Boolean -> held = if (down) track else null }
+    val step = { up: Boolean ->
+        val next = track.nudge(shown, up)
+        if (held != null && next !in track.min..track.max) held = param.track(param.fromShown(next), stored)
+        set(next)
+    }
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Nudge(R.drawable.ic_minus, stringResource(R.string.settings_decrease, param.longName), shown > track.limitMin) {
-            set(track.nudge(shown, up = false))
+        Nudge(R.drawable.ic_minus, stringResource(R.string.settings_decrease, param.longName), shown > track.limitMin, hold) {
+            step(false)
         }
         Track(
             track = track,
@@ -213,21 +219,25 @@ private fun NumberSlider(param: ParamDefinition, value: ParamValue, stored: Para
             name = param.longName,
             state = param.display(value, ""),
             label = param::trackLabel,
-            onDrag = { frozen = it },
+            onDrag = { held = it },
             onSet = set,
             modifier = Modifier.weight(1f),
         )
-        Nudge(R.drawable.ic_plus, stringResource(R.string.settings_increase, param.longName), shown < track.limitMax) {
-            set(track.nudge(shown, up = true))
+        Nudge(R.drawable.ic_plus, stringResource(R.string.settings_increase, param.longName), shown < track.limitMax, hold) {
+            step(true)
         }
     }
 }
 
-/** A 48dp button that steps once on tap and keeps stepping while held, each step from the latest value. */
+/**
+ * A 48dp button that steps once on tap and keeps stepping while held, each step from the latest value; [onHold] is
+ * told when the finger goes down and comes up.
+ */
 @Composable
-private fun Nudge(@DrawableRes icon: Int, description: String, enabled: Boolean, onStep: () -> Unit) {
+private fun Nudge(@DrawableRes icon: Int, description: String, enabled: Boolean, onHold: (Boolean) -> Unit, onStep: () -> Unit) {
     val colors = FocTheme.colors
     val step by rememberUpdatedState(onStep)
+    val hold by rememberUpdatedState(onHold)
     var pressed by remember { mutableStateOf(false) }
     val fill by animateColorAsState(if (pressed) colors.surfaceHigh else Color.Transparent, motionSpec(), label = "nudge")
     Box(
@@ -246,6 +256,7 @@ private fun Nudge(@DrawableRes icon: Int, description: String, enabled: Boolean,
                     awaitEachGesture {
                         awaitFirstDown()
                         pressed = true
+                        hold(true)
                         val repeat = launch {
                             step()
                             delay(400)
@@ -257,6 +268,7 @@ private fun Nudge(@DrawableRes icon: Int, description: String, enabled: Boolean,
                         waitForUpOrCancellation()
                         repeat.cancel()
                         pressed = false
+                        hold(false)
                     }
                 }
             },

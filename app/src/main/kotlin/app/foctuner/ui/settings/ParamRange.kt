@@ -61,8 +61,9 @@ internal object NumberTracks {
      * across in full (temperatures, duty cycles, percentages). Wider limits (currents to ±5000 A, ERPM to ±1e6) get a
      * window from zero (or the nearer limit) to [WINDOW_REACH] × the largest of |[value]| and |[stored]|, rounded up to
      * 1, 2, 2.5 or 5 × 10ⁿ and clipped to the limits; both signs when the limits allow both. A window covering half the
-     * limits or more becomes the full range. The window is computed from the value when a drag starts and kept until
-     * it ends, so letting go at an end makes the next one 2.5 times as wide.
+     * limits or more becomes the full range. While a finger is on the slider or a nudge, the [held] track is kept as long
+     * as the value stays on it, so the scale doesn't move under the finger; it widens after release (letting go at an
+     * end makes the next one 2.5 times as wide), or at once when a held nudge steps past its end.
      *
      * The step divides the track into about [TRACK_POSITIONS] round-numbered positions, never finer than [decimals];
      * integers keep to multiples of [definitionStep] (motor poles move in twos).
@@ -75,7 +76,9 @@ internal object NumberTracks {
         integer: Boolean,
         value: Double,
         stored: Double?,
+        held: NumberTrack? = null,
     ): NumberTrack {
+        held?.takeIf { value in it.min..it.max }?.let { return it }
         val low = min(limitMin, limitMax)
         val high = max(limitMin, limitMax)
         val unit = if (integer) max(definitionStep, 1.0) else 10.0.pow(-decimals)
@@ -119,8 +122,8 @@ internal fun ParamDefinition.shown(value: ParamValue): Double = when (value) {
 internal fun ParamDefinition.fromShown(shown: Double): ParamValue =
     if (type == ParamType.INT) ParamValue.IntValue((shown / displayScale).roundToLong()) else ParamValue.DoubleValue(shown / displayScale)
 
-/** The slider track for this number setting at [value], with the controller's [stored] value widening it. */
-internal fun ParamDefinition.track(value: ParamValue, stored: ParamValue?): NumberTrack {
+/** The slider track for this number setting at [value], with the controller's [stored] value widening it; see [NumberTracks.track] for [held]. */
+internal fun ParamDefinition.track(value: ParamValue, stored: ParamValue?, held: NumberTrack? = null): NumberTrack {
     val integer = type == ParamType.INT
     val percent = editAsPercentage && type == ParamType.DOUBLE
     val scale = displayScale
@@ -130,7 +133,7 @@ internal fun ParamDefinition.track(value: ParamValue, stored: ParamValue?): Numb
         integer -> stepInt * scale
         else -> stepDouble
     }
-    return NumberTracks.track(low, high, step, if (integer) 0 else displayDecimals, integer, shown(value), stored?.let(::shown))
+    return NumberTracks.track(low, high, step, if (integer) 0 else displayDecimals, integer, shown(value), stored?.let(::shown), held)
 }
 
 /**
@@ -138,8 +141,6 @@ internal fun ParamDefinition.track(value: ParamValue, stored: ParamValue?): Numb
  * the grid of the setting's slider, so it reads the same as when dragged on its row.
  */
 internal fun ParamDefinition.fromChart(raw: Double, track: NumberTrack): ParamValue = fromShown(track.snap(raw * displayScale))
-
-internal fun ParamDefinition.fromChart(raw: Double, value: ParamValue, stored: ParamValue?): ParamValue = fromChart(raw, track(value, stored))
 
 /** [value] one slider step up or down, as the row's −/+ would set it. */
 internal fun ParamDefinition.nudged(value: ParamValue, stored: ParamValue?, up: Boolean): ParamValue =

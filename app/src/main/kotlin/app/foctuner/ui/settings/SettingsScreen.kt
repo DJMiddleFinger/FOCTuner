@@ -330,6 +330,8 @@ private fun SubgroupPage(
     val colors = FocTheme.colors
     val charts = remember(subgroup, config.definition) { SettingCharts.on(subgroup, config.definition) }
     val anchored = remember(charts) { charts.filterNot { it.atTop }.associateBy { it.anchor } }
+    // A handle snaps to the slider grid its setting had when it was taken, until it's let go.
+    val heldTracks = remember { HashMap<String, NumberTrack>() }
     LazyColumn(
         Modifier
             .fillMaxSize()
@@ -338,16 +340,19 @@ private fun SubgroupPage(
         // The controller's values are drawn under a chart only while one of its settings has a pending edit.
         fun storedFor(chart: SettingChart) = stored?.takeIf { chart.params.any { it in changed } }
         val chartSet = { name: String, raw: Double ->
-            config.definition.params[name]?.takeIf { it.isNumber }?.let { p -> onSet(name, p.fromChart(raw, config[name], stored?.get(name))) }
+            config.definition.params[name]?.takeIf { it.isNumber }?.let { p ->
+                onSet(name, p.fromChart(raw, heldTracks.getOrPut(name) { p.track(config[name], stored?.get(name)) }))
+            }
             Unit
         }
+        val chartRelease = { heldTracks.clear() }
         val chartStep = { name: String, up: Boolean ->
             config.definition.params[name]?.takeIf { it.isNumber }?.let { p -> onSet(name, p.nudged(config[name], stored?.get(name), up)) }
             Unit
         }
         for (chart in charts.filter { it.atTop }) {
             item(key = "chart-${chart.key}") {
-                ChartBlock(chart, config, storedFor(chart), R.string.curve_on_controller, Modifier.padding(Spacing.x2), onSet = chartSet, onStep = chartStep)
+                ChartBlock(chart, config, storedFor(chart), R.string.curve_on_controller, Modifier.padding(Spacing.x2), onSet = chartSet, onStep = chartStep, onRelease = chartRelease)
                 Hairline()
             }
         }
@@ -357,7 +362,7 @@ private fun SubgroupPage(
                 is GroupEntry.Param -> {
                     anchored[entry.name]?.let { chart ->
                         item(key = "chart-${chart.key}") {
-                            ChartBlock(chart, config, storedFor(chart), R.string.curve_on_controller, Modifier.padding(Spacing.x2), onSet = chartSet, onStep = chartStep)
+                            ChartBlock(chart, config, storedFor(chart), R.string.curve_on_controller, Modifier.padding(Spacing.x2), onSet = chartSet, onStep = chartStep, onRelease = chartRelease)
                             Hairline()
                         }
                     }

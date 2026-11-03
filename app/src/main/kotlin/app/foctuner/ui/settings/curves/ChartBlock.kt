@@ -34,7 +34,7 @@ import app.foctuner.ui.theme.Spacing
  * [compareLabel]: the values on the controller on a settings page, the value before the edit in the edit dialog.
  * Callers pass it only when one of the chart's settings has really changed. [compact] is the dialog version:
  * shorter, no caption. With [onSet] the chart's handles are drawn and report the stored value their setting would
- * need for where they were dragged; [onStep] nudges a setting one step for TalkBack's actions.
+ * need for where they were dragged, and [onRelease] when one is let go; [onStep] nudges a setting one step for TalkBack's actions.
  */
 @Composable
 internal fun ChartBlock(
@@ -46,6 +46,7 @@ internal fun ChartBlock(
     compact: Boolean = false,
     onSet: ((param: String, value: Double) -> Unit)? = null,
     onStep: ((param: String, up: Boolean) -> Unit)? = null,
+    onRelease: () -> Unit = {},
 ) {
     val colors = FocTheme.colors
     val resources = LocalResources.current
@@ -92,12 +93,13 @@ internal fun ChartBlock(
                         Unit
                     }
                 },
+                onRelease = onRelease,
                 actions = actions,
             )
             Legend(plot, ghost != null, compareLabel)
             plot.note?.let { Text(stringResource(it), color = colors.textSecondary, style = FocTheme.type.supporting) }
         } else {
-            LimitBars(config, compareTo.takeIf { differs }, title, fill = fill, onSet = onSet, actions = actions)
+            LimitBars(config, compareTo.takeIf { differs }, title, fill = fill, onSet = onSet, onRelease = onRelease, actions = actions)
             FlowRow(horizontalArrangement = Arrangement.spacedBy(Spacing.x2), verticalArrangement = Arrangement.spacedBy(Spacing.half)) {
                 LegendItem(stringResource(R.string.curve_line_drive)) { LineSwatch(colors.accent, dashed = false) }
                 LegendItem(stringResource(R.string.curve_line_brake_regen)) { LineSwatch(colors.textSecondary, dashed = false) }

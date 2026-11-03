@@ -101,6 +101,7 @@ internal fun LimitBars(
     modifier: Modifier = Modifier,
     fill: Color = FocTheme.colors.surface,
     onSet: ((param: String, value: Double) -> Unit)? = null,
+    onRelease: () -> Unit = {},
     actions: List<CustomAccessibilityAction> = emptyList(),
 ) {
     val colors = FocTheme.colors
@@ -109,6 +110,7 @@ internal fun LimitBars(
     var frozenReach by remember { mutableStateOf<Float?>(null) }
     val latestConfig by rememberUpdatedState(config)
     val latestSet by rememberUpdatedState(onSet)
+    val release by rememberUpdatedState(onRelease)
     val resources = LocalResources.current
     val measurer = rememberTextMeasurer(cacheSize = 32)
     val tickStyle = FocTheme.type.code.copy(fontSize = 11.sp, lineHeight = 14.sp, color = colors.textTertiary)
@@ -151,6 +153,7 @@ internal fun LimitBars(
                     }
                     held = null
                     frozenReach = null
+                    release()
                 }
             },
     ) {
