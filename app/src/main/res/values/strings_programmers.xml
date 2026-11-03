@@ -68,4 +68,21 @@
     <string name="esp_done_erase_lisp">LispBM area erased</string>
     <string name="esp_done_erase_qml">QML area erased</string>
     <string name="esp_failed">The ESP32 programmer stopped</string>
+
+    <string name="tool_display">Display fonts</string>
+    <string name="tool_display_summary">Turn a font into the bitmap font files LispBM display drivers load</string>
+    <string name="display_intro">Renders the printable characters into fixed-size glyphs and saves them as a .bin file in the format of VESC Tool\'s display tool, for loading from a LispBM script.</string>
+    <string name="display_font">Font</string>
+    <string name="display_sans">Sans</string>
+    <string name="display_serif">Serif</string>
+    <string name="display_mono">Mono</string>
+    <string name="display_bold">Bold</string>
+    <string name="display_antialias">Antialiased (2 bits per pixel)</string>
+    <string name="display_digits">Digits only</string>
+    <string name="display_width">Glyph width (pixels)</string>
+    <string name="display_height">Glyph height (pixels)</string>
+    <string name="display_scale">Scale</string>
+    <string name="display_preview">Preview</string>
+    <string name="display_save">Save .bin</string>
+    <string name="display_saved">Saved (%1$s bytes)</string>
 </resources>

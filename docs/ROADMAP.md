@@ -38,12 +38,16 @@ Status: done 2026-11-03 (`claude/wave1-finish`): the three config tools, the arc
 | `definitions-help` | Bundle definitions for firmware 3.55 to 6.02. For firmware the app doesn't bundle, fetch VESC Tool's definitions from GitHub and check them against the controller's signature. Plain-language help and typical values for the most used settings. |
 | `connectivity` | VESC Remote quick pair (NRF). Bluetooth module setup (name, PIN). TCP bridge to desktop VESC Tool and TCP hub. Automatic reconnect. Connection diagnostics (permissions, Bluetooth off, app port set to ADC). A "release motor" stop next to the emergency stop. |
 
+Status: built 2026-11-03 on `claude/amazing-franklin-p8khnz` (`docs/progress/connectivity.md`, `definitions-help.md`, `packages.md`): all three rows' scope, `./gradlew test :app:assembleDebug :app:lintDebug` green. Not yet merged into `main`; no emulator or hardware pass (the session had no emulator).
+
 ## Wave 3: specialist tools
 
 | Session | Scope |
 |---|---|
 | `analysis` | Sampled data (scope), experiments and plots (`COMM_PLOT_*`), motor comparison, CAN analyzer. |
 | `programmers` | SWD programmer (`COMM_BM_*`), ESP32 / VESC Express programmer, display tool. |
+
+Status: built 2026-11-03 on `claude/amazing-franklin-p8khnz` (`docs/progress/analysis.md`, `programmers.md`): sampled data, experiments, motor comparison, CAN analyzer, SWD programmer, ESP32 programmer, display font export. Same verification state as wave 2. Display tool image editors not done.
 
 ## How every session works
 

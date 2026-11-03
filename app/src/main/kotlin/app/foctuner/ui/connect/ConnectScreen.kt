@@ -63,8 +63,8 @@ fun ConnectScreen(
     onForget: (DeviceEntry) -> Unit,
     onOpenPreferences: () -> Unit,
     onOpenAbout: () -> Unit,
-    onOpenEspProgrammer: () -> Unit = {},
     modifier: Modifier = Modifier,
+    onOpenEspProgrammer: () -> Unit = {},
 ) {
     val busy = state.connectingKey != null
     var forgetting by remember { mutableStateOf<DeviceEntry?>(null) }
