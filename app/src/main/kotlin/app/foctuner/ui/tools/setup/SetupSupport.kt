@@ -29,7 +29,7 @@ enum class FailureKind { NoReply, LinkLost, Layout, Refused }
 data class Failure(val kind: FailureKind, val detail: String? = null)
 
 fun failureOf(e: Exception): Failure = when (e) {
-    is VescTimeoutException -> Failure(FailureKind.NoReply)
+    is VescTimeoutException -> Failure(FailureKind.NoReply, e.message)
     is VescLinkException -> Failure(FailureKind.LinkLost)
     is SignatureMismatchException -> Failure(FailureKind.Layout)
     is PayloadException, is VescException -> Failure(FailureKind.Refused, e.message)
