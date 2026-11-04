@@ -32,6 +32,13 @@ internal class LispSim(private val vesc: SimulatedVesc) {
     private var streamOffsetLast = -1
     private var streamResultLast = -1
 
+    /** Counts restarts of the evaluator; a probe streamed before the last one is gone. */
+    var generation = 0
+        private set
+
+    /** Whether the running program is the startup tuner's probe (it defines `ft-probe`). */
+    val probeLoaded: Boolean get() = running && !paused && eval.globals.containsKey("ft-probe")
+
     fun erase() {
         stop()
         flash.fill(ERASED)
@@ -156,6 +163,7 @@ internal class LispSim(private val vesc: SimulatedVesc) {
         running = true
         paused = false
         stream = null
+        generation++
         eval.reset()
         if (loadCode && code != null) {
             val text = code.copyOfRange(0, code.indexOf(0).let { if (it < 0) code.size else it }).decodeToString()
@@ -168,6 +176,7 @@ internal class LispSim(private val vesc: SimulatedVesc) {
     private fun stop() {
         running = false
         paused = false
+        generation++
         eval.reset()
     }
 

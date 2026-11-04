@@ -110,12 +110,14 @@ import app.foctuner.protocol.CommPacketId.COMM_WRITE_NEW_APP_DATA_LZO
 import app.foctuner.protocol.PacketCodec
 import app.foctuner.protocol.PacketDecoder
 import app.foctuner.transport.Transport
+import app.foctuner.vesc.tune.ProbeCodec
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.ChannelResult
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.selects.onTimeout
 import kotlinx.coroutines.selects.select
-import kotlinx.coroutines.withTimeoutOrNull
 import java.io.IOException
 import kotlin.math.abs
 import kotlin.math.ceil
@@ -147,7 +149,7 @@ import kotlin.time.TimeSource
  * WRITE, COMM_GET_QML_UI_APP, see [QmlUiSim]); a VESC Express style file system (COMM_FILE_*, see [FileSystemSim]) with
  * three stored rides and the Express logger (COMM_LOG_START / STOP / CONFIG_FIELD / DATA_F32 / DATA_F64, see [LogSim]); and
  * COMM_CUSTOM_APP_DATA, which it echoes back like a package that answers everything (except Refloat's commands, see
- * [RefloatSim]); the nRF module and CAN bus commands
+ * [RefloatSim], and the startup tuner's probe once it has been streamed, see [StartupProbeSim]); the nRF module and CAN bus commands
  * (COMM_SET_BLE_NAME / PIN, COMM_NRF_START_PAIRING, COMM_CAN_UPDATE_BAUD_ALL, COMM_SET_CAN_MODE, COMM_CAN_FWD_FRAME, see
  * [RadioSim]); COMM_SAMPLE_PRINT ([SamplingSim]); and the SWD probe (COMM_BM_*, [SwdSim]). Other commands are ignored like
  * unknown ones in the firmware.
@@ -181,16 +183,23 @@ class SimulatedVesc(
         while (true) {
             // No timeout when nothing is scheduled: an infinite one would let a test clock jump to the end of time.
             val wait = synchronized(lock) { runDue() }
-            val next = (if (wait == null) nextReply() else withTimeoutOrNull(wait) { nextReply() }) ?: continue
+            val next = nextReply(wait) ?: continue
             if (next.isClosed) next.exceptionOrNull()?.let { throw it }
             emit(next.getOrNull() ?: break)
         }
     }
 
-    /** The next reply, or null when [later] scheduled something that may be due sooner. */
-    private suspend fun nextReply(): ChannelResult<ByteArray>? = select {
+    /**
+     * The next reply, or null when [later] scheduled something that may be due sooner or [wait] has passed. The
+     * timeout is a clause of the select rather than a cancelling withTimeout around it: cancelled at the very moment a
+     * reply was taken (on a test clock replies and scheduled actions often fall on the same instant), the select would
+     * drop that reply.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private suspend fun nextReply(wait: Duration?): ChannelResult<ByteArray>? = select {
         outbound.onReceiveCatching { it }
         wakeUp.onReceive { null }
+        if (wait != null) onTimeout(wait) { null }
     }
 
     private val lock = Any()
@@ -202,7 +211,8 @@ class SimulatedVesc(
     private val battery = Battery()
     private val first = MotorModel()
     private val second = MotorModel()
-    private val rotor = RotorPositionSim(this)
+    private val startupProbe = StartupProbeSim(this, if (dualMotor) listOf(first, second) else listOf(first)) { packVoltage }
+    private val rotor = RotorPositionSim(this) { now -> startupProbe.observerAngle(now) }
     private val imu = ImuSim(first)
     private val setup = SetupValuesSim(battery, first)
     private val bms = BmsSim(battery, listOf(first, second))
@@ -230,7 +240,7 @@ class SimulatedVesc(
     private val logs = LogSim(files)
     private val refloat = RefloatSim(first)
     private val swd = SwdSim(this)
-    private val sampling = SamplingSim(this, first) { packVoltage }
+    private val sampling = SamplingSim(this, first, { packVoltage }) { now -> startupProbe.driving(now) }
     private val radio = RadioSim(this, if (dualMotor) listOf(first, second) else listOf(first), if (dualMotor) controllerId + 1 else null)
 
     override suspend fun write(bytes: ByteArray) {
@@ -405,7 +415,11 @@ class SimulatedVesc(
             COMM_LOG_DATA_F64 -> logs.data(r, wide = true)
             COMM_CUSTOM_APP_DATA -> {
                 val data = packet.copyOfRange(1, packet.size)
-                if (data.firstOrNull()?.toInt() == REFLOAT_ID) refloat.handle(data, uptime)?.let(::reply) else reply(packet)
+                when {
+                    lisp.probeLoaded && ProbeCodec.commandOf(data) != null -> startupProbe.handle(data, lisp.generation)
+                    data.firstOrNull()?.toInt() == REFLOAT_ID -> refloat.handle(data, uptime)?.let(::reply)
+                    else -> reply(packet)
+                }
             }
             COMM_SAMPLE_PRINT -> sampling.request(r)
             CommPacketId.COMM_BM_CONNECT, CommPacketId.COMM_BM_ERASE_FLASH_ALL, CommPacketId.COMM_BM_WRITE_FLASH, CommPacketId.COMM_BM_MEM_READ,
@@ -499,6 +513,12 @@ class SimulatedVesc(
         if (lastStep >= ignoreInputUntil) motor.drive = drive
         resetTimeout()
     }
+
+    /** A motor command from LispBM (set-current and friends): like one over the link, an emergency stop drops it. */
+    internal fun lispCommand(motor: MotorModel, drive: Drive) = command(motor, drive)
+
+    /** Lets the 10 ms streams (rotor position) send while LispBM drives a motor and the link is quiet. */
+    internal fun streamTick() = rotor.sendDue(uptime)
 
     /** COMM_MOTOR_ESTOP acts on the whole board: both motors are released and ignore commands for [ms]. */
     private fun emergencyStop(ms: Int) {

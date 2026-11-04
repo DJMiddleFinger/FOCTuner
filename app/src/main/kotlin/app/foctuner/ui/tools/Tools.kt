@@ -36,6 +36,7 @@ import app.foctuner.ui.tools.setup.HallDetectionTool
 import app.foctuner.ui.tools.setup.ImuCalibrationTool
 import app.foctuner.ui.tools.setup.InputWizardTool
 import app.foctuner.ui.tools.setup.PpmMappingTool
+import app.foctuner.ui.tools.setup.StartupTuneTool
 import app.foctuner.ui.tools.firmware.FirmwareTool
 import app.foctuner.ui.tools.lisp.LispTool
 import app.foctuner.ui.tools.logs.LogsTool
@@ -66,6 +67,7 @@ enum class Tool(val section: ToolSection, @param:StringRes val title: Int, @para
     HallDetection(ToolSection.Detection, R.string.tool_hall_detection, R.string.tool_hall_detection_summary, R.drawable.ic_tool_magnet),
     EncoderDetection(ToolSection.Detection, R.string.tool_encoder_detection, R.string.tool_encoder_detection_summary, R.drawable.ic_tool_encoder),
     BldcDetection(ToolSection.Detection, R.string.tool_bldc_detection, R.string.tool_bldc_detection_summary, R.drawable.ic_tool_trapezoid),
+    StartupTuning(ToolSection.Detection, R.string.tool_startup_tune, R.string.tool_startup_tune_summary, R.drawable.ic_curve),
     PpmMapping(ToolSection.Detection, R.string.tool_ppm_mapping, R.string.tool_ppm_mapping_summary, R.drawable.ic_tool_pulses),
     AdcMapping(ToolSection.Detection, R.string.tool_adc_mapping, R.string.tool_adc_mapping_summary, R.drawable.ic_tool_slider),
     Control(ToolSection.Operations, R.string.tool_control, R.string.tool_control_summary, R.drawable.ic_tool_play),
@@ -115,6 +117,7 @@ fun ToolContent(tool: Tool, context: ToolContext, onOpenTool: (Tool) -> Unit = {
         Tool.HallDetection -> HallDetectionTool(context)
         Tool.EncoderDetection -> EncoderDetectionTool(context)
         Tool.BldcDetection -> BldcDetectionTool(context)
+        Tool.StartupTuning -> StartupTuneTool(context)
         Tool.Direction -> DirectionTool(context)
         Tool.InputWizard -> InputWizardTool(context)
         Tool.PpmMapping -> PpmMappingTool(context)

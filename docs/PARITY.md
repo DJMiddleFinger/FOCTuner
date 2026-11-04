@@ -36,6 +36,7 @@ Config definitions: VESC Tool ships them as XML per firmware series under `res/c
 | Direction setup | Mobile `DirectionSetup` | `COMM_SET_MCCONF` | 3 | ☐ |
 | Setup calculators | Desktop `pagesetupcalculators` | none (local) | 3 | ☐ |
 | Sanity-check motor params on write | Changelog 6.05 | none (local) | 2 | ☐ |
+| Sensorless start tuning (FOCTuner only, `docs/progress/startup-tune.md`) | none | LispBM probe (`conf-set`, `send-data`), `COMM_SAMPLE_PRINT`, `COMM_SET_DETECT`, `COMM_GET_VALUES_SELECTIVE` | 3 | ☐ |
 
 ## 3. Motor configuration
 

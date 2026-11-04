@@ -14,7 +14,11 @@ import kotlin.time.DurationUnit
  * The mode is one setting for the whole board, as in the firmware; samples describe the motor that selected it.
  * The simulated motors are FOC, so inductance mode sends nothing.
  */
-internal class RotorPositionSim(private val vesc: SimulatedVesc) {
+internal class RotorPositionSim(
+    private val vesc: SimulatedVesc,
+    /** The startup probe's observer angle while one of its starts is driven, which replaces the motor model's. */
+    private val probeObserver: (Duration) -> Float? = { null },
+) {
     private var mode = NONE
     private var motor: MotorModel? = null
     private var lastSample = Duration.ZERO - INTERVAL
@@ -29,7 +33,7 @@ internal class RotorPositionSim(private val vesc: SimulatedVesc) {
         if (now - lastSample < INTERVAL) return
         val t = now.toDouble(DurationUnit.SECONDS)
         val degrees = when (mode) {
-            OBSERVER -> m.angle * POLE_PAIRS % 360f
+            OBSERVER -> probeObserver(now) ?: (m.angle * POLE_PAIRS % 360f)
             ENCODER, PID_POSITION -> m.angle
             PID_POSITION_ERROR -> (m.drive as? Drive.Position)?.let { m.angleError(it.degrees) } ?: 0f
             ENCODER_OBSERVER_ERROR -> (0.6 * sin(t * 7.0)).toFloat()

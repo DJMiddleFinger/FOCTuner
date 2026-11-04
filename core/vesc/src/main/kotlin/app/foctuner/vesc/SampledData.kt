@@ -127,10 +127,19 @@ suspend fun VescController.sampleAdc(
     got.values.sortedBy { it.index }
 }
 
+/**
+ * Disarms a recording that is still waiting for its trigger (`DEBUG_SAMPLING_OFF`), so a start trigger nobody waits
+ * for any more doesn't fire on a later start. No reply.
+ */
+suspend fun VescController.stopSampling() {
+    session.send(forwarded(request(SAMPLING_OFF, 1, 1, false)))
+}
+
 private fun request(mode: Int, length: Int, decimation: Int, raw: Boolean) =
     ByteWriter().u8(COMM_SAMPLE_PRINT.id).u8(mode).u16(length).u8(decimation).u8(if (raw) 1 else 0).toByteArray()
 
 /** `ADC_SAMPLE_MAX_LEN` in the firmware. */
 const val MAX_SAMPLES = 1000
 private const val SINGLE_SAMPLE = 8
+private const val SAMPLING_OFF = 0
 private const val MAX_RESENDS = 200
