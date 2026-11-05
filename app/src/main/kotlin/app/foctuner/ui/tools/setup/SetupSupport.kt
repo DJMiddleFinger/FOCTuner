@@ -52,7 +52,8 @@ class SetupRunner(private val context: ToolContext) {
     val state: StateFlow<RunState> = _state.asStateFlow()
     private var job: Job? = null
 
-    val busy: Boolean get() = job?.isActive == true
+    /** Until the work has really ended: after [stop] it may still be cleaning up. */
+    val busy: Boolean get() = job?.isCompleted == false
 
     fun start(spins: Boolean, block: suspend () -> Unit) {
         if (busy) return

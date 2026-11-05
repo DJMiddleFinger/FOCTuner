@@ -13,6 +13,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,7 +70,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import java.io.IOException
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -97,7 +97,7 @@ data class StartupTuneState(
     val best: CandidateResult? = null,
     val report: TuneReport? = null,
     val aborted: TuneAbort? = null,
-    /** How the starting values got back after a stopped run. */
+    /** How the starting values got back after a run that ended without a report: stopped, aborted or failed. */
     val abortedRestore: RestoreMethod? = null,
     val applied: TuneApplied? = null,
 ) {
@@ -128,8 +128,9 @@ class StartupTuneModel(private val context: ToolContext) {
     val state: StateFlow<StartupTuneState> = _state.asStateFlow()
     val runner = SetupRunner(context)
 
-    init {
-        context.scope.launch { load() }
+    /** Reads the start settings, unless a run is using the controller. The model outlives the screen, and they may have changed. */
+    suspend fun refresh() {
+        if (!runner.busy) load()
     }
 
     private suspend fun load() {
@@ -153,6 +154,7 @@ class StartupTuneModel(private val context: ToolContext) {
     fun edit(transform: (StartupTuneState) -> StartupTuneState) = _state.update(transform)
 
     fun start() {
+        if (runner.busy) return
         val settings = _state.value.settings ?: return
         _state.update {
             it.copy(stage = null, done = 0, planned = 0, lastTrial = null, candidates = emptyList(), best = null, report = null, aborted = null, abortedRestore = null, applied = null)
@@ -169,6 +171,11 @@ class StartupTuneModel(private val context: ToolContext) {
                 _state.update { it.copy(refusal = e.reason, stage = null) }
             } catch (e: TuneAbortedException) {
                 _state.update { it.copy(aborted = e.reason, abortedRestore = e.restore, stage = null) }
+            } finally {
+                // A stop or a lost link ends the run with neither, and this is the only word on how the values got back.
+                if (_state.value.report == null && _state.value.aborted == null) {
+                    _state.update { it.copy(abortedRestore = tuner.restoreResult, stage = null) }
+                }
             }
         }
     }
@@ -185,8 +192,8 @@ class StartupTuneModel(private val context: ToolContext) {
     fun apply() {
         val changes = _state.value.report?.changes?.associate { (param, _, value) -> param to value } ?: return
         runner.start(spins = false) {
-            context.controller.updateConfig(ConfigKind.MCCONF, context.baseConfig(ConfigKind.MCCONF)) { it.withProbeValues(changes) }
-            _state.update { it.copy(applied = TuneApplied.Stored) }
+            val config = context.controller.updateConfig(ConfigKind.MCCONF, context.baseConfig(ConfigKind.MCCONF)) { it.withProbeValues(changes) }
+            _state.update { it.copy(config = config, applied = TuneApplied.Stored) }
         }
     }
 
@@ -196,6 +203,7 @@ class StartupTuneModel(private val context: ToolContext) {
         runner.start(spins = false) {
             applyUntilReboot(context.controller, motorIndex(), changes)
             _state.update { it.copy(applied = TuneApplied.UntilReboot) }
+            load()
         }
     }
 
@@ -222,6 +230,7 @@ fun StartupTuneTool(context: ToolContext) {
     val state by model.state.collectAsStateWithLifecycle()
     val run by model.runner.state.collectAsStateWithLifecycle()
     val busy = run is RunState.Running
+    LaunchedEffect(model) { model.refresh() }
     var confirm by remember { mutableStateOf<TuneConfirm?>(null) }
     val config = state.config
     val android = LocalContext.current
@@ -299,7 +308,13 @@ fun StartupTuneTool(context: ToolContext) {
                 trackColor = FocTheme.colors.surfaceHigh,
             )
         }
-        state.aborted?.let { AbortNotice(it, state.abortedRestore ?: RestoreMethod.FAILED) }
+        val aborted = state.aborted
+        val restored = state.abortedRestore
+        if (aborted != null) {
+            AbortNotice(aborted, restored ?: RestoreMethod.FAILED)
+        } else if (restored != null) {
+            RestoreNotice(restored, afterStop = true)
+        }
 
         state.lastTrial?.let { trial ->
             SectionHeader(stringResource(R.string.tune_last_start))
@@ -321,12 +336,7 @@ fun StartupTuneTool(context: ToolContext) {
             SectionHeader(stringResource(R.string.tune_results))
         }
         if (report != null && config != null) {
-            when (report.restore) {
-                RestoreMethod.PROBE -> Unit
-                RestoreMethod.PROBE_ON_ITS_OWN -> Notice(stringResource(R.string.tune_restored_by_probe))
-                RestoreMethod.CONFIG_WRITE -> Notice(stringResource(R.string.tune_restored_by_write), tone = NoticeTone.Warning)
-                RestoreMethod.FAILED -> Notice(stringResource(R.string.tune_not_restored), tone = NoticeTone.Warning)
-            }
+            RestoreNotice(report.restore)
             val verification = report.verification
             if (report.recommended != null && verification != null) {
                 Notice(
@@ -504,6 +514,7 @@ private fun RefusalNotice(reason: TuneRefusal) {
         TuneRefusal.NOT_SENSORLESS -> R.string.tune_refused_sensored to R.string.tune_refused_sensored_body
         TuneRefusal.NOT_DETECTED -> R.string.tune_refused_not_detected to R.string.tune_refused_not_detected_body
         TuneRefusal.FAULT_ACTIVE -> R.string.tune_refused_fault to R.string.tune_refused_fault_body
+        TuneRefusal.KILL_SWITCH -> R.string.tune_refused_kill_switch to R.string.tune_refused_kill_switch_body
         TuneRefusal.MOTOR_TURNING -> R.string.tune_refused_turning to R.string.tune_refused_turning_body
         TuneRefusal.LOW_VOLTAGE -> R.string.tune_refused_voltage to R.string.tune_refused_voltage_body
         TuneRefusal.TOO_HOT -> R.string.tune_refused_hot to R.string.tune_refused_hot_body
@@ -511,6 +522,17 @@ private fun RefusalNotice(reason: TuneRefusal) {
         TuneRefusal.CONFIG_MISMATCH -> R.string.tune_refused_mismatch to R.string.tune_refused_mismatch_body
     }
     Notice(stringResource(title), body = stringResource(body), tone = NoticeTone.Warning)
+}
+
+/** How the starting values got back. The usual way needs no notice under a finished run, but [afterStop] it does. */
+@Composable
+private fun RestoreNotice(restore: RestoreMethod, afterStop: Boolean = false) {
+    when (restore) {
+        RestoreMethod.PROBE -> if (afterStop) Notice(stringResource(R.string.tune_stopped_restored))
+        RestoreMethod.PROBE_ON_ITS_OWN -> Notice(stringResource(R.string.tune_restored_by_probe))
+        RestoreMethod.CONFIG_WRITE -> Notice(stringResource(R.string.tune_restored_by_write), tone = NoticeTone.Warning)
+        RestoreMethod.FAILED -> Notice(stringResource(R.string.tune_not_restored), tone = NoticeTone.Warning)
+    }
 }
 
 @Composable

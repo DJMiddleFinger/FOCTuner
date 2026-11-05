@@ -267,7 +267,7 @@ sealed interface TuneProgress {
 }
 
 /** Why the tuner won't start on this controller. */
-enum class TuneRefusal { FIRMWARE_TOO_OLD, NOT_FOC, NOT_SENSORLESS, NOT_DETECTED, FAULT_ACTIVE, MOTOR_TURNING, LOW_VOLTAGE, TOO_HOT, NO_PROBE, CONFIG_MISMATCH }
+enum class TuneRefusal { FIRMWARE_TOO_OLD, NOT_FOC, NOT_SENSORLESS, NOT_DETECTED, FAULT_ACTIVE, KILL_SWITCH, MOTOR_TURNING, LOW_VOLTAGE, TOO_HOT, NO_PROBE, CONFIG_MISMATCH }
 
 /** Why a run stopped early. */
 enum class TuneAbort { TEMPERATURE, VOLTAGE, KILL_SWITCH, REPEATED_FAULTS, NOT_AT_REST, PROBE_LOST }
@@ -387,6 +387,14 @@ class StartupTuner(
         it.supportedOn(firmware.major, firmware.minor) && it.configName in config.definition.params
     }
 
+    /**
+     * How the starting values were set back once [run] has ended; null before that and when the run changed nothing. A
+     * report or a [TuneAbortedException] says the same, but a cancelled or failed run ends with neither.
+     */
+    @Volatile
+    var restoreResult: RestoreMethod? = null
+        private set
+
     /** The search stages after the baseline, in order. */
     val stages: List<TuneStage> = buildList {
         add(TuneStage.RESISTANCE)
@@ -476,6 +484,7 @@ class StartupTuner(
                 probe?.let { runCatching { it.quit() } }
                 runCatching { controller.stopSampling() }
                 runCatching { controller.setLispRunning(lispWasRunning) }
+                restoreResult = restore
                 (thrown as? TuneAbortedException)?.restore = restore ?: RestoreMethod.FAILED
             }
         }
@@ -538,7 +547,9 @@ class StartupTuner(
                 v.voltageInput > 1f && v.voltageInput < limits.minVoltage -> TuneAbort.VOLTAGE
                 else -> null
             }
-            if (reason != null && abort.compareAndSet(null, reason)) probe.stop()
+            if (reason != null) abort.compareAndSet(null, reason)
+            // On every poll, not once: a start clears the script's stop flag, so a stop that lands between starts is lost.
+            if (abort.get() != null) probe.stop()
         }
     }
 
@@ -708,6 +719,7 @@ class StartupTuner(
         private suspend fun countedTrial(candidate: Candidate, dir: Int, current: Double, capture: Boolean): TrialResult {
             while (true) {
                 if (probe.gaveUp) throw TuneAbortedException(TuneAbort.PROBE_LOST)
+                abort.get()?.let { throw TuneAbortedException(it) }
                 val result = try {
                     trial(candidate, dir, current, capture)
                 } catch (e: ProbeException) {
@@ -970,6 +982,7 @@ class StartupTuner(
         /** Why the controller isn't ready right now ([values] just read), or null. */
         fun preflight(values: RealtimeValues, limits: TuneLimits): TuneRefusal? = when {
             values.faultCode != 0 -> TuneRefusal.FAULT_ACTIVE
+            values.killSwitchActive -> TuneRefusal.KILL_SWITCH
             abs(values.erpm) > 300f -> TuneRefusal.MOTOR_TURNING
             values.voltageInput < limits.minVoltage + 0.5 -> TuneRefusal.LOW_VOLTAGE
             values.tempMosfet > limits.maxFetTemp - 10 || values.tempMotor > limits.maxMotorTemp - 10 -> TuneRefusal.TOO_HOT

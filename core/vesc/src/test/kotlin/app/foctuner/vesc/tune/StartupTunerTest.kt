@@ -6,9 +6,11 @@ import app.foctuner.config.ConfigKind
 import app.foctuner.sim.SimulatedVesc
 import app.foctuner.vesc.LispCode
 import app.foctuner.vesc.VescClient
+import app.foctuner.vesc.customAppData
 import app.foctuner.vesc.lispStats
 import app.foctuner.vesc.setLispRunning
 import app.foctuner.vesc.uploadLisp
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
@@ -21,6 +23,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.TimeSource
@@ -101,6 +104,39 @@ class StartupTunerTest {
         assertFalse(job.isCompleted, "still searching")
         job.cancelAndJoin()
         assertEquals(before, bench.tuned())
+        assertFalse(bench.sim.isDriven(0))
+        assertEquals(RestoreMethod.PROBE, tuner.restoreResult, "a cancelled run has no report, so it says so here")
+    }
+
+    @Test
+    fun anActiveKillSwitchIsRefusedBeforeAnythingChanges() = runTest {
+        val bench = bench()
+        val tuner = bench.tuner()
+        bench.sim.killSwitch = true
+        val refused = assertFailsWith<TuneRefusedException> { tuner.run() }
+        assertEquals(TuneRefusal.KILL_SWITCH, refused.reason)
+        assertNull(tuner.restoreResult, "nothing to set back")
+    }
+
+    @Test
+    fun aKillSwitchBetweenStartsKeepsTheNextStartFromRunning() = runTest(timeout = 5.minutes) {
+        val bench = bench()
+        val tuner = bench.tuner()
+        var starts = 0
+        // On right after the probe answers: the monitor sees it during the resistance measurement, while no start runs.
+        val watcher = launch(start = CoroutineStart.UNDISPATCHED) {
+            bench.client.customAppData.collect {
+                when (ProbeCodec.parse(it)) {
+                    is ProbeMessage.Hello -> bench.sim.killSwitch = true
+                    is ProbeMessage.End -> starts++
+                    else -> Unit
+                }
+            }
+        }
+        val aborted = assertFailsWith<TuneAbortedException> { tuner.run() }
+        watcher.cancel()
+        assertEquals(TuneAbort.KILL_SWITCH, aborted.reason)
+        assertEquals(0, starts, "no start once the switch is on")
         assertFalse(bench.sim.isDriven(0))
     }
 

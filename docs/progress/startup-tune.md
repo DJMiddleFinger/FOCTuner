@@ -18,7 +18,7 @@ Sources: `vedderb/bldc` master = 7.01 (`motor/mcpwm_foc.c` open-loop sequence an
 
 Resistance and temperature: copper rises about 0.39 % per °C, so 20 °C of heating moves R by about the 8 % threshold. The measurement is taken back to the reference temperature (`foc_temp_comp_base_temp` when the firmware's temperature compensation is on, else 25 °C, where detection usually runs) with the motor temperature read just before it; the analysis model follows each start's motor temperature from there. Without a motor sensor the thresholds are 10 % wider and the finding says the temperature is unknown.
 
-Defaults: start current a quarter of `l_current_max` (2..40 A); target twice the highest open-loop ERPM tried, at least 1500 and at most 40 % of the no-load speed at the pack voltage; 3 s per start, shortened to 2.5× the starting settings' slowest start once they all succeed. Limits: 5 °C below `l_temp_fet_start` / `l_temp_motor_start` (motor ignored without a sensor), 0.5 V above `l_battery_cut_start`. Refuses firmware before 6.05, non-FOC, sensor modes other than sensorless, undetected motors (R, L or λ zero), an active fault, a turning motor, low voltage, heat.
+Defaults: start current a quarter of `l_current_max` (2..40 A); target twice the highest open-loop ERPM tried, at least 1500 and at most 40 % of the no-load speed at the pack voltage; 3 s per start, shortened to 2.5× the starting settings' slowest start once they all succeed. Limits: 5 °C below `l_temp_fet_start` / `l_temp_motor_start` (motor ignored without a sensor), 0.5 V above `l_battery_cut_start`. Refuses firmware before 6.05, non-FOC, sensor modes other than sensorless, undetected motors (R, L or λ zero), an active fault, an active kill switch, a turning motor, low voltage, heat.
 
 ## Done
 
@@ -36,14 +36,23 @@ Defaults: start current a quarter of `l_current_max` (2..40 A); target twice the
 - How the values were restored is reported, also after a stopped run, whose notice used to say they were back without knowing.
 - Current sweep, forward-only runs, phase current recording off over BLE, CSV export.
 
+## Testing fixes (2026-11-05)
+
+From running the tool on an emulator in demo mode (dark theme: full run, stop mid-run, a detuned motor, Use until reboot, Apply).
+
+- A stop that reached the probe between starts was lost: the next `ft-start-trial` clears `ft-stop`, and the monitor sent stop once. With the kill switch on, one more full start ran. `countedTrial` now checks the abort before every start and the monitor stops on every poll once aborted. `StartupTunerTest.aKillSwitchBetweenStartsKeepsTheNextStartFromRunning` failed without the check. The repeated stop closes the instant between that check and the trial command, which a test can't reach.
+- An active kill switch is refused before the run (`TuneRefusal.KILL_SWITCH`); `SimulatedVesc.killSwitch` sets it in the status byte.
+- Stop said nothing about the starting values: a cancelled or failed run has no report and no `TuneAbortedException`. `StartupTuner.restoreResult` holds how they got back and the tool shows it. It stays null when the run changed nothing.
+- `SetupRunner.busy` went false as soon as Stop was pressed, while the tuner was still restoring, so a new run could read test values as its starting values. It now lasts until the job has ended.
+- "Current start settings" went stale: the model outlives the screen and read the config once. It reads again each time the tool opens, and after Apply and Use until reboot.
+
 ## Next
 
 1. Hardware: one run on a sensorless motor on the bench, firmware 7.01 and 6.05. Check that the probe streams and answers, its sample rate (4 ms asked) and gaps, heap use (`:info` in the REPL during a run), that conf-set values read back, that stop and the emergency stop release the motor mid-start, and that the starting values are back afterwards (Settings › Motor).
 2. Compare the scores with what the motor does: a start the cost calls bad should look or sound bad. Adjust the weights in `CostBreakdown` from that, not before.
-3. Emulator pass of the tool in demo mode (dark, light, font scale 1.6), as the other tools had.
+3. Emulator pass of the tool in demo mode in the light theme and at font scale 1.6; dark passed on 2026-11-05.
 4. Search additions worth measuring first: `foc_sl_openloop_boost_q` and `foc_observer_gain_slow` (not settable with conf-set, would need a config write per candidate), HFI start modes.
 5. Load: the test runs on a lifted wheel, so it tunes the unloaded start; the handover under a rider's weight is what matters most and the test can't see it. Score real starts from ride data (start detection from standstill in the realtime values: time to a speed, backward travel, stalls and relaunches, current) before and after a result is applied, so the change is judged under load. Needs the ride logger's data path and a store keyed by the start settings.
-6. App module: the review fixes changed `StartupTuneTool.kt`, `ToolContext`, `SessionViewModel` and `strings_tune.xml` without an Android SDK at hand; run `:app:testDebugUnitTest :app:assembleDebug` before merging.
 
 ## Unverified
 

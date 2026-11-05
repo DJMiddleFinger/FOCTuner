@@ -16,6 +16,8 @@
     <string name="tune_refused_not_detected_body">Resistance, inductance and flux linkage are needed to judge the starts. Run FOC detection first.</string>
     <string name="tune_refused_fault">The controller reports a fault</string>
     <string name="tune_refused_fault_body">Clear the fault (it clears once its cause is gone) and try again.</string>
+    <string name="tune_refused_kill_switch">The kill switch is active</string>
+    <string name="tune_refused_kill_switch_body">The test can\'t drive the motor while the kill switch is on. Release it and try again.</string>
     <string name="tune_refused_turning">The motor is turning</string>
     <string name="tune_refused_turning_body">Every start has to begin at standstill. Wait until the motor has stopped.</string>
     <string name="tune_refused_voltage">The battery is near its cutoff</string>
@@ -37,6 +39,7 @@
     <string name="tune_aborted_body_probe">The measuring script stopped hearing from the app and set the starting values back by itself. What was measured so far is below.</string>
     <string name="tune_aborted_body_write">The script didn\'t answer, so the motor config as read before the test was written back. That also stored it, including changes that were only in RAM before the test. What was measured so far is below.</string>
     <string name="tune_aborted_body_failed">The starting values couldn\'t be set back. Reboot the controller to restore them; the test only changed them in RAM. What was measured so far is below.</string>
+    <string name="tune_stopped_restored">The starting values are back on the controller.</string>
     <string name="tune_not_restored">The starting values couldn\'t be set back. Reboot the controller to restore them; the test only changed them in RAM.</string>
     <string name="tune_restored_by_probe">The measuring script lost the app for a moment and set the starting values back by itself.</string>
     <string name="tune_restored_by_write">The script didn\'t answer at the end, so the motor config as read before the test was written back. That also stored it, including changes that were only in RAM before the test.</string>

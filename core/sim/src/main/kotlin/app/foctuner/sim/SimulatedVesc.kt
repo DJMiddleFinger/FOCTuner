@@ -303,6 +303,10 @@ class SimulatedVesc(
     /** Offsets of the writes the update area received, in order. */
     val firmwareWriteOffsets: List<Long> get() = firmware.writeOffsets.toList()
 
+    /** The kill switch input, which the realtime values report in their status byte like the firmware's. */
+    @Volatile
+    var killSwitch: Boolean = false
+
     /** Whether the motor of controller [id] is being driven right now (a command is in effect and has not timed out). */
     fun isDriven(id: Int): Boolean = synchronized(lock) {
         advance()
@@ -599,7 +603,7 @@ class SimulatedVesc(
             .u8(id)
             .f16(motor.tempFet, 10f).f16(motor.tempFet, 10f).f16(motor.tempFet, 10f)
             .f32(0f, 1000f).f32(motor.duty * voltage * VQ_PER_DUTY_VOLT, 1000f)
-            .u8(if (timedOut) 1 else 0)
+            .u8((if (timedOut) 1 else 0) or (if (killSwitch) 2 else 0))
             .toByteArray()
     }
 
