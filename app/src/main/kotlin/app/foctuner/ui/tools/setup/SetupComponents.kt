@@ -138,7 +138,7 @@ fun ValueRow(label: String, value: String, unit: String = "") {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(label, Modifier.weight(1f), color = FocTheme.colors.text, style = FocTheme.type.body)
-        Text(value, color = FocTheme.colors.text, style = FocTheme.type.value)
+        Text(value, Modifier.padding(start = Spacing.x1).widthIn(max = 200.dp), color = FocTheme.colors.text, style = FocTheme.type.value, textAlign = TextAlign.End)
         if (unit.isNotEmpty()) Text(" $unit", color = FocTheme.colors.textTertiary, style = FocTheme.type.unit)
     }
     Hairline(Modifier.padding(start = Spacing.x2))
