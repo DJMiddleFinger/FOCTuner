@@ -61,6 +61,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.em
+import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -606,11 +607,18 @@ private fun DrawScope.drawMotorGlyph(center: Offset, size: Float, color: Color) 
 
 // ---- system bars ------------------------------------------------------------------
 
+/**
+ * Text layouts kept per ride screen: every label is measured while drawing, and the gauges have more distinct labels
+ * than Compose's default cache of 8, which would re-measure all of them every frame.
+ */
+internal const val MEASURE_CACHE = 64
+
 @Composable
 internal fun ImmersiveMode() {
     val view = LocalView.current
     DisposableEffect(view) {
-        val window = view.context.findActivity()?.window
+        // Inside the ride view's dialog the bars belong to the dialog's own window.
+        val window = (view.parent as? DialogWindowProvider)?.window ?: view.context.findActivity()?.window
         val controller = window?.let { WindowCompat.getInsetsController(it, view) }
         controller?.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
         controller?.hide(WindowInsetsCompat.Type.systemBars())

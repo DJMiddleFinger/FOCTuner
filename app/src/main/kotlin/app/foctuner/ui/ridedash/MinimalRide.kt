@@ -33,7 +33,7 @@ internal fun MinimalRide(d: RideData, c: RidePalette, onCycleMode: () -> Unit, o
         ((d.battery ?: 0.0) / 100.0).toFloat().coerceIn(0f, 1f), tween(500), label = "battery",
     )
     val torqueFrac by animateFloatAsState(d.torque, tween(120), label = "torque")
-    val measurer = rememberTextMeasurer()
+    val measurer = rememberTextMeasurer(cacheSize = MEASURE_CACHE)
     val icons = rememberRideIcons()
     val pulse = rememberWarningPulse()
     val batColor = batteryColor(d.battery, c)

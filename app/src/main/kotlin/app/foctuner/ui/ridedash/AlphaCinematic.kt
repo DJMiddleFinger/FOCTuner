@@ -78,7 +78,7 @@ internal fun cinematicPunch(progress: Float): Float = 1f + 0.04f * impact(progre
  */
 @Composable
 internal fun AlphaCinematic(progress: Float, info: CinematicInfo, modifier: Modifier = Modifier) {
-    val measurer = rememberTextMeasurer()
+    val measurer = rememberTextMeasurer(cacheSize = MEASURE_CACHE)
     val bolt = rememberVectorPainter(Icons.Filled.Bolt)
     val streaks = remember {
         val r = Random(7)

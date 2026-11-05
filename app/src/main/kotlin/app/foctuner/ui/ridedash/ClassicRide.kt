@@ -40,7 +40,7 @@ internal fun ClassicRide(d: RideData, c: RidePalette, onCycleMode: () -> Unit, o
     )
     val torqueFrac by animateFloatAsState(d.torque, tween(120), label = "torque")
     val batColor = batteryColor(d.battery, c)
-    val measurer = rememberTextMeasurer()
+    val measurer = rememberTextMeasurer(cacheSize = MEASURE_CACHE)
     val icons = rememberRideIcons()
     val pulse = rememberWarningPulse()
     val pillBorder = pillBorderColor(d.modeStatus, c)
