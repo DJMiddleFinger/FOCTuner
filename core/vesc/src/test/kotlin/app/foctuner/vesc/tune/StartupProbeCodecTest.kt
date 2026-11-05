@@ -103,10 +103,14 @@ class StartupProbeCodecTest {
     @Test
     fun foreignPacketsAreIgnored() {
         assertNull(ProbeCodec.parse(byteArrayOf(101, 1, 2, 3)))
-        assertNull(ProbeCodec.parse(byteArrayOf(70, 84, 2, ProbeCodec.HELLO_REPLY.toByte(), 1, 1)), "another protocol version")
+        val version = ProbeCodec.VERSION.toByte()
+        assertNull(ProbeCodec.parse(byteArrayOf(70, 84, (ProbeCodec.VERSION + 1).toByte(), ProbeCodec.HELLO_REPLY.toByte(), 1, 1)), "another protocol version")
+        assertNull(ProbeCodec.parse(byteArrayOf(70, 84, (ProbeCodec.VERSION - 1).toByte(), ProbeCodec.HELLO_REPLY.toByte(), 1, 1)), "an older probe")
         assertNull(ProbeCodec.parse(ProbeCodec.hello(1)), "a command echoed back is not a reply")
-        assertNull(ProbeCodec.parse(byteArrayOf(70, 84, 1, ProbeCodec.END.toByte(), 0)), "cut off")
-        assertContentEquals(byteArrayOf(70, 84, 1, ProbeCodec.STOP.toByte()), ProbeCodec.stop())
+        assertNull(ProbeCodec.parse(byteArrayOf(70, 84, version, ProbeCodec.END.toByte(), 0)), "cut off")
+        assertContentEquals(byteArrayOf(70, 84, version, ProbeCodec.STOP.toByte()), ProbeCodec.stop())
+        assertContentEquals(byteArrayOf(70, 84, version, ProbeCodec.PING.toByte()), ProbeCodec.ping())
+        assertEquals(ProbeMessage.GaveUp, ProbeCodec.parse(ProbeCodec.gaveUp()))
         assertEquals(ProbeCodec.TRIAL, ProbeCodec.commandOf(ProbeCodec.trial(TrialSpec(1, 1.0, 1.0, 1.seconds, 4.milliseconds, 1.0, 1.0, 1.seconds, 1.0, 1.0, 1.0))))
     }
 }

@@ -15,6 +15,8 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.mapNotNull
@@ -22,6 +24,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
+import java.io.IOException
 import kotlin.math.roundToInt
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
@@ -147,6 +150,9 @@ sealed interface ProbeMessage {
     data object Bye : ProbeMessage
     data class Resistance(val ohm: Double?) : ProbeMessage
     data class Released(val trial: Int) : ProbeMessage
+
+    /** The app went quiet: the probe set the values it found at the first hello back and stopped answering. */
+    data object GaveUp : ProbeMessage
 }
 
 /** The probe refused a command or stopped answering. */
@@ -154,7 +160,7 @@ class ProbeException(message: String) : VescException(message)
 
 /** Encoding of the commands and decoding of the probe's packets. */
 object ProbeCodec {
-    const val VERSION = 1
+    const val VERSION = 2
     private const val MAGIC_F = 70
     private const val MAGIC_T = 84
 
@@ -170,6 +176,7 @@ object ProbeCodec {
     const val STOP = 5
     const val QUIT = 6
     const val MEASURE_RESISTANCE = 7
+    const val PING = 8
 
     const val HELLO_REPLY = 129
     const val PARAMS_REPLY = 130
@@ -179,6 +186,10 @@ object ProbeCodec {
     const val BYE = 135
     const val RESISTANCE = 136
     const val RELEASED = 137
+    const val GAVE_UP = 138
+
+    /** Seconds without a command (and nothing running) after which the probe restores and stops, as `ft-quiet`. */
+    const val QUIET_SECONDS = 5.0
 
     /** The script's error code for a command that needs the probe idle. */
     const val BUSY = 1
@@ -218,6 +229,8 @@ object ProbeCodec {
     fun stop(): ByteArray = head(STOP).toByteArray()
 
     fun quit(): ByteArray = head(QUIT).toByteArray()
+
+    fun ping(): ByteArray = head(PING).toByteArray()
 
     fun measureResistance(current: Double): ByteArray = head(MEASURE_RESISTANCE).ieee(current).toByteArray()
 
@@ -271,6 +284,7 @@ object ProbeCodec {
                     ProbeMessage.Resistance(ohm.takeIf { ok && it.isFinite() && it > 0.0 })
                 }
                 RELEASED -> ProbeMessage.Released(r.u16())
+                GAVE_UP -> ProbeMessage.GaveUp
                 else -> null
             }
         } catch (e: IndexOutOfBoundsException) {
@@ -358,6 +372,8 @@ object ProbeCodec {
 
     fun released(trial: Int): ByteArray = head(RELEASED).u16(trial).toByteArray()
 
+    fun gaveUp(): ByteArray = head(GAVE_UP).toByteArray()
+
     /** Decodes a TRIAL command, for the simulator. */
     fun parseTrial(payload: ByteArray): TrialSpec? {
         if (commandOf(payload) != TRIAL || payload.size < 39) return null
@@ -405,6 +421,14 @@ object ProbeCodec {
 class StartupProbe private constructor(private val controller: VescController) {
     private val lock = Mutex()
     private var nextTrial = 1
+
+    /**
+     * Whether the probe reported that the app went quiet: it set the values it found at the first hello back by itself
+     * and answers nothing more. Only seen while [keepAlive] runs.
+     */
+    @Volatile
+    var gaveUp: Boolean = false
+        private set
 
     private val messages: Flow<ProbeMessage> get() = controller.customAppData.mapNotNull(ProbeCodec::parse)
 
@@ -487,6 +511,23 @@ class StartupProbe private constructor(private val controller: VescController) {
         }
     }
 
+    /**
+     * Pings the probe every second so its dead man's switch ([ProbeCodec.QUIET_SECONDS] without a command) stays off
+     * while the app holds it, and watches for [ProbeMessage.GaveUp]. Runs until cancelled; a failed ping is retried
+     * on the next tick. With [ping] false it only listens (for tests of the switch).
+     */
+    suspend fun keepAlive(ping: Boolean = true): Unit = coroutineScope {
+        launch(start = CoroutineStart.UNDISPATCHED) { messages.collect { if (it is ProbeMessage.GaveUp) gaveUp = true } }
+        while (isActive && ping) {
+            try {
+                controller.sendCustomAppData(ProbeCodec.ping())
+            } catch (e: IOException) {
+                // The link reports itself; the probe restores on its own if it stays down.
+            }
+            delay(PING_INTERVAL)
+        }
+    }
+
     /** Ends a running trial early; the motor is let go without braking. */
     suspend fun stop() = controller.sendCustomAppData(ProbeCodec.stop())
 
@@ -514,6 +555,7 @@ class StartupProbe private constructor(private val controller: VescController) {
         private val REST_LIMIT = 4.seconds
         private val BRAKE_LIMIT = 3.seconds
         private val DATA_GAP = 600.milliseconds
+        private val PING_INTERVAL = 1.seconds
 
         /** The probe's source, as stored in the app. */
         val script: String by lazy {

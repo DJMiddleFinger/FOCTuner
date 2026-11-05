@@ -3,7 +3,7 @@
     <string name="tool_startup_tune">Startup tuning</string>
     <string name="tool_startup_tune_summary">Test sensorless starts and find the observer and open-loop settings that start the motor best</string>
 
-    <string name="tune_intro">Starts the motor again and again, in both directions, and measures each start: how fast it gets up to speed, whether the observer keeps track of the rotor, how often the firmware falls back to open loop, backward twitches, current peaks. One setting at a time is changed between starts, in RAM only. Nothing is stored unless you apply the result.</string>
+    <string name="tune_intro">Starts the motor again and again and measures each start: how fast it gets up to speed, whether the observer keeps track of the rotor, how often the firmware falls back to open loop, backward twitches, current peaks. One setting at a time is changed between starts, in RAM only. Nothing is stored unless you apply the result.</string>
     <string name="tune_sources">Data used: a script on the controller samples the speed estimates, dq currents and voltages, observer and FOC angles and the flux linkage and resistance estimates every few ms. Alongside it come the realtime values, the streamed observer angle, the phase currents at switching rate for one start of each candidate, the firmware\'s resistance measurement and, after a fault, its fault log.</string>
 
     <string name="tune_refused_firmware">Needs firmware 6.05 or later</string>
@@ -34,7 +34,12 @@
     <string name="tune_aborted_rest">Stopped: the motor doesn\'t come to rest</string>
     <string name="tune_aborted_lost">Stopped: the measuring script stopped answering</string>
     <string name="tune_aborted_body">The starting values are back on the controller. What was measured so far is below.</string>
+    <string name="tune_aborted_body_probe">The measuring script stopped hearing from the app and set the starting values back by itself. What was measured so far is below.</string>
+    <string name="tune_aborted_body_write">The script didn\'t answer, so the motor config as read before the test was written back. That also stored it, including changes that were only in RAM before the test. What was measured so far is below.</string>
+    <string name="tune_aborted_body_failed">The starting values couldn\'t be set back. Reboot the controller to restore them; the test only changed them in RAM. What was measured so far is below.</string>
     <string name="tune_not_restored">The starting values couldn\'t be set back. Reboot the controller to restore them; the test only changed them in RAM.</string>
+    <string name="tune_restored_by_probe">The measuring script lost the app for a moment and set the starting values back by itself.</string>
+    <string name="tune_restored_by_write">The script didn\'t answer at the end, so the motor config as read before the test was written back. That also stored it, including changes that were only in RAM before the test.</string>
 
     <string name="tune_current_settings">Current start settings</string>
     <string name="tune_test">Test</string>
@@ -42,7 +47,12 @@
     <string name="tune_target">Target speed</string>
     <string name="tune_time_limit">Time limit per start</string>
     <string name="tune_thorough">Thorough: observer type and open-loop timing too</string>
-    <string name="tune_capture">Record phase currents (slower over Bluetooth)</string>
+    <string name="tune_sweep">Test at several currents</string>
+    <string name="tune_sweep_note">Each setting is started at half, once and one and a half times the start current, so the result has to work across the throttle a rider uses, not at one current.</string>
+    <string name="tune_both_directions">Start in both directions</string>
+    <string name="tune_forward_note">Every start runs forward. Use this where the drivetrain shouldn\'t turn backwards or freewheels in reverse (geared hubs), where reverse starts test a different load.</string>
+    <string name="tune_current_range">%1$s to %2$s</string>
+    <string name="tune_capture">Record phase currents (slow over Bluetooth LE, off there by default)</string>
     <plurals name="tune_plan">
         <item quantity="one">About %1$d start, %2$d min</item>
         <item quantity="other">About %1$d starts, %2$d min</item>
@@ -51,8 +61,10 @@
     <string name="tune_start">Start test</string>
     <plurals name="tune_confirm">
         <item quantity="one">The motor will start about %1$d time, up to %2$s ERPM with %3$s A, for about %4$d minutes. Lift the wheel off the ground or clamp the motor and keep hands and cables clear. Scripts and packages on the controller (Refloat and the like) are stopped while the test runs and started again afterwards. Stop at any time.</item>
-        <item quantity="other">The motor will start about %1$d times, alternating direction, up to %2$s ERPM with %3$s A, for about %4$d minutes. Lift the wheel off the ground or clamp the motor and keep hands and cables clear. Scripts and packages on the controller (Refloat and the like) are stopped while the test runs and started again afterwards. Stop at any time.</item>
+        <item quantity="other">The motor will start about %1$d times, up to %2$s ERPM with %3$s A, for about %4$d minutes. Lift the wheel off the ground or clamp the motor and keep hands and cables clear. Scripts and packages on the controller (Refloat and the like) are stopped while the test runs and started again afterwards. Stop at any time.</item>
     </plurals>
+    <string name="tune_confirm_both">Starts alternate direction.</string>
+    <string name="tune_confirm_forward">Every start runs forward.</string>
     <string name="tune_running">Testing starts</string>
 
     <string name="tune_stage_baseline">Starting settings</string>
@@ -81,11 +93,12 @@
     <string name="tune_results">Results</string>
     <string name="tune_better">Better starts found</string>
     <plurals name="tune_better_body">
-        <item quantity="one">Score %1$s with these settings against %2$s with the starting ones, over %3$d interleaved start each (lower is better).</item>
-        <item quantity="other">Score %1$s with these settings against %2$s with the starting ones, over %3$d interleaved starts each (lower is better).</item>
+        <item quantity="one">Median score %1$s with these settings against %2$s with the starting ones, better in %3$d of %4$d interleaved pair (lower is better).</item>
+        <item quantity="other">Median score %1$s with these settings against %2$s with the starting ones, better in %3$d of %4$d interleaved pairs (lower is better).</item>
     </plurals>
     <string name="tune_no_better">No reliable improvement</string>
-    <string name="tune_no_better_body">Nothing beat the starting settings by 10 % in the interleaved check, so they are the best this test found.</string>
+    <string name="tune_no_better_body">Nothing beat the starting settings by 10 % in median score and in most of the interleaved pairs without failing more often, so they are the best this test found.</string>
+    <string name="tune_save_csv">Save every start as CSV</string>
     <string name="tune_change">%1$s → %2$s</string>
     <string name="tune_candidates">Every setting tried</string>
     <string name="tune_candidate_score">%1$s · %2$d/%3$d</string>
@@ -102,6 +115,8 @@
 
     <string name="tune_finding_resistance">Measured resistance differs from the config</string>
     <string name="tune_finding_resistance_body">The firmware measured %1$s mΩ, the config has %2$s mΩ. The low-speed observer depends most on the resistance.</string>
+    <string name="tune_finding_resistance_temp">Measured at %1$s °C; that is %2$s mΩ at %3$s °C, which is what was compared.</string>
+    <string name="tune_finding_resistance_no_temp">Without a motor temperature sensor the winding temperature is unknown and a warm motor reads high, so only a large difference is reported.</string>
     <string name="tune_finding_resistance_rough">Without phase filters on this hardware the measurement is rough, so the test didn\'t try it.</string>
     <string name="tune_finding_flux">Flux linkage while running differs from the config</string>
     <string name="tune_finding_flux_body">Running starts showed %1$s mWb, the config has %2$s mWb. Run FOC detection again if this persists.</string>

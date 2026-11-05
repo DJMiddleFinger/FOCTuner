@@ -86,7 +86,8 @@ class StartupTunerTest {
 
         assertEquals(TuneStage.BASELINE, (progress.first() as TuneProgress.Stage).stage)
         val trials = progress.filterIsInstance<TuneProgress.Trial>()
-        assertEquals(report.candidates.sumOf { it.trials.size } + 2 * tuner.settings.verifyPairs, trials.size)
+        assertEquals(report.candidates.sumOf { it.trials.size } + 2 * verification.pairs, trials.size)
+        assertTrue(verification.pairs >= tuner.settings.verifyPairs)
         assertEquals(trials.size, trials.last().done)
     }
 

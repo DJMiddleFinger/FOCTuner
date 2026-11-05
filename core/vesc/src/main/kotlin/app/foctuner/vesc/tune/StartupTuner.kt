@@ -45,10 +45,14 @@ import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
 /**
- * How the tuner tests. [current] (A) drives every start, alternating direction; a start succeeds once the motor
- * passes [targetErpm] within [timeLimit]. Every candidate gets [trialsPerCandidate] starts; [thorough] adds the
- * observer type and the open-loop timing to the search. [verifyPairs] interleaved starts of the starting and the best
- * settings decide whether the best is a real improvement. [period] is the probe's sample period.
+ * How the tuner tests. [current] (A) drives every start; a start succeeds once the motor passes [targetErpm] within
+ * [timeLimit]. With [currentSweep] the starts of every candidate cycle through half, once and one and a half times
+ * [current], so the result has to work across the currents a rider starts with, not at one. With [bothDirections] the
+ * starts alternate direction; turn it off where the drivetrain shouldn't turn backwards or freewheels in reverse
+ * (geared hubs), where reverse starts would test a different load. Every candidate gets [trialsPerCandidate] starts;
+ * [thorough] adds the observer type and the open-loop timing to the search. At least [verifyPairs] interleaved starts
+ * of the starting and the best settings decide whether the best is a real improvement, a few more when it is close.
+ * [period] is the probe's sample period.
  */
 data class TuneSettings(
     val current: Double,
@@ -61,6 +65,8 @@ data class TuneSettings(
     val measureResistance: Boolean = true,
     val verifyPairs: Int = 3,
     val period: Duration = 4.milliseconds,
+    val currentSweep: Boolean = false,
+    val bothDirections: Boolean = true,
 ) {
     init {
         require(current > 0.0) { "the start current must be positive" }
@@ -70,9 +76,15 @@ data class TuneSettings(
         require(timeLimit in 0.5.seconds..20.seconds) { "time limit out of range" }
     }
 
+    /** The start currents (A, positive) the starts of a candidate cycle through, in order. */
+    val currents: List<Double> get() = if (currentSweep) SWEEP.map { it * current } else listOf(current)
+
     companion object {
         /** The probe's samples hold ±32767 ERPM. */
         const val MAX_TARGET_ERPM = 30_000.0
+
+        /** The sweep's currents over [current]; the lowest comes first, so the phase current recording gets it. */
+        internal val SWEEP = listOf(0.5, 1.0, 1.5)
     }
 }
 
@@ -116,29 +128,72 @@ data class CandidateResult(val candidate: Candidate, val trials: List<TrialResul
     val meanReach: Double? get() = trials.mapNotNull { it.metrics.reachSeconds }.takeIf { it.isNotEmpty() }?.average()
 }
 
-/** Interleaved starts of the starting settings and the best candidate; [accepted] if the best is clearly better. */
+/**
+ * Interleaved starts of the starting settings ([baseline]) and the best candidate ([best]), in pairs: the n-th start of
+ * each ran next to the other with the same current and direction. The scores are medians, so one odd start among a few
+ * doesn't decide; failed starts are counted on their own.
+ */
 data class Verification(val baseline: List<TrialResult>, val best: List<TrialResult>) {
-    val baselineScore: Double? get() = baseline.mapNotNull { it.cost }.takeIf { it.isNotEmpty() }?.average()
-    val bestScore: Double? get() = best.mapNotNull { it.cost }.takeIf { it.isNotEmpty() }?.average()
+    val baselineScore: Double? get() = StartupAnalysis.median(baseline.mapNotNull { it.cost })
+    val bestScore: Double? get() = StartupAnalysis.median(best.mapNotNull { it.cost })
 
-    /** At least 10 % lower cost and no more failed starts than the starting settings. */
+    val pairs: Int get() = minOf(baseline.size, best.size)
+
+    /** Pairs in which the best settings' start cost less than the starting settings' start next to it. */
+    val wins: Int
+        get() = baseline.zip(best).count { (a, b) ->
+            val ca = a.cost
+            val cb = b.cost
+            ca != null && cb != null && cb < ca
+        }
+
+    val baselineFailures: Int get() = failures(baseline)
+    val bestFailures: Int get() = failures(best)
+
+    /**
+     * At least 10 % lower median cost, better in most pairs and no more failed starts than the starting settings.
+     * Without a score on either side nothing is accepted.
+     */
     val accepted: Boolean
         get() {
+            val a = baselineScore ?: return false
             val b = bestScore ?: return false
-            val a = baselineScore ?: return true
-            val failed = { list: List<TrialResult> -> list.count { it.metrics.outcome != TrialOutcome.REACHED } }
-            return b < a * (1 - IMPROVEMENT) && failed(best) <= failed(baseline)
+            return b < a * (1 - IMPROVEMENT) && 2 * wins > pairs && bestFailures <= baselineFailures
+        }
+
+    /** Not accepted, but at least 3 % better with at most one more failed start: more pairs could decide. */
+    val undecided: Boolean
+        get() {
+            if (accepted) return false
+            val a = baselineScore ?: return false
+            val b = bestScore ?: return false
+            return b < a * (1 - CLOSE) && bestFailures <= baselineFailures + 1
         }
 
     private companion object {
         const val IMPROVEMENT = 0.1
+        const val CLOSE = 0.03
+
+        fun failures(list: List<TrialResult>) = list.count { it.metrics.outcome == TrialOutcome.TIMED_OUT || it.metrics.outcome == TrialOutcome.FAULT }
     }
 }
 
 /** Something the run showed that the search can't fix by itself. */
 sealed interface Finding {
-    /** The firmware's resistance measurement (Ω) differs from the configured value. Without phase filters it is rough. */
-    data class ResistanceMismatch(val measured: Double, val configured: Double, val phaseFilters: Boolean) : Finding
+    /**
+     * The firmware's resistance measurement differs from the configured value. [measured] (Ω) is what it read with the
+     * motor at [temperature] (°C, null without a motor temperature sensor); [atReference] is that value taken back to
+     * [referenceTemperature] with copper's temperature coefficient, which is what was compared. Without phase filters
+     * the measurement is rough.
+     */
+    data class ResistanceMismatch(
+        val measured: Double,
+        val configured: Double,
+        val phaseFilters: Boolean,
+        val temperature: Double? = null,
+        val atReference: Double = measured,
+        val referenceTemperature: Double = RESISTANCE_REFERENCE_TEMP,
+    ) : Finding
 
     /** The flux linkage seen while running (Wb) differs from the configured value. */
     data class FluxLinkageMismatch(val estimated: Double, val configured: Double) : Finding
@@ -173,15 +228,36 @@ data class TuneReport(
     val measuredResistance: Double?,
     val reachReference: Double,
     val findings: List<Finding>,
-    /** Whether the controller is back on its starting values; if not, a reboot restores them. */
-    val restored: Boolean,
+    /** How the starting values got back on the controller; [RestoreMethod.FAILED] means a reboot restores them. */
+    val restore: RestoreMethod = RestoreMethod.FAILED,
 ) {
+    /** Whether the controller is back on its starting values; if not, a reboot restores them. */
+    val restored: Boolean get() = restore != RestoreMethod.FAILED
+
     /** What [recommended] changes: parameter, starting value, new value. */
     val changes: List<Triple<ProbeParam, Double, Double>>
         get() = recommended.orEmpty().mapNotNull { (param, value) ->
             val from = original[param] ?: return@mapNotNull null
             if (sameValue(from, value)) null else Triple(param, from, value)
         }
+}
+
+/** How the starting values were set back at the end of a run. */
+enum class RestoreMethod {
+    /** The probe set them with conf-set (RAM only), as they were. */
+    PROBE,
+
+    /** The app went quiet and the probe set them back by itself (its dead man's switch). */
+    PROBE_ON_ITS_OWN,
+
+    /**
+     * The probe didn't answer, so the motor config as read before the run was written. That write also stores it, so
+     * changes that were only in RAM before the run are stored now too.
+     */
+    CONFIG_WRITE,
+
+    /** Neither worked; a reboot restores them, the run only changed RAM. */
+    FAILED,
 }
 
 sealed interface TuneProgress {
@@ -198,10 +274,18 @@ enum class TuneAbort { TEMPERATURE, VOLTAGE, KILL_SWITCH, REPEATED_FAULTS, NOT_A
 
 class TuneRefusedException(val reason: TuneRefusal, detail: String? = null) : VescException("Startup tuning refused: $reason${detail?.let { " ($it)" } ?: ""}")
 
-class TuneAbortedException(val reason: TuneAbort) : VescException("Startup tuning stopped: $reason")
+class TuneAbortedException(val reason: TuneAbort) : VescException("Startup tuning stopped: $reason") {
+    /** How the starting values were set back after the stop; set by [StartupTuner.run] before the exception leaves it. */
+    @Volatile
+    var restore: RestoreMethod = RestoreMethod.FAILED
+        internal set
+}
 
-/** The temperatures and voltage a run stays within: 5 °C below the derating starts, 0.5 V above the battery cutoff. */
-data class TuneLimits(val maxFetTemp: Double, val maxMotorTemp: Double, val minVoltage: Double) {
+/**
+ * The temperatures and voltage a run stays within: 5 °C below the derating starts, 0.5 V above the battery cutoff.
+ * [motorSensor] tells whether the motor temperature is measured at all.
+ */
+data class TuneLimits(val maxFetTemp: Double, val maxMotorTemp: Double, val minVoltage: Double, val motorSensor: Boolean = true) {
     companion object {
         fun from(config: Config): TuneLimits {
             val sensor = config.definition.param("m_motor_temp_sens_type").enumNames.indexOf("Disabled")
@@ -210,10 +294,25 @@ data class TuneLimits(val maxFetTemp: Double, val maxMotorTemp: Double, val minV
                 maxFetTemp = config.number("l_temp_fet_start") - 5,
                 maxMotorTemp = if (noMotorSensor) 1000.0 else config.number("l_temp_motor_start") - 5,
                 minVoltage = config.number("l_battery_cut_start") + 0.5,
+                motorSensor = !noMotorSensor,
             )
         }
     }
 }
+
+/** Copper's temperature coefficient of resistance near room temperature, per °C. */
+const val COPPER_TEMP_COEFFICIENT = 0.00393
+
+/**
+ * The winding temperature (°C) resistances are compared at when the firmware's temperature compensation is off: the
+ * configured value comes from detection, which usually runs on a cool motor. With compensation on, its base
+ * temperature is used instead, since that is where the firmware takes the configured value to hold.
+ */
+const val RESISTANCE_REFERENCE_TEMP = 25.0
+
+/** [ohm] measured at [from] °C, taken to [to] °C. */
+fun resistanceAt(ohm: Double, from: Double, to: Double): Double = ohm * (1 + COPPER_TEMP_COEFFICIENT * (to - RESISTANCE_REFERENCE_TEMP)) /
+    (1 + COPPER_TEMP_COEFFICIENT * (from - RESISTANCE_REFERENCE_TEMP))
 
 /** Defaults for a motor config and the pack voltage now. */
 object TuneDefaults {
@@ -272,6 +371,17 @@ class StartupTuner(
         inverted = config.bool("m_invert_direction"),
     )
 
+    /** Where the configured resistance holds: the compensation's base temperature when it is on (see [RESISTANCE_REFERENCE_TEMP]). */
+    private val referenceTemp: Double =
+        if ("foc_temp_comp" in config.definition.params && config.bool("foc_temp_comp") && "foc_temp_comp_base_temp" in config.definition.params) {
+            config.number("foc_temp_comp_base_temp")
+        } else {
+            RESISTANCE_REFERENCE_TEMP
+        }
+
+    /** The start currents, at most the motor current limit (the firmware would clamp them there anyway). */
+    private val currents: List<Double> = settings.currents.map { it.coerceAtMost(config.number("l_current_max")) }.distinct()
+
     /** The parameters this firmware lets the probe change, minus those the search doesn't use without [TuneSettings.thorough]. */
     val parameters: List<ProbeParam> = ProbeParam.entries.filter {
         it.supportedOn(firmware.major, firmware.minor) && it.configName in config.definition.params
@@ -322,9 +432,11 @@ class StartupTuner(
         val log = SideLog()
         val abort = AtomicReference<TuneAbort?>(null)
         val sideJobs = mutableListOf<Job>()
+        var keepAlive: Job? = null
         var probe: StartupProbe? = null
         var original: Map<ProbeParam, Double>? = null
-        var restored = false
+        var restore: RestoreMethod? = null
+        var thrown: Throwable? = null
         try {
             probe = try {
                 StartupProbe.start(controller, motorIndex)
@@ -333,6 +445,9 @@ class StartupTuner(
             } catch (e: VescTimeoutException) {
                 throw TuneRefusedException(TuneRefusal.NO_PROBE, e.message)
             }
+            val held = probe
+            // Keeps the probe's dead man's switch off while this runs; if the app dies, the probe restores by itself.
+            keepAlive = launch { held.keepAlive() }
             original = readOriginal(probe)
             if (settings.streamObserverAngle && motorIndex == 1) {
                 sideJobs += launch {
@@ -346,16 +461,22 @@ class StartupTuner(
             sideJobs += launch { monitor(probe, clock, log, abort) }
             val search = Search(probe, original, clock, log, abort, onProgress)
             val report = search.run()
-            restored = restore(probe, original)
-            report.copy(restored = restored)
+            restore = restore(probe, original)
+            report.copy(restore = restore)
+        } catch (e: Throwable) {
+            thrown = e
+            throw e
         } finally {
             withContext(NonCancellable) {
+                // The keep-alive ping stops last: until the probe has the starting values back it must not give up.
                 sideJobs.forEach { it.cancel() }
                 probe?.let { runCatching { it.stop() } }
-                if (!restored && original != null) restored = restore(probe, original)
+                if ((restore == null || restore == RestoreMethod.FAILED) && original != null) restore = restore(probe, original)
+                keepAlive?.cancel()
                 probe?.let { runCatching { it.quit() } }
                 runCatching { controller.stopSampling() }
                 runCatching { controller.setLispRunning(lispWasRunning) }
+                (thrown as? TuneAbortedException)?.restore = restore ?: RestoreMethod.FAILED
             }
         }
     }
@@ -375,21 +496,26 @@ class StartupTuner(
         return values
     }
 
-    /** Sets [original] back with the probe, or failing that writes the config as it was read (which also stores it). */
-    private suspend fun restore(probe: StartupProbe?, original: Map<ProbeParam, Double>): Boolean {
+    /**
+     * Sets [original] back with the probe; if the probe already did that by itself, leaves it; failing both, writes the
+     * config as it was read, which also stores it.
+     */
+    private suspend fun restore(probe: StartupProbe?, original: Map<ProbeParam, Double>): RestoreMethod {
         if (probe != null) {
+            if (probe.gaveUp) return RestoreMethod.PROBE_ON_ITS_OWN
             val back = try {
                 probe.set(original)
             } catch (e: IOException) {
                 null
             }
-            if (back != null && original.all { (param, value) -> back[param]?.let { sameValue(it, value) } == true }) return true
+            if (back != null && original.all { (param, value) -> back[param]?.let { sameValue(it, value) } == true }) return RestoreMethod.PROBE
+            if (probe.gaveUp) return RestoreMethod.PROBE_ON_ITS_OWN
         }
         return try {
             controller.writeConfig(ConfigKind.MCCONF, config)
-            true
+            RestoreMethod.CONFIG_WRITE
         } catch (e: IOException) {
-            false
+            RestoreMethod.FAILED
         }
     }
 
@@ -424,7 +550,9 @@ class StartupTuner(
         private val abort: AtomicReference<TuneAbort?>,
         private val onProgress: (TuneProgress) -> Unit,
     ) {
-        private var reachReference = settings.timeLimit.toDouble(DurationUnit.SECONDS)
+        /** The starting settings' median time to the target (s) at each start current; the time limit until known. */
+        private val references = HashMap<Double, Double>()
+        private val defaultReference = settings.timeLimit.toDouble(DurationUnit.SECONDS)
         private var timeLimit = settings.timeLimit
         private var done = 0
         private var planned = plannedTrials
@@ -433,31 +561,54 @@ class StartupTuner(
         /** Starts in a row that didn't count (lost reports, a motor that wouldn't come to rest). */
         private var lostStarts = 0
         private var measuredResistance: Double? = null
+
+        /** The motor temperature (°C) during the resistance measurement; null without a sensor. */
+        private var measuredAt: Double? = null
+
+        /** The measured resistance at [referenceTemp] when the temperature is known, else as measured. */
+        private var measuredAtReference: Double? = null
         private val results = mutableListOf<CandidateResult>()
 
-        /** The analysis uses the measured resistance when the hardware measures it well, the same for every candidate. */
-        private var model = configured
+        /**
+         * The winding resistance at [referenceTemp] the analysis starts from: the measured one when the hardware measures
+         * it well, else the configured one. With a motor sensor it follows each start's motor temperature ([modelAt]).
+         */
+        private var baseResistance = configured.resistance
+
+        /** How far the resistance may differ before it is tried or reported: more when the winding temperature is unknown. */
+        private val resistanceAllowance: Double get() = if (measuredAt == null) UNKNOWN_TEMP_ALLOWANCE else 0.0
 
         suspend fun run(): TuneReport {
             if (settings.measureResistance) {
+                measuredAt = motorTemperature()
                 measuredResistance = try {
                     probe.measureResistance(minOf(settings.current, config.number("l_current_max") * 0.5))
                 } catch (e: ProbeException) {
                     null
                 } catch (e: VescTimeoutException) {
+                    if (probe.gaveUp) throw TuneAbortedException(TuneAbort.PROBE_LOST)
                     null
                 }
                 val r = measuredResistance
-                if (r != null && firmware.hasPhaseFilters && r in configured.resistance * 0.3..configured.resistance * 3.0) {
-                    model = configured.copy(resistance = r)
+                val t = measuredAt
+                measuredAtReference = r?.let { if (t != null) resistanceAt(it, t, referenceTemp) else it }
+                val atReference = measuredAtReference
+                if (atReference != null && firmware.hasPhaseFilters && atReference in configured.resistance * 0.3..configured.resistance * 3.0) {
+                    baseResistance = atReference
                 }
             }
 
             onProgress(TuneProgress.Stage(TuneStage.BASELINE, 1, planned))
             var baseline = evaluate(Candidate(TuneStage.BASELINE, original))
             val reaches = baseline.trials.mapNotNull { it.metrics.reachSeconds }
+            for (current in currents) {
+                val at = baseline.trials.filter { abs(it.record.spec.current) == current }.mapNotNull { it.metrics.reachSeconds }
+                StartupAnalysis.median(at)?.let { references[current] = it }
+            }
             if (reaches.isNotEmpty()) {
-                reachReference = StartupAnalysis.median(reaches)!!
+                // A current none of whose starts made it is judged against the others.
+                val all = StartupAnalysis.median(reaches)!!
+                for (current in currents) references.putIfAbsent(current, all)
                 if (reaches.size == baseline.trials.size) {
                     val limit = (2.5 * reaches.max() + 0.3).coerceIn(1.0, settings.timeLimit.toDouble(DurationUnit.SECONDS))
                     timeLimit = (limit * 1000).roundToInt().milliseconds
@@ -492,10 +643,27 @@ class StartupTuner(
                 verification = verification,
                 recommended = recommended,
                 measuredResistance = measuredResistance,
-                reachReference = reachReference,
+                reachReference = references[settings.current.coerceAtMost(config.number("l_current_max"))] ?: references.values.firstOrNull() ?: defaultReference,
                 findings = findings(baseline),
-                restored = false,
             )
+        }
+
+        private fun reference(spec: TrialSpec): Double = references[abs(spec.current)] ?: defaultReference
+
+        /** The motor temperature now (°C), or null without a sensor or a reply. */
+        private suspend fun motorTemperature(): Double? {
+            if (!limits.motorSensor) return null
+            return try {
+                controller.values(setOf(RealtimeField.TEMP_MOTOR)).tempMotor.toDouble().takeIf { it > -40.0 && it < 200.0 }
+            } catch (e: IOException) {
+                null
+            }
+        }
+
+        /** The motor model for a start that ended with the motor at [motorTemp] °C. */
+        private fun modelAt(motorTemp: Double): MotorConstants {
+            val t = motorTemp.takeIf { limits.motorSensor && it > -40.0 && it < 200.0 } ?: return configured.copy(resistance = baseResistance)
+            return configured.copy(resistance = resistanceAt(baseResistance, referenceTemp, t))
         }
 
         private fun better(a: CandidateResult, b: CandidateResult): Boolean {
@@ -506,15 +674,21 @@ class StartupTuner(
 
         private fun rescore(result: CandidateResult) = result.copy(
             trials = result.trials.map { t ->
+                val reference = reference(t.record.spec)
                 t.copy(
-                    cost = StartupCost.of(t.metrics, reachReference),
-                    breakdown = if (t.metrics.outcome == TrialOutcome.REACHED) StartupCost.breakdown(t.metrics, reachReference) else null,
+                    cost = StartupCost.of(t.metrics, reference),
+                    breakdown = if (t.metrics.outcome == TrialOutcome.REACHED) StartupCost.breakdown(t.metrics, reference) else null,
                 )
             },
         )
 
         private suspend fun apply(params: Map<ProbeParam, Double>): Map<ProbeParam, Double> {
-            val back = probe.set(params)
+            val back = try {
+                probe.set(params)
+            } catch (e: VescTimeoutException) {
+                if (probe.gaveUp) throw TuneAbortedException(TuneAbort.PROBE_LOST)
+                throw e
+            }
             // The firmware clamps to the hardware's limits; keep what it actually uses.
             return params.mapValues { (param, value) -> back[param] ?: value }
         }
@@ -523,17 +697,19 @@ class StartupTuner(
             val actual = candidate.copy(params = apply(candidate.params))
             val trials = mutableListOf<TrialResult>()
             while (trials.size < settings.trialsPerCandidate) {
-                trials += countedTrial(actual, direction, capture = settings.capturePhaseCurrents && trials.isEmpty())
-                direction = -direction
+                val current = currents[trials.size % currents.size]
+                trials += countedTrial(actual, direction, current, capture = settings.capturePhaseCurrents && trials.isEmpty())
+                if (settings.bothDirections) direction = -direction
             }
             return CandidateResult(actual, trials)
         }
 
         /** One start that counts: starts that say nothing about the settings are repeated a few times. */
-        private suspend fun countedTrial(candidate: Candidate, dir: Int, capture: Boolean): TrialResult {
+        private suspend fun countedTrial(candidate: Candidate, dir: Int, current: Double, capture: Boolean): TrialResult {
             while (true) {
+                if (probe.gaveUp) throw TuneAbortedException(TuneAbort.PROBE_LOST)
                 val result = try {
-                    trial(candidate, dir, capture)
+                    trial(candidate, dir, current, capture)
                 } catch (e: ProbeException) {
                     // Busy with the previous start (its release report got lost) or refused: wait and try again.
                     if (++lostStarts > MAX_LOST_STARTS) throw TuneAbortedException(TuneAbort.PROBE_LOST)
@@ -564,14 +740,14 @@ class StartupTuner(
             }
         }
 
-        private suspend fun trial(candidate: Candidate, dir: Int, capture: Boolean): TrialResult = coroutineScope {
+        private suspend fun trial(candidate: Candidate, dir: Int, current: Double, capture: Boolean): TrialResult = coroutineScope {
             val spec = TrialSpec(
                 id = 0,
-                current = dir * settings.current,
+                current = dir * current,
                 targetErpm = settings.targetErpm,
                 timeout = timeLimit,
                 period = settings.period,
-                brakeCurrent = settings.current * 0.5,
+                brakeCurrent = current * 0.5,
                 restErpm = max(REST_ERPM, 0.02 * settings.targetErpm),
                 rest = REST,
                 maxFetTemp = limits.maxFetTemp,
@@ -606,7 +782,7 @@ class StartupTuner(
             val driveLength = (record.samples.lastOrNull()?.seconds ?: 0.0).seconds
             val angles = driveStart?.let { s0 -> log.anglesBetween(s0, s0 + driveLength) }
             val realtime = driveStart?.let { s0 -> log.realtimeBetween(s0, s0 + driveLength + MONITOR_PERIOD) }.orEmpty()
-            val metrics = StartupAnalysis.analyze(record, model, phaseCurrents?.takeIf { it.isNotEmpty() }, angles)
+            val metrics = StartupAnalysis.analyze(record, modelAt(record.end.motorTemp), phaseCurrents?.takeIf { it.isNotEmpty() }, angles)
             val faultLog = if (metrics.outcome == TrialOutcome.FAULT) {
                 try {
                     controller.terminal("faults")
@@ -620,8 +796,8 @@ class StartupTuner(
                 candidate = candidate,
                 record = record,
                 metrics = metrics,
-                cost = StartupCost.of(metrics, reachReference),
-                breakdown = if (metrics.outcome == TrialOutcome.REACHED) StartupCost.breakdown(metrics, reachReference) else null,
+                cost = StartupCost.of(metrics, reference(record.spec)),
+                breakdown = if (metrics.outcome == TrialOutcome.REACHED) StartupCost.breakdown(metrics, reference(record.spec)) else null,
                 inputCurrentPeak = realtime.maxOfOrNull { abs(it.currentInput.toDouble()) },
                 voltageMin = realtime.map { it.voltageInput.toDouble() }.filter { it > 1.0 }.minOrNull(),
                 faultLog = faultLog,
@@ -638,19 +814,30 @@ class StartupTuner(
             return ceil(window * rate / ADC_LENGTH).toInt().coerceIn(1, 255)
         }
 
+        /**
+         * Interleaved pairs of starts, the same current and direction in each pair. After [TuneSettings.verifyPairs]
+         * pairs a result that is better but not clearly ([Verification.undecided]) gets up to [EXTRA_VERIFY_PAIRS] more:
+         * the best was picked as the lowest of many noisy scores, so it tends to look better in the search than it is.
+         */
         private suspend fun verify(baseline: Candidate, best: Candidate): Verification {
             planned = done + 2 * settings.verifyPairs
             onProgress(TuneProgress.Stage(TuneStage.VERIFY, 2, planned))
             val a = mutableListOf<TrialResult>()
             val b = mutableListOf<TrialResult>()
-            repeat(settings.verifyPairs) { pair ->
-                val dir = if (pair % 2 == 0) 1 else -1
+            var pair = 0
+            while (true) {
+                val dir = if (!settings.bothDirections || pair % 2 == 0) 1 else -1
+                val current = currents[pair % currents.size]
                 apply(baseline.params)
-                a += countedTrial(baseline.copy(stage = TuneStage.VERIFY), dir, capture = false)
+                a += countedTrial(baseline.copy(stage = TuneStage.VERIFY), dir, current, capture = false)
                 apply(best.params)
-                b += countedTrial(best.copy(stage = TuneStage.VERIFY), dir, capture = false)
+                b += countedTrial(best.copy(stage = TuneStage.VERIFY), dir, current, capture = false)
+                pair++
+                if (pair < settings.verifyPairs) continue
+                val verification = Verification(a.toList(), b.toList())
+                if (!verification.undecided || pair >= settings.verifyPairs + EXTRA_VERIFY_PAIRS) return verification
+                planned = maxOf(planned, done + 2)
             }
-            return Verification(a, b)
         }
 
         private fun candidatesFor(stage: TuneStage, from: Map<ProbeParam, Double>, baseline: CandidateResult): List<Candidate> {
@@ -670,9 +857,13 @@ class StartupTuner(
             }
             return when (stage) {
                 TuneStage.RESISTANCE -> {
-                    val r = measuredResistance ?: return emptyList()
+                    val r = measuredAtReference ?: return emptyList()
                     val ratio = r / configured.resistance
-                    if (firmware.hasPhaseFilters && abs(ratio - 1) > MODEL_TOLERANCE && ratio in 0.3..3.0) vary(ProbeParam.MOTOR_RESISTANCE, listOf(r)) else emptyList()
+                    if (firmware.hasPhaseFilters && abs(ratio - 1) > MODEL_TOLERANCE + resistanceAllowance && ratio in 0.3..3.0) {
+                        vary(ProbeParam.MOTOR_RESISTANCE, listOf(r))
+                    } else {
+                        emptyList()
+                    }
                 }
                 TuneStage.FLUX_LINKAGE -> {
                     val ratio = fluxLinkageRatio(baseline) ?: return emptyList()
@@ -714,8 +905,10 @@ class StartupTuner(
         }
 
         private fun findings(baseline: CandidateResult): List<Finding> = buildList {
-            measuredResistance?.let { r ->
-                if (abs(r / configured.resistance - 1) > FINDING_TOLERANCE) add(Finding.ResistanceMismatch(r, configured.resistance, firmware.hasPhaseFilters))
+            val r = measuredResistance
+            val atReference = measuredAtReference
+            if (r != null && atReference != null && abs(atReference / configured.resistance - 1) > FINDING_TOLERANCE + resistanceAllowance) {
+                add(Finding.ResistanceMismatch(r, configured.resistance, firmware.hasPhaseFilters, measuredAt, atReference, referenceTemp))
             }
             fluxLinkageRatio(baseline)?.let { ratio ->
                 if (abs(ratio - 1) > FINDING_TOLERANCE) add(Finding.FluxLinkageMismatch(configured.fluxLinkage * ratio, configured.fluxLinkage))
@@ -787,6 +980,10 @@ class StartupTuner(
         private const val SENSORLESS = 0L
         private const val STAGE_IMPROVEMENT = 0.03
         private const val MODEL_TOLERANCE = 0.08
+
+        /** Extra resistance difference allowed without a motor temperature sensor: about 25 °C of copper. */
+        private const val UNKNOWN_TEMP_ALLOWANCE = 0.1
+        private const val EXTRA_VERIFY_PAIRS = 3
         private const val FINDING_TOLERANCE = 0.1
         private const val MAX_CONSECUTIVE_FAULTS = 3
         private const val MAX_LOST_STARTS = 4

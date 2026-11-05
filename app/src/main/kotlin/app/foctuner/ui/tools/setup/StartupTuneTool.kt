@@ -1,5 +1,7 @@
 package app.foctuner.ui.tools.setup
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -17,6 +19,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -45,7 +48,9 @@ import app.foctuner.vesc.updateConfig
 import app.foctuner.vesc.tune.CandidateResult
 import app.foctuner.vesc.tune.Finding
 import app.foctuner.vesc.tune.ProbeParam
+import app.foctuner.vesc.tune.RestoreMethod
 import app.foctuner.vesc.tune.StartupAnalysis
+import app.foctuner.vesc.tune.StartupCsv
 import app.foctuner.vesc.tune.StartupTuner
 import app.foctuner.vesc.tune.TrialOutcome
 import app.foctuner.vesc.tune.TrialResult
@@ -82,6 +87,8 @@ data class StartupTuneState(
     val timeLimit: String = "3",
     val thorough: Boolean = false,
     val capture: Boolean = true,
+    val sweep: Boolean = false,
+    val bothDirections: Boolean = true,
     val stage: TuneStage? = null,
     val done: Int = 0,
     val planned: Int = 0,
@@ -90,6 +97,8 @@ data class StartupTuneState(
     val best: CandidateResult? = null,
     val report: TuneReport? = null,
     val aborted: TuneAbort? = null,
+    /** How the starting values got back after a stopped run. */
+    val abortedRestore: RestoreMethod? = null,
     val applied: TuneApplied? = null,
 ) {
     /** The test as typed, or null while a field doesn't hold a usable number. */
@@ -106,13 +115,16 @@ data class StartupTuneState(
                 capturePhaseCurrents = capture,
                 trialsPerCandidate = 3,
                 verifyPairs = if (thorough) 4 else 3,
+                currentSweep = sweep,
+                bothDirections = bothDirections,
             )
         }
 }
 
 /** The startup tuner for the tool's controller: preflight from its motor config, the run, and applying the result. */
 class StartupTuneModel(private val context: ToolContext) {
-    private val _state = MutableStateFlow(StartupTuneState())
+    // Phase current recordings are about 22 KB a candidate, slow over BLE: off there unless turned on.
+    private val _state = MutableStateFlow(StartupTuneState(capture = !context.bleLink))
     val state: StateFlow<StartupTuneState> = _state.asStateFlow()
     val runner = SetupRunner(context)
 
@@ -142,7 +154,9 @@ class StartupTuneModel(private val context: ToolContext) {
 
     fun start() {
         val settings = _state.value.settings ?: return
-        _state.update { it.copy(stage = null, done = 0, planned = 0, lastTrial = null, candidates = emptyList(), best = null, report = null, aborted = null, applied = null) }
+        _state.update {
+            it.copy(stage = null, done = 0, planned = 0, lastTrial = null, candidates = emptyList(), best = null, report = null, aborted = null, abortedRestore = null, applied = null)
+        }
         runner.start(spins = true) {
             val config = context.controller.readConfig(ConfigKind.MCCONF, context.baseConfig(ConfigKind.MCCONF))
             _state.update { it.copy(config = config, refusal = StartupTuner.refusal(config, context.firmware)) }
@@ -154,7 +168,7 @@ class StartupTuneModel(private val context: ToolContext) {
             } catch (e: TuneRefusedException) {
                 _state.update { it.copy(refusal = e.reason, stage = null) }
             } catch (e: TuneAbortedException) {
-                _state.update { it.copy(aborted = e.reason, stage = null) }
+                _state.update { it.copy(aborted = e.reason, abortedRestore = e.restore, stage = null) }
             }
         }
     }
@@ -185,7 +199,10 @@ class StartupTuneModel(private val context: ToolContext) {
         }
     }
 
-    fun discard() = _state.update { it.copy(report = null, candidates = emptyList(), best = null, lastTrial = null, applied = null, aborted = null) }
+    fun discard() = _state.update { it.copy(report = null, candidates = emptyList(), best = null, lastTrial = null, applied = null, aborted = null, abortedRestore = null) }
+
+    /** Every start so far, with the verification's when the run finished, as CSV. */
+    fun csv(): String = _state.value.let { StartupCsv.of(it.candidates, it.report?.verification) }
 
     /** 2 for the second motor of a dual board, which reports the attached board's UUID with the last byte plus one. */
     private suspend fun motorIndex(): Int {
@@ -207,6 +224,13 @@ fun StartupTuneTool(context: ToolContext) {
     val busy = run is RunState.Running
     var confirm by remember { mutableStateOf<TuneConfirm?>(null) }
     val config = state.config
+    val android = LocalContext.current
+    val save = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        if (uri != null) {
+            val csv = model.csv()
+            runCatching { android.contentResolver.openOutputStream(uri, "wt")?.use { it.write(csv.toByteArray()) } }
+        }
+    }
 
     Column(Modifier.verticalScroll(rememberScrollState())) {
         Text(stringResource(R.string.tune_intro), Modifier.padding(Spacing.x2), color = FocTheme.colors.textSecondary, style = FocTheme.type.supporting)
@@ -236,6 +260,19 @@ fun StartupTuneTool(context: ToolContext) {
         }
         NumberRow(stringResource(R.string.tune_time_limit), state.timeLimit, "s", { v -> model.edit { it.copy(timeLimit = v) } }, !busy)
         SwitchRow(stringResource(R.string.tune_thorough), state.thorough, { v -> model.edit { it.copy(thorough = v) } }, !busy)
+        SwitchRow(stringResource(R.string.tune_sweep), state.sweep, { v -> model.edit { it.copy(sweep = v) } }, !busy)
+        SwitchRow(stringResource(R.string.tune_both_directions), state.bothDirections, { v -> model.edit { it.copy(bothDirections = v) } }, !busy)
+        if (!state.bothDirections || state.sweep) {
+            Text(
+                listOfNotNull(
+                    stringResource(R.string.tune_sweep_note).takeIf { state.sweep },
+                    stringResource(R.string.tune_forward_note).takeIf { !state.bothDirections },
+                ).joinToString(" "),
+                Modifier.padding(horizontal = Spacing.x2),
+                color = FocTheme.colors.textTertiary,
+                style = FocTheme.type.caption,
+            )
+        }
         SwitchRow(stringResource(R.string.tune_capture), state.capture, { v -> model.edit { it.copy(capture = v) } }, !busy)
         val settings = state.settings
         val plan = remember(settings, config) { if (settings != null && config != null) planned(settings, config, context) else null }
@@ -262,7 +299,7 @@ fun StartupTuneTool(context: ToolContext) {
                 trackColor = FocTheme.colors.surfaceHigh,
             )
         }
-        state.aborted?.let { AbortNotice(it) }
+        state.aborted?.let { AbortNotice(it, state.abortedRestore ?: RestoreMethod.FAILED) }
 
         state.lastTrial?.let { trial ->
             SectionHeader(stringResource(R.string.tune_last_start))
@@ -284,17 +321,23 @@ fun StartupTuneTool(context: ToolContext) {
             SectionHeader(stringResource(R.string.tune_results))
         }
         if (report != null && config != null) {
-            if (!report.restored) Notice(stringResource(R.string.tune_not_restored), tone = NoticeTone.Warning)
+            when (report.restore) {
+                RestoreMethod.PROBE -> Unit
+                RestoreMethod.PROBE_ON_ITS_OWN -> Notice(stringResource(R.string.tune_restored_by_probe))
+                RestoreMethod.CONFIG_WRITE -> Notice(stringResource(R.string.tune_restored_by_write), tone = NoticeTone.Warning)
+                RestoreMethod.FAILED -> Notice(stringResource(R.string.tune_not_restored), tone = NoticeTone.Warning)
+            }
             val verification = report.verification
             if (report.recommended != null && verification != null) {
                 Notice(
                     stringResource(R.string.tune_better),
                     body = pluralStringResource(
                         R.plurals.tune_better_body,
-                        verification.best.size,
+                        verification.pairs,
                         verification.bestScore?.fixed(2) ?: NO_VALUE,
                         verification.baselineScore?.fixed(2) ?: NO_VALUE,
-                        verification.best.size,
+                        verification.wins,
+                        verification.pairs,
                     ),
                 )
                 for ((param, from, to) in report.changes) {
@@ -319,6 +362,9 @@ fun StartupTuneTool(context: ToolContext) {
             Text(stringResource(R.string.tune_candidates), Modifier.padding(start = Spacing.x2, top = Spacing.x2, end = Spacing.x2), color = FocTheme.colors.textSecondary, style = FocTheme.type.caption)
             for (candidate in state.candidates) CandidateRow(candidate, config, best = candidate === state.best)
             Text(stringResource(R.string.tune_score_note), Modifier.padding(Spacing.x2), color = FocTheme.colors.textTertiary, style = FocTheme.type.caption)
+            ActionRow {
+                PlainButton(stringResource(R.string.tune_save_csv), { save.launch("startup-tuning.csv") }, enabled = !busy)
+            }
         }
         Hairline()
         Text(stringResource(R.string.tune_sources), Modifier.padding(Spacing.x2), color = FocTheme.colors.textTertiary, style = FocTheme.type.caption)
@@ -328,8 +374,15 @@ fun StartupTuneTool(context: ToolContext) {
         TuneConfirm.Start -> {
             val s = state.settings
             val (starts, minutes) = (if (s != null && config != null) planned(s, config, context) else null) ?: (0 to 0)
+            val currents = s?.currents.orEmpty()
+            val current = if (currents.size > 1) {
+                stringResource(R.string.tune_current_range, currents.min().fixed(1), currents.max().fixed(1))
+            } else {
+                state.current
+            }
+            val directions = stringResource(if (state.bothDirections) R.string.tune_confirm_both else R.string.tune_confirm_forward)
             SpinDialog(
-                pluralStringResource(R.plurals.tune_confirm, starts, starts, state.target, state.current, minutes),
+                pluralStringResource(R.plurals.tune_confirm, starts, starts, state.target, current, minutes) + " " + directions,
                 { confirm = null; model.start() },
                 { confirm = null },
             )
@@ -461,7 +514,7 @@ private fun RefusalNotice(reason: TuneRefusal) {
 }
 
 @Composable
-private fun AbortNotice(reason: TuneAbort) {
+private fun AbortNotice(reason: TuneAbort, restore: RestoreMethod) {
     val title = when (reason) {
         TuneAbort.TEMPERATURE -> R.string.tune_aborted_temperature
         TuneAbort.VOLTAGE -> R.string.tune_aborted_voltage
@@ -470,7 +523,13 @@ private fun AbortNotice(reason: TuneAbort) {
         TuneAbort.NOT_AT_REST -> R.string.tune_aborted_rest
         TuneAbort.PROBE_LOST -> R.string.tune_aborted_lost
     }
-    Notice(stringResource(title), body = stringResource(R.string.tune_aborted_body), tone = NoticeTone.Warning)
+    val body = when (restore) {
+        RestoreMethod.PROBE -> R.string.tune_aborted_body
+        RestoreMethod.PROBE_ON_ITS_OWN -> R.string.tune_aborted_body_probe
+        RestoreMethod.CONFIG_WRITE -> R.string.tune_aborted_body_write
+        RestoreMethod.FAILED -> R.string.tune_aborted_body_failed
+    }
+    Notice(stringResource(title), body = stringResource(body), tone = NoticeTone.Warning)
 }
 
 @Composable
@@ -478,7 +537,14 @@ private fun FindingNotice(finding: Finding) {
     when (finding) {
         is Finding.ResistanceMismatch -> Notice(
             stringResource(R.string.tune_finding_resistance),
-            body = stringResource(R.string.tune_finding_resistance_body, (finding.measured * 1e3).fixed(2), (finding.configured * 1e3).fixed(2)) +
+            body = stringResource(R.string.tune_finding_resistance_body, (finding.measured * 1e3).fixed(2), (finding.configured * 1e3).fixed(2)) + " " +
+                finding.temperature.let { t ->
+                    if (t != null) {
+                        stringResource(R.string.tune_finding_resistance_temp, t.fixed(0), (finding.atReference * 1e3).fixed(2), finding.referenceTemperature.fixed(0))
+                    } else {
+                        stringResource(R.string.tune_finding_resistance_no_temp)
+                    }
+                } +
                 if (finding.phaseFilters) "" else " " + stringResource(R.string.tune_finding_resistance_rough),
             tone = NoticeTone.Warning,
         )

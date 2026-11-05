@@ -4,6 +4,7 @@ import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import app.foctuner.R
+import app.foctuner.link.BleTransport
 import app.foctuner.logging.RideLogHub
 import app.foctuner.logging.TripRecorder
 import app.foctuner.logging.TripStore
@@ -67,6 +68,8 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         /** Opens the link again, for a session that has to survive a controller restart. */
         val open: suspend () -> Transport,
         val simulator: SimulatedVesc? = null,
+        /** The link is Bluetooth LE. */
+        val ble: Boolean = false,
     )
 
     private val store = PreferencesStore(application)
@@ -145,7 +148,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
                 val transport = open()
                 val client = VescClient(transport, scope)
                 val info = client.firmwareInfo()
-                begin(Active(client, scope, info, name, linkLabel, open, transport as? SimulatedVesc), demo)
+                begin(Active(client, scope, info, name, linkLabel, open, transport as? SimulatedVesc, ble = transport is BleTransport), demo)
                 _attempt.value = ConnectAttempt()
                 onConnected()
             } catch (e: VescTimeoutException) {
@@ -234,7 +237,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
             settings.reset()
             session.value?.let { active ->
                 val firmware = canId?.let { canFirmware[it] } ?: active.info
-                _tools.value = ToolContext(canId?.let(active.client::can) ?: active.client, active.client, firmware, active.scope, updateLock, active.simulator)
+                _tools.value = ToolContext(canId?.let(active.client::can) ?: active.client, active.client, firmware, active.scope, updateLock, active.simulator, active.ble)
             }
         }
         selectedCanId.value = canId
@@ -288,7 +291,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
     private fun toolContext(active: Active): ToolContext {
         val canId = selectedCanId.value
         val firmware = canId?.let { canFirmware[it] } ?: active.info
-        return ToolContext(canId?.let(active.client::can) ?: active.client, active.client, firmware, active.scope, updateLock, active.simulator)
+        return ToolContext(canId?.let(active.client::can) ?: active.client, active.client, firmware, active.scope, updateLock, active.simulator, active.ble)
     }
 
     /**
@@ -343,7 +346,7 @@ class SessionViewModel(application: Application) : AndroidViewModel(application)
         try {
             val transport = old.open()
             client = VescClient(transport, scope)
-            return Active(client, scope, client.firmwareInfo(), old.name, old.linkLabel, old.open, transport as? SimulatedVesc)
+            return Active(client, scope, client.firmwareInfo(), old.name, old.linkLabel, old.open, transport as? SimulatedVesc, ble = transport is BleTransport)
         } catch (e: Exception) {
             try {
                 client?.close()

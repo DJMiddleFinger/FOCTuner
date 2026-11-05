@@ -23,6 +23,8 @@ class ToolContext(
     val updateLock: UpdateLock = UpdateLock(),
     /** The simulated controller in demo mode; tools that would use the network use simulated sources then. */
     val simulator: SimulatedVesc? = null,
+    /** Whether the link is Bluetooth LE, where bulk transfers (sampled data, recordings) are slow. */
+    val bleLink: Boolean = false,
 ) {
     val demo: Boolean get() = simulator != null
 

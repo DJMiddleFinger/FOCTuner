@@ -121,6 +121,7 @@ class StartupProbeScriptTest {
             ProbeCodec.BYE to "(ft-head b ${ProbeCodec.BYE})",
             ProbeCodec.RESISTANCE to "(ft-head b ${ProbeCodec.RESISTANCE})",
             ProbeCodec.RELEASED to "(ft-head b ${ProbeCodec.RELEASED})",
+            ProbeCodec.GAVE_UP to "(ft-head b ${ProbeCodec.GAVE_UP})",
         )) {
             assertTrue(call in script, "reply type $type: missing $call")
         }
@@ -131,6 +132,23 @@ class StartupProbeScriptTest {
             assertTrue("((= cmd $command) ($handler" in script, "command $command should go to $handler")
         }
         assertTrue("((= cmd ${ProbeCodec.STOP}) (def ft-stop t))" in script)
+        assertTrue("((= cmd ${ProbeCodec.PING}) nil)" in script)
+        assertTrue("(def ft-probe ${ProbeCodec.VERSION})" in script)
+    }
+
+    @Test
+    fun theDeadMansSwitchMatchesTheApp() {
+        // It saves every parameter, 5 bytes each, and waits as long as the app expects before it gives up.
+        assertTrue("(def ft-nparams ${ProbeParam.entries.size})" in script)
+        assertTrue("(def ft-orig (bufcreate ${ProbeParam.entries.size * 5}))" in script)
+        assertTrue("(def ft-quiet ${ProbeCodec.QUIET_SECONDS})" in script)
+        // Every command resets the quiet timer, and the probe ignores commands once it gave up.
+        assertTrue("(if (and ft-alive (> (buflen d) 3)" in script)
+        assertTrue("(progn\n        (def ft-seen (systime))\n        (cond" in script)
+        // A start or measurement that ends restarts the timer before it frees the probe.
+        assertEquals(2, Regex("\\(def ft-seen \\(systime\\)\\)\\s*\\(def ft-busy nil\\)").findAll(script).count())
+        assertTrue("(if ft-saved nil (ft-save))" in script)
+        assertTrue("(spawn 256 ft-watch)" in script)
     }
 
     @Test

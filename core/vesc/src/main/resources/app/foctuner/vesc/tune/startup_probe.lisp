@@ -1,9 +1,12 @@
-; FOCTuner startup probe, protocol 1.
+; FOCTuner startup probe, protocol 2.
 ;
 ; Streamed by the app's Startup tuning tool and never stored. It runs sensorless start trials on this
 ; controller and reports what the firmware sees during them over COMM_CUSTOM_APP_DATA (send-data,
 ; event-data-rx). Parameter changes go through conf-set, which doesn't write flash; the app sets the
-; old values back when it is done, and a reboot restores them in any case.
+; old values back when it is done, and a reboot restores them in any case. The probe also keeps the values it
+; found at the first hello: if the app goes quiet for ft-quiet seconds while no start or measurement runs (a lost
+; link, a killed app), the probe sets them back itself, re-enables app output and stops answering, so test values
+; can't stay in use until the next reboot. The app pings every second while it holds the probe.
 ;
 ; Needs firmware 6.05 or later (get-rpm-faster, get-iq-set, phase-observer, phase-motor). Loop state
 ; lives in globals named ft-...: on firmware where loopwhile is a macro it binds res, break, loop and
@@ -22,6 +25,8 @@
 ;   5 stop                        (the running trial ends with outcome 3)
 ;   6 quit                        -> 135
 ;   7 measure resistance [current f32] -> 136 [ok u8, ohm f32]
+;   8 ping                        (no reply; resets the quiet timer)
+; 138 reports that the app went quiet and the probe set the saved values back and stopped.
 ; 134 [code u8] reports a command that can't run now (1: a trial or measurement is running).
 ;
 ; Sample: t ms u16, rpm i16, rpm-faster i16, iq*50 i16, id*50 i16, iq-set*50 i16, vd*100 i16,
@@ -32,8 +37,14 @@
 ; Trial outcomes: 0 reached the target, 1 timed out, 2 fault, 3 stopped, 4 never came to rest,
 ; 5 temperature limit, 6 voltage limit, 7 script error.
 
-(def ft-probe 1)
+(def ft-probe 2)
 (def ft-params '(foc-observer-gain foc-openloop-rpm foc-openloop-rpm-low foc-sl-openloop-time-lock foc-sl-openloop-time-ramp foc-sl-openloop-time foc-observer-type foc-motor-r foc-motor-flux-linkage))
+(def ft-nparams 9)
+(def ft-quiet 5.0)
+(def ft-saved nil)
+(def ft-orig (bufcreate 45))
+(def ft-seen (systime))
+(def ft-j 0)
 (def ft-alive t)
 (def ft-busy nil)
 (def ft-stop nil)
@@ -56,6 +67,28 @@
 (defun ft-u16 (x) (if (> x 65535) 65535 (if (< x 0) 0 x)))
 (defun ft-param (p) (ix ft-params p))
 
+; The values at the first hello, 5 bytes a parameter: ok u8, value f32. ok stays 0 where conf-get fails.
+(defun ft-save ()
+  (progn
+    (trap (select-motor ft-motor))
+    (def ft-i 0)
+    (loopwhile (< ft-i ft-nparams)
+      (progn
+        (bufset-u8 ft-orig (* ft-i 5) 0)
+        (if (eq (car (trap (bufset-f32 ft-orig (+ (* ft-i 5) 1) (conf-get (ft-param ft-i))))) 'exit-ok) (bufset-u8 ft-orig (* ft-i 5) 1) nil)
+        (def ft-i (+ ft-i 1))))
+    (def ft-saved t)))
+
+; Sets the saved values back; runs in the watchdog's thread, so it has its own counter.
+(defun ft-restore ()
+  (progn
+    (trap (select-motor ft-motor))
+    (def ft-j 0)
+    (loopwhile (< ft-j ft-nparams)
+      (progn
+        (if (= (bufget-u8 ft-orig (* ft-j 5)) 1) (trap (conf-set (ft-param ft-j) (bufget-f32 ft-orig (+ (* ft-j 5) 1)))) nil)
+        (def ft-j (+ ft-j 1))))))
+
 (defun ft-head (buf type)
   (progn
     (bufset-u8 buf 0 70)
@@ -75,6 +108,7 @@
   (progn
     (if (or (= m 1) (= m 2)) (def ft-motor m) nil)
     (trap (select-motor ft-motor))
+    (if ft-saved nil (ft-save))
     (let ((b (bufcreate 6)))
       (progn
         (ft-head b 129)
@@ -236,6 +270,7 @@
         (trap (ft-finish id))
         (trap (ft-released id)))
       nil)
+    (def ft-seen (systime))
     (def ft-busy nil)))
 
 (defun ft-start-trial (d)
@@ -259,6 +294,7 @@
         (if (eq (car (trap (bufset-f32 b 5 (conf-measure-res cur)))) 'exit-ok) (bufset-u8 b 4 1) nil)
         (send-data b)
         (free b)))
+    (def ft-seen (systime))
     (def ft-busy nil)))
 
 (defun ft-start-res (d)
@@ -280,18 +316,42 @@
         (free b)))))
 
 (defun ft-handle (d)
-  (if (and (> (buflen d) 3) (= (bufget-u8 d 0) 70) (= (bufget-u8 d 1) 84) (= (bufget-u8 d 2) ft-probe))
+  (if (and ft-alive (> (buflen d) 3) (= (bufget-u8 d 0) 70) (= (bufget-u8 d 1) 84) (= (bufget-u8 d 2) ft-probe))
     (let ((cmd (bufget-u8 d 3)))
-      (cond
-        ((= cmd 1) (ft-hello (bufget-u8 d 4)))
-        ((= cmd 2) (ft-set d))
-        ((= cmd 3) (ft-get d))
-        ((= cmd 4) (ft-start-trial d))
-        ((= cmd 5) (def ft-stop t))
-        ((= cmd 6) (ft-quit))
-        ((= cmd 7) (ft-start-res d))
-        (t nil)))
+      (progn
+        (def ft-seen (systime))
+        (cond
+          ((= cmd 1) (ft-hello (bufget-u8 d 4)))
+          ((= cmd 2) (ft-set d))
+          ((= cmd 3) (ft-get d))
+          ((= cmd 4) (ft-start-trial d))
+          ((= cmd 5) (def ft-stop t))
+          ((= cmd 6) (ft-quit))
+          ((= cmd 7) (ft-start-res d))
+          ((= cmd 8) nil)
+          (t nil))))
     nil))
+
+(defun ft-gave-up ()
+  (let ((b (bufcreate 4)))
+    (progn
+      (ft-head b 138)
+      (send-data b)
+      (free b))))
+
+; The dead man's switch: nothing from the app for ft-quiet seconds, nothing running, values saved.
+(defun ft-watch ()
+  (loopwhile ft-alive
+    (progn
+      (sleep 0.25)
+      (if (and ft-alive ft-saved (not ft-busy) (> (secs-since ft-seen) ft-quiet))
+        (progn
+          (def ft-alive nil)
+          (def ft-stop t)
+          (trap (ft-restore))
+          (app-disable-output 0)
+          (trap (ft-gave-up)))
+        nil))))
 
 (defun ft-events ()
   (loopwhile ft-alive
@@ -301,3 +361,4 @@
 
 (event-register-handler (spawn 512 ft-events))
 (event-enable 'event-data-rx)
+(spawn 256 ft-watch)

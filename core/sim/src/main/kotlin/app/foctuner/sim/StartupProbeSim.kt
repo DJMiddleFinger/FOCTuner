@@ -36,6 +36,12 @@ internal class StartupProbeSim(private val vesc: SimulatedVesc, private val moto
     private var sent = 0
     private var running: Running? = null
 
+    /** What conf-get read at the first hello, for the dead man's switch; null until then. */
+    private var saved: Map<ProbeParam, Double?>? = null
+
+    /** When the last command arrived (uptime). */
+    private var seen = Duration.ZERO
+
     /** The real motor behind each motor model (R in Ω, λ in Wb), fixed from its config when the probe first sees it. */
     private val truth = HashMap<MotorModel, Pair<Double, Double>>()
 
@@ -59,12 +65,17 @@ internal class StartupProbeSim(private val vesc: SimulatedVesc, private val moto
             token++
             motorIndex = 1
             truth.clear()
+            saved = null
         }
         if (!alive) return
-        when (ProbeCodec.commandOf(data)) {
+        val command = ProbeCodec.commandOf(data) ?: return
+        seen = vesc.uptime
+        watch()
+        when (command) {
             ProbeCodec.HELLO -> {
                 val wanted = data.getOrElse(4) { 1 }.toInt()
                 if (wanted == 1 || (wanted == 2 && motors.size > 1)) motorIndex = wanted
+                if (saved == null) saved = ProbeParam.entries.associateWith { get(it) }
                 send(ProbeCodec.helloReply(motorIndex))
             }
             ProbeCodec.SET -> {
@@ -82,6 +93,18 @@ internal class StartupProbeSim(private val vesc: SimulatedVesc, private val moto
             }
             ProbeCodec.MEASURE_RESISTANCE -> measure()
             else -> Unit
+        }
+    }
+
+    /** The script's ft-watch: checks once the quiet time after the latest command or release has passed. */
+    private fun watch() {
+        val myGeneration = generation
+        vesc.later(QUIET + WATCH_TICK) {
+            val values = saved
+            if (generation != myGeneration || !alive || busy || values == null || vesc.uptime - seen < QUIET) return@later
+            alive = false
+            for ((param, value) in values) if (value != null) set(param, value)
+            send(ProbeCodec.gaveUp())
         }
     }
 
@@ -203,6 +226,8 @@ internal class StartupProbeSim(private val vesc: SimulatedVesc, private val moto
         vesc.lispCommand(r.motor, Drive.Released)
         running = null
         busy = false
+        seen = vesc.uptime
+        watch()
         send(ProbeCodec.released(r.spec.id))
     }
 
@@ -214,6 +239,8 @@ internal class StartupProbeSim(private val vesc: SimulatedVesc, private val moto
         vesc.later(MEASURE_TIME) {
             if (generation != myGeneration) return@later
             busy = false
+            seen = vesc.uptime
+            watch()
             send(ProbeCodec.resistanceReply(measured))
         }
     }
@@ -232,5 +259,7 @@ internal class StartupProbeSim(private val vesc: SimulatedVesc, private val moto
     private companion object {
         val COMMAND_INTERVAL = 10.milliseconds
         val MEASURE_TIME = 400.milliseconds
+        val QUIET = ProbeCodec.QUIET_SECONDS.seconds
+        val WATCH_TICK = 250.milliseconds
     }
 }
