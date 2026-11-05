@@ -223,7 +223,7 @@ fun BridgeTool(context: ToolContext) {
         )
         OutlinedTextField(
             hubId, { hubId = it.filterNot { c -> c == ':' || c == '\n' } }, field,
-            enabled = off, singleLine = true, isError = hubId.trim().length < 3,
+            enabled = off, singleLine = true, isError = hubId.isNotEmpty() && hubId.trim().length < 3,
             label = { Text(stringResource(R.string.bridge_hub_id)) },
             supportingText = { Text(stringResource(R.string.bridge_hub_id_hint)) },
         )

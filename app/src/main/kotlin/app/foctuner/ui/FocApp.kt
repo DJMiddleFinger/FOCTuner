@@ -1,5 +1,7 @@
 package app.foctuner.ui
 
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import android.bluetooth.BluetoothAdapter
 import android.content.Intent
 import androidx.activity.compose.BackHandler
@@ -129,8 +131,11 @@ private fun ConnectRoute(connect: ConnectViewModel, session: SessionViewModel) {
             }
         },
         onConnectDemo = {
-            val simulator = SimulatedVesc()
-            session.connect(DEMO_KEY, demoName, demoLabel, demo = true) { simulator.reattach() }
+            // Building the simulator generates its stored ride logs: seconds of work, so not on the main thread.
+            var simulator: SimulatedVesc? = null
+            session.connect(DEMO_KEY, demoName, demoLabel, demo = true) {
+                (simulator ?: withContext(Dispatchers.Default) { SimulatedVesc() }.also { simulator = it }).reattach()
+            }
         },
         onConnectAddress = { address ->
             connect.deviceForAddress(address)?.let { device ->

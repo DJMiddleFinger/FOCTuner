@@ -39,7 +39,7 @@ import kotlin.math.roundToInt
 @Composable
 internal fun TilesRide(d: RideData, c: RidePalette, onCycleMode: () -> Unit, onHome: () -> Unit) {
     val intro = rememberIntroProgress()
-    val measurer = rememberTextMeasurer()
+    val measurer = rememberTextMeasurer(cacheSize = MEASURE_CACHE)
     val icons = rememberRideIcons()
     val pulse = rememberWarningPulse()
     val torqueFrac by animateFloatAsState(d.torque, tween(120), label = "torque")

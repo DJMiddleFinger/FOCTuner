@@ -87,7 +87,7 @@ internal fun RideLayoutView(
     val vehicle by vm.vehicle.collectAsStateWithLifecycle()
     val accel by vm.accel.collectAsStateWithLifecycle()
     val theme = remember(c) { c.widgetTheme() }
-    val measurer = rememberTextMeasurer()
+    val measurer = rememberTextMeasurer(cacheSize = MEASURE_CACHE)
     val icons = rememberRideIcons()
     val pulse = rememberWarningPulse()
     val fadeIn = introPhase(intro, 0f, 0.4f)
