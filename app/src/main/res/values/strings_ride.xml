@@ -31,6 +31,9 @@
     <string name="ride_regenerated">Regenerated</string>
     <string name="rideview_section">Ride view</string>
     <string name="rideview_open">Open ride view</string>
+    <string name="rideview_style">Style</string>
+    <string name="rideview_appearance">Appearance</string>
+    <string name="rideview_theme">Theme</string>
     <string name="rideview_launch">Launch animation on hard acceleration</string>
     <string name="rideview_stabilize">Steady battery % (adds back voltage sag)</string>
     <string name="rideview_dual">Dual controller over CAN</string>

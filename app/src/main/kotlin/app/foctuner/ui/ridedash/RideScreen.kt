@@ -132,12 +132,7 @@ fun RideScreen(vm: RideHub, onHome: () -> Unit) {
                 },
         ) {
             Crossfade(targetState = rideStyle to palette, animationSpec = tween(450), label = "rideStyle") { (style, c) ->
-                when (style) {
-                    RideStyle.CLASSIC -> ClassicRide(data, c, cycleMode, onHome)
-                    RideStyle.MINIMAL -> MinimalRide(data, c, cycleMode, onHome)
-                    RideStyle.TILES -> TilesRide(data, c, cycleMode, onHome)
-                    RideStyle.CUSTOM -> CustomRide(vm, data, c, cycleMode, onHome)
-                }
+                RideStyleView(style, vm, data, c, cycleMode, onHome)
             }
         }
         if (launching && launchEnabled) {
@@ -161,5 +156,16 @@ fun RideScreen(vm: RideHub, onHome: () -> Unit) {
                     },
             )
         }
+    }
+}
+
+/** One ride style filling its box; the ride screen and the preview in the ride view's settings both draw through it. */
+@Composable
+internal fun RideStyleView(style: RideStyle, vm: RideHub, d: RideData, c: RidePalette, onCycleMode: () -> Unit, onHome: () -> Unit) {
+    when (style) {
+        RideStyle.CLASSIC -> ClassicRide(d, c, onCycleMode, onHome)
+        RideStyle.MINIMAL -> MinimalRide(d, c, onCycleMode, onHome)
+        RideStyle.TILES -> TilesRide(d, c, onCycleMode, onHome)
+        RideStyle.CUSTOM -> CustomRide(vm, d, c, onCycleMode, onHome)
     }
 }
