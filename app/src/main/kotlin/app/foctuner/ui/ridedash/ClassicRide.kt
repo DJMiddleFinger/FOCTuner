@@ -42,7 +42,7 @@ internal fun ClassicRide(d: RideData, c: RidePalette, onCycleMode: () -> Unit, o
     val batColor = batteryColor(d.battery, c)
     val measurer = rememberTextMeasurer(cacheSize = MEASURE_CACHE)
     val icons = rememberRideIcons()
-    val pulse = rememberWarningPulse()
+    val pulse = rememberWarningPulse(d.warnings)
     val pillBorder = pillBorderColor(d.modeStatus, c)
     val boltColor = d.modeColor ?: c.textSoft
 
