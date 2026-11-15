@@ -35,7 +35,7 @@ internal fun MinimalRide(d: RideData, c: RidePalette, onCycleMode: () -> Unit, o
     val torqueFrac by animateFloatAsState(d.torque, tween(120), label = "torque")
     val measurer = rememberTextMeasurer(cacheSize = MEASURE_CACHE)
     val icons = rememberRideIcons()
-    val pulse = rememberWarningPulse()
+    val pulse = rememberWarningPulse(d.warnings)
     val batColor = batteryColor(d.battery, c)
 
     // Entry: top row drops in, speed scales up, bars sweep to full and settle.

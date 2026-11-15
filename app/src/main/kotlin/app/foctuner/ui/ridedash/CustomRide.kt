@@ -89,9 +89,10 @@ internal fun RideLayoutView(
     val theme = remember(c) { c.widgetTheme() }
     val measurer = rememberTextMeasurer(cacheSize = MEASURE_CACHE)
     val icons = rememberRideIcons()
-    val pulse = rememberWarningPulse()
     val fadeIn = introPhase(intro, 0f, 0.4f)
     val sampleWarnings = samples && d.warnings.isEmpty()
+    val warnings = if (sampleWarnings) SampleWarnings else d.warnings
+    val pulse = rememberWarningPulse(warnings)
 
     BoxWithConstraints(modifier.background(c.bg)) {
         val w = constraints.maxWidth.toFloat()
@@ -130,7 +131,7 @@ internal fun RideLayoutView(
         }
         Canvas(Modifier.fillMaxSize().graphicsLayer { alpha = if (sampleWarnings) 0.5f * fadeIn else fadeIn }) {
             val area = layout.warnings.toRect(w, h)
-            val size = drawWarnings(measurer, icons, c, if (sampleWarnings) SampleWarnings else d.warnings, area, pulse)
+            val size = drawWarnings(measurer, icons, c, warnings, area, pulse)
             if (sampleWarnings) {
                 val label = Offset(area.right - 0.15f * size, area.bottom - 0.2f * size)
                 drawCentered(measurer, AnnotatedString("WARNINGS"), wide(0.22f * size, c.label, 0.08f), label, alignX = 1f)
@@ -151,7 +152,7 @@ private fun DrawScope.drawWarnings(
     c: RidePalette,
     warnings: List<RideWarning>,
     area: Rect,
-    pulse: Float,
+    pulse: () -> Float,
 ): Float {
     val horizontal = area.width > area.height
     val size = if (horizontal) min(area.height, area.width / 7.5f) else min(area.width / 3.2f, area.height / 4f)

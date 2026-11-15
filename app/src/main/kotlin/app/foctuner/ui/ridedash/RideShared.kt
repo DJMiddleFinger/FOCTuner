@@ -291,18 +291,33 @@ internal fun rememberRideIcons() = RideIcons(
     chip = rememberVectorPainter(Icons.Filled.Memory),
 )
 
-/** 0.35 ↔ 1 blink used by warnings that have hit their red point. */
+/** A heat warning at or past its red point, which blinks. */
+internal val RideWarning.blinks: Boolean
+    get() = when (this) {
+        is RideWarning.ControllerHot -> tempC >= CONTROLLER_RED_C
+        is RideWarning.MotorHot -> tempC >= MOTOR_RED_C
+        else -> false
+    }
+
+/**
+ * 0.35 ↔ 1 blink used by warnings that have hit their red point, as a reader for draw code: reading it
+ * while drawing redraws the canvas each frame without recomposing the ride screen. The animation only
+ * runs while one of [warnings] [blinks]; otherwise the reader is a steady 1.
+ */
 @Composable
-internal fun rememberWarningPulse(): Float {
+internal fun rememberWarningPulse(warnings: List<RideWarning>): () -> Float {
+    if (warnings.none { it.blinks }) return SteadyPulse
     val transition = rememberInfiniteTransition(label = "warningPulse")
-    val pulse by transition.animateFloat(
+    val pulse = transition.animateFloat(
         initialValue = 1f,
         targetValue = 0.35f,
         animationSpec = infiniteRepeatable(tween(450), RepeatMode.Reverse),
         label = "pulse",
     )
-    return pulse
+    return remember(pulse) { { pulse.value } }
 }
+
+private val SteadyPulse: () -> Float = { 1f }
 
 internal fun pillBorderColor(status: ModeApplyStatus, c: RidePalette): Color = when (status) {
     is ModeApplyStatus.Failed -> c.red
@@ -502,8 +517,8 @@ internal fun DrawScope.drawIcon(p: VectorPainter, center: Offset, size: Float, c
 /**
  * Stack of warning icons starting at ([x], [y]), each [size] px — downward, or left-to-right
  * when [horizontal]. Heat warnings show the part (chip = controller, motor outline = motor)
- * with a thermometer badge and the temperature, coloured yellow → red; at their red point
- * they blink with [pulse].
+ * with a thermometer badge and the temperature, coloured yellow → red; those that [blinks]
+ * fade with [pulse], which is only read for them.
  */
 internal fun DrawScope.drawWarningStack(
     m: TextMeasurer,
@@ -513,7 +528,7 @@ internal fun DrawScope.drawWarningStack(
     x: Float,
     y: Float,
     size: Float,
-    pulse: Float,
+    pulse: () -> Float,
     horizontal: Boolean = false,
 ) {
     val stroke = size * 0.06f
@@ -527,10 +542,10 @@ internal fun DrawScope.drawWarningStack(
                 drawIcon(icons.btOff, center, size * 0.58f, c.amber)
             }
             is RideWarning.LowBattery -> drawIcon(icons.batteryAlert, center, size, if (w.critical) c.red else c.amber)
-            is RideWarning.ControllerHot -> drawHeatWarning(m, icons, c, center, size, w.tempC, w.startC, CONTROLLER_RED_C, "CTRL", pulse) { color ->
+            is RideWarning.ControllerHot -> drawHeatWarning(m, icons, c, center, size, w.tempC, w.startC, CONTROLLER_RED_C, "CTRL", if (w.blinks) pulse() else 1f) { color ->
                 drawIcon(icons.chip, center, size * 0.9f, color)
             }
-            is RideWarning.MotorHot -> drawHeatWarning(m, icons, c, center, size, w.tempC, w.startC, MOTOR_RED_C, "MOTOR", pulse) { color ->
+            is RideWarning.MotorHot -> drawHeatWarning(m, icons, c, center, size, w.tempC, w.startC, MOTOR_RED_C, "MOTOR", if (w.blinks) pulse() else 1f) { color ->
                 drawMotorGlyph(center, size * 0.9f, color)
             }
             is RideWarning.Fault -> {
@@ -564,10 +579,9 @@ private fun DrawScope.drawHeatWarning(
     startC: Double,
     redAtC: Double,
     label: String,
-    pulse: Float,
+    alpha: Float,
     glyph: DrawScope.(Color) -> Unit,
 ) {
-    val alpha = if (tempC >= redAtC) pulse else 1f
     val color = heatColor(tempC, startC, redAtC, c).copy(alpha = alpha)
     glyph(color)
     // Thermometer badge in the lower-right corner

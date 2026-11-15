@@ -41,7 +41,7 @@ internal fun TilesRide(d: RideData, c: RidePalette, onCycleMode: () -> Unit, onH
     val intro = rememberIntroProgress()
     val measurer = rememberTextMeasurer(cacheSize = MEASURE_CACHE)
     val icons = rememberRideIcons()
-    val pulse = rememberWarningPulse()
+    val pulse = rememberWarningPulse(d.warnings)
     val torqueFrac by animateFloatAsState(d.torque, tween(120), label = "torque")
     val barFrac = introSweep(intro, torqueFrac)
     val stripIn = introPhase(intro, 0f, 0.45f)
